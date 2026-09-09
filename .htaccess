@@ -1,0 +1,101 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  DJM Portaal — Apache-configuratie voor de projectroot
+#
+#  Dit bestand is een vangnet. Het werkt onder Apache 2.4 en 2.2, maar alleen
+#  als de virtualhost `AllowOverride All` (of minimaal `AllowOverride Limit
+#  Options FileInfo`) toestaat. Onder nginx doet dit bestand niets: gebruik daar
+#  docs/nginx.voorbeeld.conf.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ─── Geen directory listings ───────────────────────────────────────────────
+Options -Indexes
+
+# ─── Standaardpagina ───────────────────────────────────────────────────────
+DirectoryIndex index.php index.html
+
+# ─── Gevoelige bestanden blokkeren ─────────────────────────────────────────
+# .env bevat databasewachtwoord, APP_KEY en OTP_PEPPER.
+# *.sql is het schema, *.md is documentatie: beide horen niet publiek te zijn.
+<FilesMatch "^\.env|^\.env\..*|\.(sql|md|log|ini|sh|bak|dist|example|toegestaan)$">
+    <IfModule mod_authz_core.c>
+        # Apache 2.4
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        # Apache 2.2
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# ─── Alle verborgen bestanden (.git, .env, .htpasswd, …) ───────────────────
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# ─── Mappen die nooit rechtstreeks benaderd mogen worden ───────────────────
+# includes/  bevat PHP dat alleen via require geladen hoort te worden
+# logs/      bevat IP-adressen en foutmeldingen
+# docs/      bevat installatie- en serverdocumentatie
+# opslag/    bevat de videobestanden; die lopen uitsluitend via download.php
+# sql/       migraties
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(includes|logs|docs|opslag|sql)(/|$) - [F,L]
+</IfModule>
+
+# Vangnet als mod_rewrite ontbreekt: elke map heeft daarnaast een eigen
+# .htaccess (zie opslag/.htaccess). Blokkeer hier in elk geval de losse
+# bestandstypen die in die mappen staan.
+<IfModule !mod_rewrite.c>
+    <FilesMatch "\.(mp4|mkv|mov|m4v|avi|webm)$">
+        <IfModule mod_authz_core.c>
+            Require all denied
+        </IfModule>
+        <IfModule !mod_authz_core.c>
+            Order allow,deny
+            Deny from all
+        </IfModule>
+    </FilesMatch>
+</IfModule>
+
+# ─── Securityheaders (vangnet naast stuur_security_headers() in PHP) ───────
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    # HSTS alleen inschakelen als de site volledig via HTTPS draait:
+    # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+</IfModule>
+
+# ─── HTTPS afdwingen ───────────────────────────────────────────────────────
+# Haal het commentaar weg zodra er een geldig certificaat is. Staat de site
+# achter een reverse proxy of load balancer, gebruik dan de tweede variant.
+#
+# <IfModule mod_rewrite.c>
+#     RewriteEngine On
+#     RewriteCond %{HTTPS} !=on
+#     RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# </IfModule>
+#
+# Achter een proxy (Cloudflare, nginx, load balancer):
+# <IfModule mod_rewrite.c>
+#     RewriteEngine On
+#     RewriteCond %{HTTP:X-Forwarded-Proto} !https
+#     RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# </IfModule>
+
+# ─── Downloads ─────────────────────────────────────────────────────────────
+# Grote videobestanden lopen via download.php. Als DELIVERY_MODE=php wordt
+# gebruikt, mag PHP niet halverwege afgebroken worden.
+<IfModule mod_php.c>
+    php_value max_execution_time 0
+    php_value output_buffering 0
+    php_flag zlib.output_compression Off
+</IfModule>

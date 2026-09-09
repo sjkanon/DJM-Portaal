@@ -1,0 +1,47 @@
+services:
+  db:
+    image: mariadb:11
+    environment:
+      MARIADB_ROOT_PASSWORD: djmtest
+      MARIADB_DATABASE: djm_portaal
+      MARIADB_USER: djm_portaal
+      MARIADB_PASSWORD: djmtest
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
+  mail:
+    image: axllent/mailpit:latest
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    ports:
+      - "8125:8025"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      mail:
+        condition: service_started
+    volumes:
+      - ..:/app
+    working_dir: /app
+    environment:
+      DB_HOST: db
+      DB_NAME: djm_portaal
+      DB_USER: djm_portaal
+      DB_PASS: djmtest
+      APP_URL: http://localhost:8123
+      APP_KEY: testsleutel_0123456789abcdef
+      OTP_PEPPER: testpepper_0123456789abcdef
+      DEBUG: "true"
+      DELIVERY_MODE: php
+    ports:
+      - "8123:8080"
+    command: php -S 0.0.0.0:8080 -t /app
