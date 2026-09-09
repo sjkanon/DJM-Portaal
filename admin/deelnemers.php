@@ -70,7 +70,7 @@ function deelnemers_terug_link(int $deelnemerId = 0): string
     return url('admin/deelnemers.php') . ($params ? '?' . http_build_query($params) : '');
 }
 
-function deelnemer_ophalen(int $id): ?array
+function deelnemers_ophalen(int $id): ?array
 {
     $stmt = db()->prepare('SELECT * FROM deelnemers WHERE id = :id');
     $stmt->execute([':id' => $id]);
@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     vereis_csrf();
     $actie       = (string)($_POST['actie'] ?? '');
     $deelnemerId = (int)($_POST['deelnemer_id'] ?? 0);
-    $deelnemer   = $deelnemerId > 0 ? deelnemer_ophalen($deelnemerId) : null;
+    $deelnemer   = $deelnemerId > 0 ? deelnemers_ophalen($deelnemerId) : null;
 
     if ($deelnemer === null) {
         flash('danger', 'Deelnemer niet gevonden.');
@@ -189,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ═══════════════════════════════════════════════════════════════════════════
 
 if ($detailId > 0) {
-    $deelnemer = deelnemer_ophalen($detailId);
+    $deelnemer = deelnemers_ophalen($detailId);
 
     if ($deelnemer === null) {
         admin_start('Deelnemer');

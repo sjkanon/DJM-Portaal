@@ -35,6 +35,21 @@ function mime_uit_extensie(string $extensie): string
     ][strtolower($extensie)] ?? 'application/octet-stream';
 }
 
+/**
+ * Naam die de bezoeker in zijn downloadmap ziet. Ruimer dan de naam op schijf:
+ * spaties en accenten mogen hier wél. Padscheidingstekens, aanhalingstekens,
+ * puntkomma's en regeleindes gaan eruit — die kunnen de Content-Disposition-
+ * header breken.
+ */
+function download_veilige_naam(string $naam): string
+{
+    $naam = str_replace(['\\', '/'], ' ', $naam);
+    $naam = preg_replace('/[\x00-\x1F\x7F";]+/u', '', $naam) ?? '';
+    $naam = preg_replace('/\s+/u', ' ', $naam) ?? '';
+    $naam = trim($naam, " ._-");
+    return $naam === '' ? 'bestand' : mb_substr($naam, 0, 200);
+}
+
 /** Maakt een bestandsnaam veilig: alleen letters, cijfers, punt, streepje, underscore. */
 function bestand_veilige_naam(string $naam): string
 {
@@ -176,7 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($titel === '') {
                 $titel = 'Videoregistratie ' . (int)$jaargangPerId[$jaargangId]['jaar'];
             }
-            $naam = $naam !== '' ? bestand_veilige_naam($naam) : bestand_veilige_naam(basename($gekozen));
+            $naam = $naam !== '' ? download_veilige_naam($naam) : download_veilige_naam(basename($gekozen));
 
             try {
                 db()->prepare(
@@ -262,7 +277,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $titel = 'Videoregistratie ' . $jaar;
                     }
                     $downloadNaam = trim((string)($_POST['bestandsnaam'] ?? ''));
-                    $downloadNaam = $downloadNaam !== '' ? bestand_veilige_naam($downloadNaam) : $veiligeNaam;
+                    $downloadNaam = $downloadNaam !== '' ? download_veilige_naam($downloadNaam) : $veiligeNaam;
 
                     try {
                         db()->prepare(
@@ -296,7 +311,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($actie === 'bijwerken') {
         $id    = (int)($_POST['id'] ?? 0);
         $titel = trim((string)($_POST['titel'] ?? ''));
-        $naam  = bestand_veilige_naam((string)($_POST['bestandsnaam'] ?? ''));
+        $naam  = download_veilige_naam((string)($_POST['bestandsnaam'] ?? ''));
 
         if ($titel === '') {
             flash('danger', 'Vul een titel in.');
