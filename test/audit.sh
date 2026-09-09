@@ -24,6 +24,10 @@ done
 [ "$PROBLEMEN" -eq "$VOOR" ] && echo "  ✓ LIMIT/OFFSET overal via gecaste gehele getallen"
 
 echo ""
+echo "── Named parameters: hooguit één keer per query ────────────"
+python3 test/audit_params.py || PROBLEMEN=$((PROBLEMEN+1))
+
+echo ""
 echo "── CSRF: elk bestand met een POST-formulier ────────────────"
 VOOR=$PROBLEMEN
 for f in $BESTANDEN; do

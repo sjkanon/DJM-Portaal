@@ -25,7 +25,7 @@ haal()   { curl -s -b "$KOEKJES" -c "$KOEKJES" "$@"; }
 status() { curl -s -o /dev/null -w '%{http_code}' -b "$KOEKJES" -c "$KOEKJES" "$@"; }
 csrf()   { printf '%s' "$1" | grep -o 'name="csrf_token" value="[^"]*"' | head -1 | cut -d'"' -f4; }
 
-PAGINAS="index.php jaargangen.php bestanden.php toegang.php deelnemers.php logboek.php instellingen.php"
+PAGINAS="index.php jaargangen.php bestanden.php bestandscontrole.php toegang.php deelnemers.php logboek.php instellingen.php"
 
 echo "── Testbeheerder klaarzetten ───────────────────────────────"
 docker compose exec -T web php -r '
@@ -77,8 +77,16 @@ DEELNEMER_ID=$(docker compose exec -T web php -r '
 $_SERVER["SCRIPT_NAME"]="/index.php"; require "/app/config.php";
 echo (int)db()->query("SELECT id FROM deelnemers ORDER BY id LIMIT 1")->fetchColumn();' 2>/dev/null | tr -d '\r')
 
+# Ook mét zoekterm en filters: een zoekveld dat dezelfde named parameter twee
+# keer gebruikt werkt alleen zonder emulated prepares, en faalt dus pas hier.
 for url in "jaargangen.php?id=$JAARGANG_ID" "bestanden.php?jaargang=$JAARGANG_ID" \
            "toegang.php?jaargang=$JAARGANG_ID" "deelnemers.php?id=$DEELNEMER_ID" \
+           "bestandscontrole.php" \
+           "toegang.php?jaargang=$JAARGANG_ID&q=ouder" \
+           "toegang.php?jaargang=$JAARGANG_ID&q=ouder&status=opgehaald" \
+           "toegang.php?jaargang=$JAARGANG_ID&status=nooit_ingelogd" \
+           "deelnemers.php?q=example" "deelnemers.php?q=example&filter=geblokkeerd" \
+           "logboek.php?tab=mails&q=example" "logboek.php?tab=logins&q=beheer" \
            "logboek.php?tab=mails" "logboek.php?tab=downloads" "logboek.php?tab=logins"; do
     HTML=$(haal "$BASIS/admin/$url")
     toets "admin/$url geeft 200" "200" "$(status "$BASIS/admin/$url")"
@@ -88,7 +96,10 @@ done
 echo ""
 echo "── Onzinnige parameters ────────────────────────────────────"
 for url in "jaargangen.php?id=999999" "bestanden.php?jaargang=abc" "deelnemers.php?id=-1" \
-           "toegang.php?jaargang=999999" "logboek.php?tab=bestaatniet&pagina=-5"; do
+           "toegang.php?jaargang=999999" "logboek.php?tab=bestaatniet&pagina=-5" \
+           "toegang.php?jaargang=$JAARGANG_ID&status=%27+OR+1%3D1--&pagina=-5" \
+           "toegang.php?jaargang=$JAARGANG_ID&q=%3Cscript%3Ealert(1)%3C%2Fscript%3E" \
+           "bestandscontrole.php?onzin=1"; do
     HTML=$(haal "$BASIS/admin/$url")
     schoon "admin/$url" "$HTML"
 done

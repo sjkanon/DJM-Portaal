@@ -478,8 +478,9 @@ $waar   = ['1 = 1'];
 $params = [];
 
 if ($zoek !== '') {
-    $waar[] = '(d.email LIKE :zoek OR d.naam LIKE :zoek)';
-    $params[':zoek'] = '%' . $zoek . '%';
+    $waar[] = '(d.email LIKE :zoek_email OR d.naam LIKE :zoek_naam)';
+    $params[':zoek_email'] = '%' . $zoek . '%';
+    $params[':zoek_naam']  = '%' . $zoek . '%';
 }
 if ($filter === 'geblokkeerd') {
     $waar[] = 'd.geblokkeerd = 1';

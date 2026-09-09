@@ -74,6 +74,17 @@ DirectoryIndex index.php index.html
     # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
 </IfModule>
 
+# ─── SVG-bestanden onschadelijk maken ──────────────────────────────────────
+# Een geüpload logo in SVG-formaat kan JavaScript bevatten. Bij gebruik in een
+# <img>-tag voert geen enkele browser dat uit, maar bij het rechtstreeks openen
+# van de URL wel — en dan draait het binnen onze eigen origin. Deze policy
+# neemt dat weg, ook als de opschoning bij de upload iets zou missen.
+<FilesMatch "\.svg$">
+    <IfModule mod_headers.c>
+        Header always set Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+    </IfModule>
+</FilesMatch>
+
 # ─── HTTPS afdwingen ───────────────────────────────────────────────────────
 # Haal het commentaar weg zodra er een geldig certificaat is. Staat de site
 # achter een reverse proxy of load balancer, gebruik dan de tweede variant.
