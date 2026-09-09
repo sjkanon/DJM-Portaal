@@ -1,0 +1,7 @@
+logs/*
+!logs/.gitkeep
+opslag/*
+!opslag/.gitkeep
+.env
+config.local.php
+.DS_Store
