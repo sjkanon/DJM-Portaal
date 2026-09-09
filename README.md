@@ -104,6 +104,26 @@ Vereiste PHP-extensies: `pdo_mysql`, `curl`, `mbstring`, `openssl`, `json`.
 
 ---
 
+## Testen
+
+Er is een testomgeving op basis van Docker (MariaDB, Mailpit en PHP), zodat de
+hele keten zonder installatie te draaien is:
+
+```bash
+bash test/alles.sh
+```
+
+Dat draait achtereenvolgens de syntaxcontrole, een statische controle op
+SQL-interpolatie, CSRF, uitvoer-escaping en autorisatie, de kernlogica, de
+inlogcodes (eenmalig gebruik, pogingenlimiet, throttling, timinggedrag), de
+publieke inlogflow met een echte mailserver, elke beheerpagina, en tot slot de
+volledige jaarlijkse workflow: jaargang aanmaken, video koppelen,
+e-mailadressen importeren, uitnodigen, inloggen en downloaden.
+
+De testomgeving is bereikbaar op <http://localhost:8123> (portaal) en
+<http://localhost:8125> (Mailpit, om de verstuurde e-mails te bekijken).
+Afsluiten met `docker compose -f test/docker-compose.yml down`.
+
 ## Beveiliging
 
 - **Inlogcodes** zijn zes cijfers, tien minuten geldig, eenmalig bruikbaar en na vijf foute

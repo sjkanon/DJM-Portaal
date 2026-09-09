@@ -25,6 +25,7 @@ echo "── Opruimen en klaarzetten ──────────────�
 php_in_container "
 db()->exec(\"DELETE FROM jaargangen WHERE jaar = $JAAR\");
 db()->exec(\"DELETE FROM deelnemers WHERE email = '$NIEUW_ADRES'\");
+db()->exec(\"DELETE FROM download_log WHERE email = '$NIEUW_ADRES'\");
 db()->prepare('INSERT INTO beheerders (naam,email,wachtwoord_hash,rol) VALUES (:n,:e,:w,\"eigenaar\")
    ON DUPLICATE KEY UPDATE wachtwoord_hash=VALUES(wachtwoord_hash), actief=1')
   ->execute([':n'=>'Testbeheerder',':e'=>'beheer@example.nl',

@@ -215,6 +215,12 @@ function setup_voet(): void
     <?php
 }
 
+/**
+ * Eén regel in de controlelijst.
+ *
+ * $uitleg mag bewust HTML bevatten (<code>, <br>); alle dynamische delen worden
+ * bij de aanroep al door h() gehaald. $tekst wordt hier wel geëscaped.
+ */
 function setup_punt(bool $ok, string $tekst, string $uitleg = ''): void
 {
     ?>

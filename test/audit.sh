@@ -41,7 +41,8 @@ for f in $BESTANDEN; do
     TREFFERS=$(grep -nE '<\?=\s*\$[a-zA-Z_]' "$f" \
         | grep -vE 'h\(|\(int\)|number_format|formatteer_|urlencode|json_encode|date\(|implode|count\(' \
         | grep -vE '\?[^:]*:' \
-        | grep -vE '\$[a-zA-Z_]*([Ii]d|[Aa]antal|[Nn]ummer|[Pp]agina|[Jj]aar|[Bb]ytes|[Tt]eller|i|n)\b\s*\?>')
+        | grep -vE '\$[a-zA-Z_]*([Ii]d|[Nn]ummer|[Pp]agina|[Jj]aar|[Bb]ytes|[Tt]eller|i|n)\b\s*\?>' \
+        | grep -vFf <(grep "^${f#./}:" test/audit-uitzonderingen.txt | cut -d: -f2- | cut -d'#' -f1 | sed 's/[[:space:]]*$//' ) 2>/dev/null || true)
     [ -n "$TREFFERS" ] && { melden "$f"; printf '%s\n' "$TREFFERS" | head -3 | sed 's/^/      /'; }
 done
 [ "$PROBLEMEN" -eq "$VOOR" ] && echo "  ✓ geen onbeschermde uitvoer gevonden"

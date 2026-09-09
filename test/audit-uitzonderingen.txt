@@ -1,0 +1,5 @@
+# Bewust ongeëscapete uitvoer. Formaat: bestand:variabele  # reden
+# Elke regel hier is met de hand nagelopen; voeg niets toe zonder toelichting.
+admin/instellingen.php:$heeftGraphSecret   # ternary over twee vaste teksten, geen invoer
+admin/jaargangen.php:$aantalDeelnemers     # jaargang_aantal_deelnemers() geeft een int terug
+setup.php:$uitleg                          # bewust HTML; dynamische delen gaan bij de aanroep door h()
