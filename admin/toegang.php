@@ -7,6 +7,10 @@
  * bekijken (geldig / ongeldig / al toegang / nieuw) en pas na bevestiging
  * wegschrijven. Daarnaast de huidige toegangslijst met zoeken, paginering,
  * intrekken, uitnodiging (opnieuw) versturen en een CSV-export.
+ *
+ * Daarnaast de ophaalstatus: heeft deze ouder de video van deze jaargang al
+ * gedownload? Met een samenvatting, een filter en een herinneringsmail naar
+ * een hele groep (met bevestigingsstap).
  */
 
 require_once dirname(__DIR__) . '/config.php';
@@ -19,6 +23,7 @@ $beheerder = vereis_beheerder();
 
 const TOEGANG_PER_PAGINA   = 50;
 const TOEGANG_MAIL_BLOKKEN = 25;   // aantal uitnodigingen per blok
+const TOEGANG_HERINNERING_UREN = 24;   // binnen deze termijn niet nogmaals mailen
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Parser
@@ -342,6 +347,207 @@ function toegang_voorbeeld_tellen(array $items): array
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  Ophaalstatus — heeft deze deelnemer de video van deze jaargang gedownload?
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * SQL-fragment dat per deelnemer de eerste download van déze jaargang bijzet
+ * als kolom `o.eerste_download`. Bedoeld achter
+ * "FROM toegang t JOIN deelnemers d ON d.id = t.deelnemer_id".
+ *
+ * De jaargang komt binnen via een eigen parameternaam: PDO draait zonder
+ * emulatie, en dan mag dezelfde named parameter niet twee keer in één query
+ * voorkomen. $param is altijd een vaste waarde uit deze code, nooit invoer.
+ */
+function toegang_ophaal_join(string $param): string
+{
+    return '
+         LEFT JOIN (
+             SELECT dl.deelnemer_id, MIN(dl.gestart_op) AS eerste_download
+             FROM download_log dl
+             WHERE dl.deelnemer_id IS NOT NULL
+               AND dl.bestand_id IN (
+                   SELECT b.id FROM jaargang_bestanden b WHERE b.jaargang_id = ' . $param . '
+               )
+             GROUP BY dl.deelnemer_id
+         ) o ON o.deelnemer_id = d.id';
+}
+
+/** De toegestane waarden van het statusfilter. */
+function toegang_status_filters(): array
+{
+    return [
+        'alles'          => 'Alle statussen',
+        'opgehaald'      => 'Opgehaald',
+        'niet_opgehaald' => 'Niet opgehaald',
+        'nooit_ingelogd' => 'Nooit ingelogd',
+    ];
+}
+
+/** WHERE-voorwaarde bij een statusfilter; lege string betekent "geen filter". */
+function toegang_status_waar(string $filter): string
+{
+    return match ($filter) {
+        'opgehaald'      => '(o.eerste_download IS NOT NULL)',
+        'niet_opgehaald' => '(o.eerste_download IS NULL)',
+        'nooit_ingelogd' => '(o.eerste_download IS NULL AND d.laatst_ingelogd_op IS NULL)',
+        default          => '',
+    };
+}
+
+/** Bepaalt de ophaalstatus van één rij uit de lijstquery. */
+function toegang_rij_status(array $rij): string
+{
+    if (!empty($rij['eerste_download'])) {
+        return 'opgehaald';
+    }
+    return empty($rij['laatst_ingelogd_op']) ? 'nooit_ingelogd' : 'ingelogd_niet_opgehaald';
+}
+
+/**
+ * Kleur en opschrift bij een ophaalstatus.
+ *
+ * @return array{0: string, 1: string}
+ */
+function toegang_status_badge(string $status): array
+{
+    return match ($status) {
+        'opgehaald'               => ['success', 'opgehaald'],
+        'ingelogd_niet_opgehaald' => ['warning', 'ingelogd, niet opgehaald'],
+        default                   => ['secondary', 'nooit ingelogd'],
+    };
+}
+
+/** Percentage van $deel binnen $totaal, afgerond op hele procenten. */
+function toegang_percentage(int $deel, int $totaal): int
+{
+    return $totaal > 0 ? (int)round($deel * 100 / $totaal) : 0;
+}
+
+/**
+ * Telt voor de hele jaargang hoeveel deelnemers de video hebben opgehaald,
+ * wel inlogden maar niets ophaalden, en nooit inlogden.
+ *
+ * @return array{totaal: int, opgehaald: int, ingelogd: int, nooit: int}
+ */
+function toegang_samenvatting(int $jaargangId): array
+{
+    $stmt = db()->prepare(
+        'SELECT COUNT(*) AS totaal,
+                SUM(CASE WHEN o.eerste_download IS NOT NULL THEN 1 ELSE 0 END) AS opgehaald,
+                SUM(CASE WHEN o.eerste_download IS NULL AND d.laatst_ingelogd_op IS NOT NULL THEN 1 ELSE 0 END) AS ingelogd,
+                SUM(CASE WHEN o.eerste_download IS NULL AND d.laatst_ingelogd_op IS NULL THEN 1 ELSE 0 END) AS nooit
+         FROM toegang t
+         JOIN deelnemers d ON d.id = t.deelnemer_id'
+        . toegang_ophaal_join(':jb') . '
+         WHERE t.jaargang_id = :j'
+    );
+    $stmt->execute([':j' => $jaargangId, ':jb' => $jaargangId]);
+    $rij = $stmt->fetch() ?: [];
+
+    return [
+        'totaal'    => (int)($rij['totaal'] ?? 0),
+        'opgehaald' => (int)($rij['opgehaald'] ?? 0),
+        'ingelogd'  => (int)($rij['ingelogd'] ?? 0),
+        'nooit'     => (int)($rij['nooit'] ?? 0),
+    ];
+}
+
+/** Aantal bestanden dat aan deze jaargang hangt. Nul = er valt niets op te halen. */
+function toegang_aantal_bestanden(int $jaargangId): int
+{
+    $stmt = db()->prepare('SELECT COUNT(*) FROM jaargang_bestanden WHERE jaargang_id = :j');
+    $stmt->execute([':j' => $jaargangId]);
+    return (int)$stmt->fetchColumn();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Herinneringen
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Alle deelnemers van deze jaargang die in aanmerking komen voor een
+ * herinnering, in één query.
+ *
+ * @param string $groep 'niet_opgehaald' of 'nooit_ingelogd'
+ */
+function toegang_herinnering_kandidaten(int $jaargangId, string $groep): array
+{
+    $waar = $groep === 'nooit_ingelogd'
+        ? '(o.eerste_download IS NULL AND d.laatst_ingelogd_op IS NULL)'
+        : '(o.eerste_download IS NULL)';
+
+    $stmt = db()->prepare(
+        'SELECT d.id, d.email, d.naam, d.geblokkeerd, d.laatst_ingelogd_op, o.eerste_download
+         FROM toegang t
+         JOIN deelnemers d ON d.id = t.deelnemer_id'
+        . toegang_ophaal_join(':jb') . '
+         WHERE t.jaargang_id = :j AND ' . $waar . '
+         ORDER BY d.email ASC'
+    );
+    $stmt->execute([':j' => $jaargangId, ':jb' => $jaargangId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * E-mailadressen waar de afgelopen uren al een uitnodiging heen ging.
+ *
+ * @return array<string, bool> genormaliseerd adres => true
+ */
+function toegang_recent_gemaild(int $uren): array
+{
+    $stmt = db()->prepare(
+        'SELECT DISTINCT ontvanger
+         FROM mail_log
+         WHERE soort = :soort
+           AND status = :status
+           AND verzonden_op >= (NOW() - INTERVAL ' . (int)$uren . ' HOUR)'
+    );
+    $stmt->execute([':soort' => 'uitnodiging', ':status' => 'verzonden']);
+
+    $adressen = [];
+    foreach ($stmt->fetchAll() as $rij) {
+        $adressen[normaliseer_email((string)$rij['ontvanger'])] = true;
+    }
+    return $adressen;
+}
+
+/**
+ * Verdeelt de kandidaten in drie stapels: te mailen, geblokkeerd en
+ * "kreeg net al een bericht".
+ *
+ * @return array{ontvangers: array<int, array{email: string, naam: string}>,
+ *               recent: array<int, array{email: string, naam: string}>,
+ *               geblokkeerd: int}
+ */
+function toegang_herinnering_verdelen(array $kandidaten): array
+{
+    $recentAdressen = toegang_recent_gemaild(TOEGANG_HERINNERING_UREN);
+
+    $ontvangers  = [];
+    $recent      = [];
+    $geblokkeerd = 0;
+
+    foreach ($kandidaten as $rij) {
+        if ((int)$rij['geblokkeerd'] === 1) {
+            $geblokkeerd++;
+            continue;
+        }
+        $persoon = [
+            'email' => (string)$rij['email'],
+            'naam'  => (string)($rij['naam'] ?? ''),
+        ];
+        if (isset($recentAdressen[normaliseer_email($persoon['email'])])) {
+            $recent[] = $persoon;
+        } else {
+            $ontvangers[] = $persoon;
+        }
+    }
+
+    return ['ontvangers' => $ontvangers, 'recent' => $recent, 'geblokkeerd' => $geblokkeerd];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  Jaargang kiezen
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -363,13 +569,21 @@ if ($jaargang === null && $jaargangen) {
 $zoek   = trim((string)($_GET['q'] ?? ''));
 $pagina = max(1, (int)($_GET['pagina'] ?? 1));
 
+$statusFilter = (string)($_GET['status'] ?? 'alles');
+if (!array_key_exists($statusFilter, toegang_status_filters())) {
+    $statusFilter = 'alles';
+}
+
 /** Bouwt een link naar deze pagina met de huidige filters. */
 function toegang_link(array $extra = []): string
 {
-    global $gekozenId, $zoek, $pagina;
+    global $gekozenId, $zoek, $pagina, $statusFilter;
     $params = ['jaargang' => $gekozenId];
     if ($zoek !== '') {
         $params['q'] = $zoek;
+    }
+    if ($statusFilter !== 'alles') {
+        $params['status'] = $statusFilter;
     }
     if ($pagina > 1) {
         $params['pagina'] = $pagina;
@@ -391,6 +605,10 @@ function toegang_terug_link(): string
     $q = trim((string)($_POST['q'] ?? ''));
     if ($q !== '') {
         $params['q'] = $q;
+    }
+    $s = (string)($_POST['status'] ?? 'alles');
+    if ($s !== 'alles' && array_key_exists($s, toegang_status_filters())) {
+        $params['status'] = $s;
     }
     $p = (int)($_POST['pagina'] ?? 1);
     if ($p > 1) {
@@ -586,6 +804,126 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // ─── Herinnering stap 1: groep kiezen en tellen ────────────────────────
+    if ($actie === 'herinnering_voorbeeld') {
+        if (!mail_geconfigureerd()) {
+            flash('danger', 'De e-mailinstellingen zijn nog niet compleet; er kan niets worden verstuurd.');
+            header('Location: ' . toegang_terug_link());
+            exit;
+        }
+
+        $groep = (string)($_POST['groep'] ?? 'niet_opgehaald');
+        if ($groep !== 'nooit_ingelogd') {
+            $groep = 'niet_opgehaald';
+        }
+
+        $verdeling = toegang_herinnering_verdelen(
+            toegang_herinnering_kandidaten((int)$jaargang['id'], $groep)
+        );
+
+        if (!$verdeling['ontvangers'] && !$verdeling['recent']) {
+            unset($_SESSION['herinnering_voorbeeld']);
+            flash('info', $groep === 'nooit_ingelogd'
+                ? 'Iedereen met toegang tot deze jaargang heeft minstens één keer ingelogd. Er is niets te versturen.'
+                : 'Iedereen met toegang tot deze jaargang heeft de video al opgehaald. Er is niets te versturen.');
+            header('Location: ' . toegang_terug_link());
+            exit;
+        }
+
+        $_SESSION['herinnering_voorbeeld'] = [
+            'jaargang_id' => (int)$jaargang['id'],
+            'jaar'        => (int)$jaargang['jaar'],
+            'groep'       => $groep,
+            'tijd'        => time(),
+            'ontvangers'  => $verdeling['ontvangers'],
+            'recent'      => $verdeling['recent'],
+            'geblokkeerd' => $verdeling['geblokkeerd'],
+        ];
+
+        header('Location: ' . toegang_terug_link() . '#herinnering');
+        exit;
+    }
+
+    // ─── Herinnering afbreken ──────────────────────────────────────────────
+    if ($actie === 'herinnering_annuleren') {
+        unset($_SESSION['herinnering_voorbeeld']);
+        flash('info', 'De herinnering is afgebroken. Er is niets verstuurd.');
+        header('Location: ' . toegang_terug_link());
+        exit;
+    }
+
+    // ─── Herinnering stap 2: daadwerkelijk versturen ───────────────────────
+    if ($actie === 'herinnering_versturen') {
+        $opdracht = $_SESSION['herinnering_voorbeeld'] ?? null;
+        if (!is_array($opdracht) || (int)($opdracht['jaargang_id'] ?? 0) !== (int)$jaargang['id']) {
+            flash('danger', 'De herinnering is verlopen of hoort bij een andere jaargang. Begin opnieuw.');
+            header('Location: ' . toegang_terug_link());
+            exit;
+        }
+        if (!mail_geconfigureerd()) {
+            unset($_SESSION['herinnering_voorbeeld']);
+            flash('danger', 'De e-mailinstellingen zijn nog niet compleet; er is niets verstuurd.');
+            header('Location: ' . toegang_terug_link());
+            exit;
+        }
+
+        $ookRecent  = !empty($_POST['ook_recent']);
+        $ontvangers = $opdracht['ontvangers'];
+        if ($ookRecent) {
+            foreach ($opdracht['recent'] as $persoon) {
+                $ontvangers[] = $persoon;
+            }
+        }
+
+        unset($_SESSION['herinnering_voorbeeld']);
+
+        if (!$ontvangers) {
+            flash('info', 'Er bleven geen adressen over om te mailen. Er is niets verstuurd.');
+            header('Location: ' . toegang_terug_link());
+            exit;
+        }
+
+        $gelukt      = 0;
+        $mislukt     = 0;
+        $laatsteFout = '';
+        foreach (array_chunk($ontvangers, TOEGANG_MAIL_BLOKKEN) as $blok) {
+            @set_time_limit(120);   // per blok de tijdslimiet opnieuw zetten
+            foreach ($blok as $persoon) {
+                $fouten = [];
+                if (verstuur_uitnodiging_mail(
+                    (string)$persoon['email'],
+                    (string)$persoon['naam'],
+                    (int)$jaargang['jaar'],
+                    $fouten
+                )) {
+                    $gelukt++;
+                } else {
+                    $mislukt++;
+                    $laatsteFout = $fouten ? (string)end($fouten) : '';
+                }
+            }
+        }
+
+        $overgeslagen = (int)$opdracht['geblokkeerd'];
+        $nietGemaild  = $ookRecent ? 0 : count($opdracht['recent']);
+
+        flash(
+            $mislukt === 0 ? 'success' : 'warning',
+            sprintf('Herinneringen: %d verstuurd, %d mislukt.', $gelukt, $mislukt)
+            . ($overgeslagen > 0 ? sprintf(' %d geblokkeerde deelnemer(s) overgeslagen.', $overgeslagen) : '')
+            . ($nietGemaild > 0 ? sprintf(
+                ' %d adres(sen) overgeslagen omdat daar in de afgelopen %d uur al een bericht heen ging.',
+                $nietGemaild,
+                (int)TOEGANG_HERINNERING_UREN
+            ) : '')
+            . ($laatsteFout !== '' ? ' Laatste fout: ' . $laatsteFout : '')
+            . ' Zie Logboek > E-mail voor alle details.'
+        );
+
+        header('Location: ' . toegang_terug_link());
+        exit;
+    }
+
     header('Location: ' . toegang_terug_link());
     exit;
 }
@@ -596,13 +934,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if (($_GET['actie'] ?? '') === 'export' && $jaargang !== null) {
     $stmt = db()->prepare(
-        'SELECT d.email, d.naam, d.geblokkeerd, d.laatst_ingelogd_op, t.toegevoegd_op, t.toegevoegd_door
+        'SELECT d.email, d.naam, d.geblokkeerd, d.laatst_ingelogd_op,
+                t.toegevoegd_op, t.toegevoegd_door, o.eerste_download
          FROM toegang t
-         JOIN deelnemers d ON d.id = t.deelnemer_id
+         JOIN deelnemers d ON d.id = t.deelnemer_id'
+        . toegang_ophaal_join(':jb') . '
          WHERE t.jaargang_id = :j
          ORDER BY d.email ASC'
     );
-    $stmt->execute([':j' => (int)$jaargang['id']]);
+    $stmt->execute([':j' => (int)$jaargang['id'], ':jb' => (int)$jaargang['id']]);
 
     $bestandsnaam = 'toegang-' . (int)$jaargang['jaar'] . '-' . date('Ymd') . '.csv';
 
@@ -613,8 +953,12 @@ if (($_GET['actie'] ?? '') === 'export' && $jaargang !== null) {
 
     $uitvoer = fopen('php://output', 'w');
     echo "\xEF\xBB\xBF";   // BOM, zodat Excel UTF-8 herkent
-    fputcsv($uitvoer, ['email', 'naam', 'toegevoegd_op', 'toegevoegd_door', 'laatst_ingelogd_op', 'geblokkeerd'], ';');
+    fputcsv($uitvoer, [
+        'email', 'naam', 'toegevoegd_op', 'toegevoegd_door', 'laatst_ingelogd_op', 'geblokkeerd',
+        'ophaalstatus', 'eerste_download',
+    ], ';');
     foreach ($stmt->fetchAll() as $rij) {
+        [, $statusLabel] = toegang_status_badge(toegang_rij_status($rij));
         fputcsv($uitvoer, [
             (string)$rij['email'],
             (string)($rij['naam'] ?? ''),
@@ -622,6 +966,8 @@ if (($_GET['actie'] ?? '') === 'export' && $jaargang !== null) {
             (string)($rij['toegevoegd_door'] ?? ''),
             (string)($rij['laatst_ingelogd_op'] ?? ''),
             (int)$rij['geblokkeerd'] === 1 ? 'ja' : 'nee',
+            $statusLabel,
+            (string)($rij['eerste_download'] ?? ''),
         ], ';');
     }
     fclose($uitvoer);
@@ -637,22 +983,39 @@ if (is_array($voorbeeld) && (int)($voorbeeld['jaargang_id'] ?? 0) !== $gekozenId
     $voorbeeld = null;   // hoort bij een andere jaargang: niet tonen
 }
 
+$herinnering = $_SESSION['herinnering_voorbeeld'] ?? null;
+if (is_array($herinnering) && (int)($herinnering['jaargang_id'] ?? 0) !== $gekozenId) {
+    $herinnering = null;   // hoort bij een andere jaargang: niet tonen
+}
+
 $rijen  = [];
 $totaal = 0;
 $pagina_totaal = 1;
+$samenvatting  = ['totaal' => 0, 'opgehaald' => 0, 'ingelogd' => 0, 'nooit' => 0];
+$aantalBestanden = 0;
 
 if ($jaargang !== null) {
+    $samenvatting    = toegang_samenvatting((int)$jaargang['id']);
+    $aantalBestanden = toegang_aantal_bestanden((int)$jaargang['id']);
+
     $waar   = ['t.jaargang_id = :j'];
-    $params = [':j' => (int)$jaargang['id']];
+    $params = [':j' => (int)$jaargang['id'], ':jb' => (int)$jaargang['id']];
     if ($zoek !== '') {
-        $waar[] = '(d.email LIKE :zoek OR d.naam LIKE :zoek)';
-        $params[':zoek'] = '%' . $zoek . '%';
+        // Twee losse parameternamen: PDO draait zonder emulatie en accepteert
+        // dezelfde named parameter niet twee keer in één query.
+        $waar[] = '(d.email LIKE :zoek_email OR d.naam LIKE :zoek_naam)';
+        $params[':zoek_email'] = '%' . $zoek . '%';
+        $params[':zoek_naam']  = '%' . $zoek . '%';
+    }
+    $statusWaar = toegang_status_waar($statusFilter);
+    if ($statusWaar !== '') {
+        $waar[] = $statusWaar;
     }
     $waarSql = implode(' AND ', $waar);
+    $vanSql  = 'FROM toegang t
+         JOIN deelnemers d ON d.id = t.deelnemer_id' . toegang_ophaal_join(':jb');
 
-    $telStmt = db()->prepare(
-        'SELECT COUNT(*) FROM toegang t JOIN deelnemers d ON d.id = t.deelnemer_id WHERE ' . $waarSql
-    );
+    $telStmt = db()->prepare('SELECT COUNT(*) ' . $vanSql . ' WHERE ' . $waarSql);
     $telStmt->execute($params);
     $totaal = (int)$telStmt->fetchColumn();
 
@@ -662,9 +1025,8 @@ if ($jaargang !== null) {
 
     $stmt = db()->prepare(
         'SELECT d.id, d.email, d.naam, d.geblokkeerd, d.laatst_ingelogd_op,
-                t.toegevoegd_op, t.toegevoegd_door
-         FROM toegang t
-         JOIN deelnemers d ON d.id = t.deelnemer_id
+                t.toegevoegd_op, t.toegevoegd_door, o.eerste_download
+         ' . $vanSql . '
          WHERE ' . $waarSql . '
          ORDER BY d.email ASC
          LIMIT ' . (int)TOEGANG_PER_PAGINA . ' OFFSET ' . (int)$offset
@@ -707,7 +1069,7 @@ admin_start(
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-sm-6 col-lg-4">
+            <div class="col-sm-6 col-lg-3">
                 <label class="form-label small text-muted mb-1" for="zoekveld">Zoeken in de lijst</label>
                 <div class="input-group">
                     <input type="search" class="form-control" id="zoekveld" name="q"
@@ -715,10 +1077,20 @@ admin_start(
                     <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
                 </div>
             </div>
-            <div class="col-lg-4 text-lg-end">
+            <div class="col-sm-6 col-lg-3">
+                <label class="form-label small text-muted mb-1" for="statusKeuze">Ophaalstatus</label>
+                <select class="form-select" id="statusKeuze" name="status" onchange="this.form.submit()">
+                    <?php foreach (toegang_status_filters() as $sleutel => $opschrift): ?>
+                        <option value="<?= h((string)$sleutel) ?>" <?= $sleutel === $statusFilter ? 'selected' : '' ?>>
+                            <?= h((string)$opschrift) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-sm-6 col-lg-2 text-lg-end">
                 <?php [$statusTekst, $statusKleur] = jaargang_status($jaargang); ?>
                 <span class="badge text-bg-<?= h($statusKleur) ?> me-2"><?= h($statusTekst) ?></span>
-                <span class="text-muted small"><?= (int)$totaal ?> deelnemer(s) met toegang</span>
+                <span class="text-muted small"><?= (int)$totaal ?> in de lijst</span>
             </div>
         </form>
     </div>
@@ -807,6 +1179,7 @@ admin_start(
                 <input type="hidden" name="actie" value="bevestigen">
                 <input type="hidden" name="jaargang" value="<?= (int)$gekozenId ?>">
                 <input type="hidden" name="q" value="<?= h($zoek) ?>">
+                <input type="hidden" name="status" value="<?= h($statusFilter) ?>">
 
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" id="uitnodiging" name="uitnodiging"
@@ -841,6 +1214,7 @@ admin_start(
                 <input type="hidden" name="actie" value="voorbeeld">
                 <input type="hidden" name="jaargang" value="<?= (int)$gekozenId ?>">
                 <input type="hidden" name="q" value="<?= h($zoek) ?>">
+                <input type="hidden" name="status" value="<?= h($statusFilter) ?>">
 
                 <div class="row g-4">
                     <div class="col-lg-8">
@@ -874,6 +1248,84 @@ admin_start(
         </div>
     <?php endif; ?>
 
+    <?php if (is_array($herinnering)): ?>
+        <?php
+        $aantalTeMailen  = count($herinnering['ontvangers']);
+        $aantalRecent    = count($herinnering['recent']);
+        $aantalGeblokt   = (int)$herinnering['geblokkeerd'];
+        $groepOmschrijving = $herinnering['groep'] === 'nooit_ingelogd'
+            ? 'iedereen die nog nooit heeft ingelogd'
+            : 'iedereen die de video nog niet heeft opgehaald';
+        ?>
+
+        <!-- ─── Herinnering: bevestigingsstap ────────────────────────────── -->
+        <div class="kaart p-4 mb-4 border border-warning" id="herinnering">
+            <h2 class="h6 text-uppercase text-muted mb-3">Herinnering — controleren en bevestigen</h2>
+
+            <div class="alert alert-warning d-flex gap-3 align-items-start">
+                <i class="bi bi-exclamation-triangle-fill fs-4"></i>
+                <div>
+                    <strong>Let op: dit stuurt een echte e-mail naar echte ouders.</strong>
+                    Er gaat een uitnodiging voor <?= (int)$herinnering['jaar'] ?> naar
+                    <?= h($groepOmschrijving) ?>. Controleer het aantal hieronder voordat u bevestigt.
+                </div>
+            </div>
+
+            <div class="text-center my-4">
+                <div class="display-3 fw-semibold text-warning"><?= (int)$aantalTeMailen ?></div>
+                <div class="text-muted">e-mailadres(sen) ontvangen nu een herinnering</div>
+            </div>
+
+            <ul class="list-unstyled small text-muted mb-3">
+                <li><i class="bi bi-people me-1"></i>Groep: <?= h($groepOmschrijving) ?>.</li>
+                <?php if ($aantalGeblokt > 0): ?>
+                    <li>
+                        <i class="bi bi-slash-circle me-1"></i>
+                        <?= (int)$aantalGeblokt ?> geblokkeerde deelnemer(s) worden overgeslagen.
+                    </li>
+                <?php endif; ?>
+                <?php if ($aantalRecent > 0): ?>
+                    <li>
+                        <i class="bi bi-clock-history me-1"></i>
+                        <?= (int)$aantalRecent ?> adres(sen) kregen in de afgelopen
+                        <?= (int)TOEGANG_HERINNERING_UREN ?> uur al een bericht en worden overgeslagen.
+                    </li>
+                <?php endif; ?>
+                <li>
+                    <i class="bi bi-envelope me-1"></i>
+                    De mails gaan in blokken van <?= (int)TOEGANG_MAIL_BLOKKEN ?>; bij een lange lijst
+                    duurt het even voordat de pagina terugkomt. Sluit het venster in die tijd niet.
+                </li>
+            </ul>
+
+            <form method="post" class="border-top pt-3">
+                <?= csrf_field() ?>
+                <input type="hidden" name="actie" value="herinnering_versturen">
+                <input type="hidden" name="jaargang" value="<?= (int)$gekozenId ?>">
+                <input type="hidden" name="q" value="<?= h($zoek) ?>">
+                <input type="hidden" name="status" value="<?= h($statusFilter) ?>">
+
+                <?php if ($aantalRecent > 0): ?>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="ookRecent" name="ook_recent" value="1">
+                        <label class="form-check-label" for="ookRecent">
+                            Toch ook naar de <strong><?= (int)$aantalRecent ?></strong> adres(sen) sturen die
+                            in de afgelopen <?= (int)TOEGANG_HERINNERING_UREN ?> uur al een bericht kregen
+                        </label>
+                    </div>
+                <?php endif; ?>
+
+                <button type="submit" class="btn btn-warning"
+                    <?= $aantalTeMailen === 0 && $aantalRecent === 0 ? 'disabled' : '' ?>>
+                    <i class="bi bi-send me-1"></i>
+                    Ja, verstuur de herinnering naar <?= (int)$aantalTeMailen ?> adres(sen)
+                </button>
+                <button type="submit" name="actie" value="herinnering_annuleren"
+                    class="btn btn-outline-secondary ms-2" formnovalidate>Annuleren</button>
+            </form>
+        </div>
+    <?php endif; ?>
+
     <!-- ─── Huidige toegangslijst ────────────────────────────────────────── -->
     <div class="kaart p-4">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
@@ -881,17 +1333,100 @@ admin_start(
                 Toegang tot <?= (int)$jaargang['jaar'] ?>
                 <span class="text-body-secondary">(<?= (int)$totaal ?>)</span>
             </h2>
-            <a class="btn btn-outline-secondary btn-sm" href="<?= h(toegang_link(['actie' => 'export', 'pagina' => null])) ?>">
-                <i class="bi bi-download me-1"></i>Exporteren als CSV
-            </a>
+            <div class="d-flex flex-wrap gap-2">
+                <?php if ($mailKlaar): ?>
+                    <form method="post" class="d-inline">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="actie" value="herinnering_voorbeeld">
+                        <input type="hidden" name="jaargang" value="<?= (int)$gekozenId ?>">
+                        <input type="hidden" name="q" value="<?= h($zoek) ?>">
+                        <input type="hidden" name="status" value="<?= h($statusFilter) ?>">
+                        <div class="input-group input-group-sm">
+                            <select class="form-select form-select-sm" name="groep" aria-label="Groep voor de herinnering">
+                                <option value="niet_opgehaald">wie de video nog niet ophaalde</option>
+                                <option value="nooit_ingelogd">wie nog nooit inlogde</option>
+                            </select>
+                            <button class="btn btn-outline-warning" type="submit"
+                                <?= $samenvatting['totaal'] === 0 ? 'disabled' : '' ?>>
+                                <i class="bi bi-bell me-1"></i>Herinnering versturen
+                            </button>
+                        </div>
+                    </form>
+                <?php else: ?>
+                    <button class="btn btn-outline-warning btn-sm" type="button" disabled
+                        title="De e-mailinstellingen zijn nog niet compleet">
+                        <i class="bi bi-bell me-1"></i>Herinnering versturen
+                    </button>
+                <?php endif; ?>
+                <a class="btn btn-outline-secondary btn-sm" href="<?= h(toegang_link(['actie' => 'export', 'pagina' => null])) ?>">
+                    <i class="bi bi-download me-1"></i>Exporteren als CSV
+                </a>
+            </div>
         </div>
+
+        <?php if (!$mailKlaar): ?>
+            <p class="small text-muted">
+                Herinneringen zijn uitgeschakeld: de e-mailinstellingen zijn nog niet compleet.
+                <a href="<?= h(url('admin/instellingen.php')) ?>">Naar instellingen</a>.
+            </p>
+        <?php endif; ?>
+
+        <!-- ─── Samenvatting ophaalstatus ────────────────────────────────── -->
+        <?php if ($samenvatting['totaal'] === 0): ?>
+            <p class="small text-muted mb-3">
+                Nog niemand heeft toegang tot deze jaargang, dus er valt nog niets op te halen.
+            </p>
+        <?php elseif ($aantalBestanden === 0): ?>
+            <div class="alert alert-info py-2 small">
+                <i class="bi bi-info-circle me-1"></i>
+                Er hangt nog geen bestand aan <?= (int)$jaargang['jaar'] ?>, dus er kan per definitie
+                niets zijn opgehaald. Alle <?= (int)$samenvatting['totaal'] ?> deelnemer(s) staan daarom
+                op "niet opgehaald".
+                <a href="<?= h(url('admin/bestanden.php?jaargang=' . (int)$gekozenId)) ?>" class="alert-link">
+                    Bestand toevoegen
+                </a>.
+            </div>
+        <?php else: ?>
+            <p class="small text-muted mb-2">
+                Van de <strong><?= (int)$samenvatting['totaal'] ?></strong> ouder(s) met toegang tot
+                <?= (int)$jaargang['jaar'] ?> hebben er
+                <strong><?= (int)$samenvatting['opgehaald'] ?></strong> de video opgehaald.
+            </p>
+        <?php endif; ?>
+
+        <?php if ($samenvatting['totaal'] > 0): ?>
+            <div class="row g-2 mb-3">
+                <?php
+                $kaarten = [
+                    ['success',   $samenvatting['opgehaald'], 'opgehaald'],
+                    ['warning',   $samenvatting['ingelogd'],  'ingelogd, niet opgehaald'],
+                    ['secondary', $samenvatting['nooit'],     'nooit ingelogd'],
+                ];
+                ?>
+                <?php foreach ($kaarten as [$kleur, $aantal, $opschrift]): ?>
+                    <div class="col-12 col-sm-4">
+                        <div class="border rounded p-3 text-center">
+                            <div class="fs-4 fw-semibold text-<?= h($kleur) ?>"><?= (int)$aantal ?></div>
+                            <div class="small text-muted">
+                                <?= h($opschrift) ?>
+                                — <?= (int)toegang_percentage((int)$aantal, (int)$samenvatting['totaal']) ?>%
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
 
         <?php if (!$rijen): ?>
             <div class="text-center text-muted py-5">
                 <i class="bi bi-person-slash fs-2 d-block mb-2"></i>
-                <?php if ($zoek !== ''): ?>
-                    Geen resultaten voor "<?= h($zoek) ?>".
-                    <a href="<?= h(toegang_link(['q' => null, 'pagina' => null])) ?>">Filter wissen</a>
+                <?php if ($zoek !== '' || $statusFilter !== 'alles'): ?>
+                    Geen resultaten
+                    <?php if ($zoek !== ''): ?>voor "<?= h($zoek) ?>"<?php endif; ?>
+                    <?php if ($statusFilter !== 'alles'): ?>
+                        met status "<?= h(toegang_status_filters()[$statusFilter]) ?>"
+                    <?php endif; ?>.
+                    <a href="<?= h(toegang_link(['q' => null, 'status' => null, 'pagina' => null])) ?>">Filters wissen</a>
                 <?php else: ?>
                     Nog niemand heeft toegang tot deze jaargang. Voeg hierboven e-mailadressen toe.
                 <?php endif; ?>
@@ -905,6 +1440,7 @@ admin_start(
                             <th>Naam</th>
                             <th>Toegevoegd</th>
                             <th>Laatst ingelogd</th>
+                            <th>Ophaalstatus</th>
                             <th class="text-end">Acties</th>
                         </tr>
                     </thead>
@@ -927,12 +1463,22 @@ admin_start(
                                     <?php endif; ?>
                                 </td>
                                 <td class="small"><?= h(formatteer_datum($rij['laatst_ingelogd_op'] ?? null)) ?></td>
+                                <td class="small">
+                                    <?php [$badgeKleur, $badgeTekst] = toegang_status_badge(toegang_rij_status($rij)); ?>
+                                    <span class="badge text-bg-<?= h($badgeKleur) ?>"><?= h($badgeTekst) ?></span>
+                                    <?php if (!empty($rij['eerste_download'])): ?>
+                                        <div class="text-muted">
+                                            <?= h(formatteer_datum((string)$rij['eerste_download'])) ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </td>
                                 <td class="text-end text-nowrap">
                                     <form method="post" class="d-inline">
                                         <?= csrf_field() ?>
                                         <input type="hidden" name="actie" value="uitnodiging">
                                         <input type="hidden" name="jaargang" value="<?= (int)$gekozenId ?>">
                                         <input type="hidden" name="q" value="<?= h($zoek) ?>">
+                                        <input type="hidden" name="status" value="<?= h($statusFilter) ?>">
                                         <input type="hidden" name="pagina" value="<?= (int)$pagina ?>">
                                         <input type="hidden" name="deelnemer_id" value="<?= (int)$rij['id'] ?>">
                                         <button class="btn btn-sm btn-outline-secondary" type="submit"
@@ -947,6 +1493,7 @@ admin_start(
                                         <input type="hidden" name="actie" value="intrekken">
                                         <input type="hidden" name="jaargang" value="<?= (int)$gekozenId ?>">
                                         <input type="hidden" name="q" value="<?= h($zoek) ?>">
+                                        <input type="hidden" name="status" value="<?= h($statusFilter) ?>">
                                         <input type="hidden" name="pagina" value="<?= (int)$pagina ?>">
                                         <input type="hidden" name="deelnemer_id" value="<?= (int)$rij['id'] ?>">
                                         <button class="btn btn-sm btn-outline-danger" type="submit"

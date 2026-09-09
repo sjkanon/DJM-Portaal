@@ -37,11 +37,14 @@ services:
       DB_NAME: djm_portaal
       DB_USER: djm_portaal
       DB_PASS: djmtest
-      APP_URL: http://localhost:8123
+      APP_URL: ""
       APP_KEY: testsleutel_0123456789abcdef
       OTP_PEPPER: testpepper_0123456789abcdef
       DEBUG: "true"
       DELIVERY_MODE: php
+      # De ingebouwde PHP-server is standaard single-threaded; een echte browser
+      # opent meerdere verbindingen tegelijk en loopt daar op vast.
+      PHP_CLI_SERVER_WORKERS: "6"
     ports:
       - "8123:8080"
     command: php -S 0.0.0.0:8080 -t /app

@@ -28,6 +28,9 @@ KOP "Inlogcodes";              docker compose exec -T web php /app/test/mailinst
 KOP "Publieke flow";           bash e2e.sh        || MISLUKT=$((MISLUKT+1))
 KOP "Beheerdersgedeelte";      bash admin_test.sh || MISLUKT=$((MISLUKT+1))
 KOP "Jaarlijkse workflow";     bash jaarflow.sh   || MISLUKT=$((MISLUKT+1))
+# Echte browser: vangt problemen die curl niet ziet, zoals een Content-Security-
+# Policy die formulieren blokkeert of JavaScript dat stukloopt.
+KOP "In een echte browser";    bash schermafdrukken.sh || MISLUKT=$((MISLUKT+1))
 
 printf '\n\033[1m════════════════════════════════════════════════════════════\033[0m\n'
 if [ "$MISLUKT" -eq 0 ]; then printf '  Alle testonderdelen geslaagd.\n\n'; else printf '  %d testonderdeel/-onderdelen met fouten.\n\n' "$MISLUKT"; fi

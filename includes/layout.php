@@ -46,6 +46,7 @@ function pagina_start(string $titel, array $opties = []): void
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d6efd'/%3E%3Cpath d='M12 9.5v13l10-6.5z' fill='white'/%3E%3C/svg%3E">
     <title><?= h($titel) ?> — <?= h($naam) ?></title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -156,6 +157,24 @@ function pagina_eind(): void
 
 </html>
     <?php
+}
+
+/**
+ * Contactregel voor bezoekers die er niet in komen. Toont niets als er in
+ * Beheer > Instellingen geen contactadres is ingevuld.
+ */
+function toon_contact(): void
+{
+    $adres = trim(instelling('contact_email', ''));
+    if ($adres === '' || !geldig_email($adres)) {
+        return;
+    }
+    $tekst = trim(instelling('contact_tekst', 'Lukt het inloggen niet? Neem contact met ons op.'));
+
+    echo '<p class="text-secondary small mb-0">'
+        . ($tekst !== '' ? h($tekst) . ' ' : '')
+        . '<a class="link-secondary" href="mailto:' . h(rawurlencode($adres)) . '">' . h($adres) . '</a>'
+        . '</p>';
 }
 
 /** Toont een foutmelding als alert-blok. */

@@ -182,6 +182,22 @@ admin_start('Overzicht', 'Welkom terug, ' . (string)$beheerder['naam'] . '.');
     </div>
 <?php endif; ?>
 
+<?php if (($appUrlAfwijking = app_url_afwijking()) !== ''): ?>
+    <div class="alert alert-danger">
+        <strong><i class="bi bi-link-45deg me-1"></i>APP_URL komt niet overeen met dit adres.</strong>
+        In <code>.env</code> staat <code><?= h($appUrlAfwijking) ?></code>, maar u bekijkt het
+        portaal via <code><?= h((string)($_SERVER['HTTP_HOST'] ?? '')) ?></code>.
+        Alle omleidingen wijzen daardoor naar een ander adres, en browsers weigeren dan om
+        formulieren te versturen (de Content-Security-Policy staat alleen hetzelfde adres toe).
+        In de praktijk betekent dat: niemand kan inloggen.
+        <div class="small mt-2">
+            Zet <code>APP_URL</code> op precies het adres waarop het portaal draait, inclusief
+            <code>https://</code> en zonder afsluitende schuine streep — of laat de regel leeg,
+            dan leidt het portaal het adres zelf af uit het verzoek.
+        </div>
+    </div>
+<?php endif; ?>
+
 <!-- ─── Snel een nieuw jaar toevoegen ───────────────────────────────────── -->
 <div class="kaart p-3 p-lg-4 mb-4">
     <h2 class="h6 text-uppercase text-muted mb-3">

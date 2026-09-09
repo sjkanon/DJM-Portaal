@@ -29,6 +29,10 @@ const OTP_VENSTER_EMAIL = 15;
 /** Venster voor de limiet per IP-adres, in minuten. */
 const OTP_VENSTER_IP = 60;
 
+/** Venster en maximum voor het aantal codepogingen per IP-adres. */
+const OTP_VENSTER_VERIFICATIE = 15;
+const OTP_MAX_VERIFICATIES = 20;
+
 // ─── Code en hash ────────────────────────────────────────────────────────────
 
 /** Zes cijfers, inclusief voorloopnullen. */
@@ -332,6 +336,31 @@ function otp_rate_limit_tellen(string $sleutel, int $vensterMinuten): void
         $stmt->execute();
     } catch (Throwable $e) {
         app_log('rate limit bijwerken mislukt', ['fout' => $e->getMessage()]);
+    }
+}
+
+/**
+ * Rem op het invoeren van codes, per IP-adres.
+ *
+ * De pogingenteller per code beschermt één code, maar niet tegen iemand die
+ * met veel adressen tegelijk gokt. Deze rem sluit dat gat: standaard maximaal
+ * twintig codepogingen per kwartier vanaf hetzelfde IP-adres.
+ */
+function otp_verificatie_toegestaan(): bool
+{
+    $ip = client_ip();
+    if ($ip === '') {
+        return true;
+    }
+    return otp_rate_limit_check('verif:' . $ip, OTP_MAX_VERIFICATIES, OTP_VENSTER_VERIFICATIE);
+}
+
+/** Telt een codepoging mee voor de rem hierboven. */
+function otp_verificatie_tellen(): void
+{
+    $ip = client_ip();
+    if ($ip !== '') {
+        otp_rate_limit_tellen('verif:' . $ip, OTP_VENSTER_VERIFICATIE);
     }
 }
 

@@ -115,8 +115,11 @@ if (!$portaalOpen): ?>
     </p>
 <?php endif; ?>
 
-<div class="text-center mt-4 pt-3 border-top">
-    <a href="<?= h(url('admin/login.php')) ?>" class="link-secondary small text-decoration-none">Beheer</a>
+<div class="mt-4 pt-3 border-top">
+    <?php toon_contact(); ?>
+    <div class="text-center mt-3">
+        <a href="<?= h(url('admin/login.php')) ?>" class="link-secondary small text-decoration-none">Beheer</a>
+    </div>
 </div>
 <?php
 pagina_eind();

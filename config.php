@@ -279,6 +279,35 @@ function app_base_url(): string
     return $scheme . '://' . $host . rtrim($scriptDir, '/');
 }
 
+/**
+ * Controleert of APP_URL overeenkomt met het adres waarop de bezoeker
+ * binnenkomt. Wijken ze af, dan wijzen alle omleidingen naar een andere
+ * origin; browsers blokkeren dan het versturen van formulieren vanwege de
+ * Content-Security-Policy (form-action 'self') en niemand kan meer inloggen.
+ *
+ * @return string Lege string als alles klopt, anders het verwachte adres.
+ */
+function app_url_afwijking(): string
+{
+    $ingesteld = rtrim(env('APP_URL'), '/');
+    if ($ingesteld === '' || PHP_SAPI === 'cli') {
+        return '';
+    }
+
+    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+    if ($host === '') {
+        return '';
+    }
+
+    $ingesteldeHost = strtolower((string)(parse_url($ingesteld, PHP_URL_HOST) ?? ''));
+    $poort = parse_url($ingesteld, PHP_URL_PORT);
+    if ($poort) {
+        $ingesteldeHost .= ':' . $poort;
+    }
+
+    return ($ingesteldeHost !== '' && $ingesteldeHost !== $host) ? $ingesteld : '';
+}
+
 function url(string $pad = ''): string
 {
     return app_base_url() . '/' . ltrim($pad, '/');

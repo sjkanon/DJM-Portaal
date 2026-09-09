@@ -136,7 +136,18 @@ mag nooit via de browser te downloaden zijn (zie hoofdstuk 7 en 10).
 | Variabele | Uitleg |
 |---|---|
 | `APP_NAME` | Naam die in mails en titels verschijnt. |
-| `APP_URL` | De volledige basis-URL, bijvoorbeeld `https://portaal.example.nl`. Zonder afsluitende slash. Zonder deze waarde raadt het portaal de URL uit de request; dat gaat mis achter een proxy en in e-mails. **Vul dit altijd in.** |
+| `APP_URL` | De volledige basis-URL, bijvoorbeeld `https://portaal.example.nl`. Zonder afsluitende slash. Zonder deze waarde leidt het portaal de URL af uit het verzoek; dat gaat mis achter een proxy en in e-mails. **Vul dit in, en let erop dat het exact klopt** — zie de waarschuwing hieronder. |
+
+> **Let op — een verkeerde `APP_URL` maakt inloggen onmogelijk.**
+> Staat er bijvoorbeeld `http://` terwijl de site op `https://` draait, of `example.nl`
+> terwijl bezoekers via `www.example.nl` binnenkomen, dan wijzen alle omleidingen naar
+> een ander adres. Browsers weigeren dan formulieren te versturen, omdat de
+> Content-Security-Policy van het portaal alleen hetzelfde adres toestaat
+> (`form-action 'self'`). Het gevolg is dat niemand kan inloggen, zonder duidelijke
+> foutmelding — de pagina lijkt gewoon niets te doen.
+>
+> Het beheeroverzicht waarschuwt hiervoor zodra het adres afwijkt. Twijfelt u, laat de
+> regel dan leeg: het portaal leidt het adres dan zelf af uit het verzoek.
 | `DEBUG` | `false` op productie. `true` toont PHP-foutmeldingen in de browser. |
 | `DB_HOST` | Meestal `localhost`, soms `127.0.0.1` of een aparte databaseserver. |
 | `DB_NAME` | Naam van de database uit stap 3. |

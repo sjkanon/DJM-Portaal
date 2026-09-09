@@ -38,6 +38,165 @@ function inst_vinkje(string $veld): string
     return !empty($_POST[$veld]) ? '1' : '0';
 }
 
+// ─── Logo-upload ─────────────────────────────────────────────────────────────
+
+/** Maximale grootte van een geüpload logo: 2 MB. */
+const LOGO_MAX_BYTES = 2097152;
+
+/** Extensies waaronder een geüpload logo kan staan. */
+const LOGO_EXTENSIES = ['png', 'jpg', 'webp', 'svg'];
+
+/** Absoluut pad van de map waarin het logo terechtkomt. */
+function logo_map(): string
+{
+    return APP_ROOT . '/assets';
+}
+
+/** Het geüploade logo dat er nu staat, of null als er geen is. */
+function logo_bestandsnaam(): ?string
+{
+    foreach (LOGO_EXTENSIES as $ext) {
+        if (is_file(logo_map() . '/logo.' . $ext)) {
+            return 'logo.' . $ext;
+        }
+    }
+    return null;
+}
+
+/** Gooit elk eerder geüpload logo weg, zodat er altijd maar één overblijft. */
+function logo_bestanden_verwijderen(): void
+{
+    foreach (LOGO_EXTENSIES as $ext) {
+        $pad = logo_map() . '/logo.' . $ext;
+        if (is_file($pad)) {
+            @unlink($pad);
+        }
+    }
+}
+
+/**
+ * Maakt de inhoud van een SVG onschadelijk.
+ *
+ * Een SVG is geen plaatje maar XML, en mag scripts bevatten: <script>-blokken,
+ * on*-attributen (onload, onclick, …) en javascript:-URI's worden door de
+ * browser uitgevoerd zodra het logo op een pagina staat — met de rechten van de
+ * ingelogde bezoeker. Daarom slaan we nooit het aangeleverde bestand zelf op,
+ * maar deze gestripte versie. Bij twijfel over de inhoud weigeren we liever
+ * helemaal (zie logo_verwerken()).
+ */
+function svg_schoonmaken(string $inhoud): string
+{
+    // Volledige <script>-blokken, inclusief hun inhoud, en losse script-tags.
+    $inhoud = (string)preg_replace('#<script\b[^>]*>.*?</\s*script\s*>#is', '', $inhoud);
+    $inhoud = (string)preg_replace('#<\s*/?\s*script\b[^>]*>#i', '', $inhoud);
+    // Gebeurtenis-attributen: onload="…", onclick='…', onmouseover=…
+    $inhoud = (string)preg_replace('#\son[a-z-]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)#is', '', $inhoud);
+    // javascript:-URI's in href, xlink:href of style.
+    $inhoud = (string)preg_replace('#javascript\s*:#i', '', $inhoud);
+    return $inhoud;
+}
+
+/**
+ * Verwerkt een geüpload logo: controleert, slaat op als assets/logo.<ext> en
+ * zet branding_logo_url op het nieuwe adres.
+ *
+ * Geeft null terug wanneer alles goed ging óf wanneer er geen bestand is
+ * meegestuurd, en anders een foutmelding voor de beheerder.
+ */
+function logo_verwerken(): ?string
+{
+    $bestand = $_FILES['logo'] ?? null;
+    if (!is_array($bestand) || !isset($bestand['error'])) {
+        return null;
+    }
+
+    switch ((int)$bestand['error']) {
+        case UPLOAD_ERR_OK:
+            break;
+        case UPLOAD_ERR_NO_FILE:
+            return null;    // er is simpelweg geen nieuw logo gekozen
+        case UPLOAD_ERR_INI_SIZE:
+        case UPLOAD_ERR_FORM_SIZE:
+            return 'Het logo is te groot; deze server accepteert maximaal '
+                . (string)ini_get('upload_max_filesize') . ' per upload. Kies een kleiner bestand.';
+        case UPLOAD_ERR_PARTIAL:
+            return 'Het logo is maar half geüpload. Probeer het nog een keer.';
+        case UPLOAD_ERR_NO_TMP_DIR:
+            return 'De server heeft geen tijdelijke map voor uploads. Vraag uw hostingpartij hiernaar.';
+        case UPLOAD_ERR_CANT_WRITE:
+            return 'De server kon het geüploade logo niet wegschrijven.';
+        case UPLOAD_ERR_EXTENSION:
+            return 'Een PHP-extensie heeft de upload van het logo geblokkeerd.';
+        default:
+            return 'De upload van het logo is mislukt (foutcode ' . (int)$bestand['error'] . ').';
+    }
+
+    $tijdelijk = (string)($bestand['tmp_name'] ?? '');
+    if ($tijdelijk === '' || !is_uploaded_file($tijdelijk)) {
+        return 'Het geüploade logo is niet gevonden. Probeer het nog een keer.';
+    }
+
+    $grootte = (int)($bestand['size'] ?? 0);
+    if ($grootte <= 0) {
+        return 'Het geüploade logo is leeg.';
+    }
+    if ($grootte > LOGO_MAX_BYTES) {
+        return 'Het logo is ' . formatteer_bytes($grootte) . '; maximaal '
+            . formatteer_bytes(LOGO_MAX_BYTES) . ' is toegestaan.';
+    }
+
+    // De extensie zegt niets: we kijken naar de daadwerkelijke inhoud.
+    $soorten = [IMAGETYPE_PNG => 'png', IMAGETYPE_JPEG => 'jpg', IMAGETYPE_WEBP => 'webp'];
+    $info    = @getimagesize($tijdelijk);
+    $extensie = ($info !== false && isset($soorten[(int)($info[2] ?? 0)]))
+        ? $soorten[(int)$info[2]] : null;
+
+    $svgInhoud = null;
+    if ($extensie === null) {
+        // Geen bitmap: dan moet het een SVG zijn — beginnend met een
+        // XML-declaratie of meteen met de <svg>-tag.
+        $ruw = (string)@file_get_contents($tijdelijk, false, null, 0, LOGO_MAX_BYTES);
+        $kop = ltrim(preg_replace('/^\xEF\xBB\xBF/', '', $ruw) ?? '');
+        if ($ruw === '' || (!str_starts_with($kop, '<?xml') && stripos($kop, '<svg') !== 0)) {
+            return 'Dit bestand is geen PNG, JPEG, WEBP of SVG. Kies een ander bestand.';
+        }
+        if (stripos($ruw, '<svg') === false) {
+            return 'Dit SVG-bestand bevat geen <svg>-element. Kies een ander bestand.';
+        }
+        // Externe entiteiten (XXE) kunnen we niet veilig opschonen: weigeren.
+        if (stripos($ruw, '<!entity') !== false) {
+            return 'Dit SVG-bestand bevat XML-entiteiten en wordt om veiligheidsredenen geweigerd.';
+        }
+        $svgInhoud = svg_schoonmaken($ruw);
+        $extensie  = 'svg';
+    }
+
+    $map = logo_map();
+    if (!is_dir($map) && !@mkdir($map, 0775, true) && !is_dir($map)) {
+        return 'De map assets/ kon niet worden aangemaakt; het logo is niet opgeslagen.';
+    }
+    if (!is_writable($map)) {
+        return 'De map assets/ is niet schrijfbaar; het logo is niet opgeslagen.';
+    }
+
+    // Eerst opruimen, zodat er nooit twee logo's met verschillende extensie zijn.
+    logo_bestanden_verwijderen();
+
+    $naam = 'logo.' . $extensie;
+    $doel = $map . '/' . $naam;
+    $gelukt = $svgInhoud !== null
+        ? @file_put_contents($doel, $svgInhoud) !== false
+        : @move_uploaded_file($tijdelijk, $doel);
+    if (!$gelukt) {
+        return 'Het logo kon niet worden opgeslagen in de map assets/.';
+    }
+    @chmod($doel, 0644);
+
+    // Cachebuster, zodat een vervangen logo meteen zichtbaar is.
+    instelling_opslaan('branding_logo_url', url('assets/' . $naam) . '?v=' . time());
+    return null;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  Verwerking (POST)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -68,6 +227,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             instelling_opslaan('branding_logo_url', $logo);
         }
+
+        // Een geüpload logo overschrijft de URL hierboven.
+        $logoFout = logo_verwerken();
+        if ($logoFout !== null) {
+            $waarschuwingen[] = $logoFout;
+        }
+
+        // Contact
+        $contactEmail = normaliseer_email(inst_tekst('contact_email', 190));
+        if ($contactEmail !== '' && !geldig_email($contactEmail)) {
+            $waarschuwingen[] = 'Het contactadres is geen geldig e-mailadres; de oude waarde is behouden.';
+        } else {
+            instelling_opslaan('contact_email', $contactEmail);
+        }
+        instelling_opslaan('contact_tekst', inst_tekst('contact_tekst', 255));
 
         // E-mail
         $methode = (string)($_POST['email_methode'] ?? 'graph');
@@ -125,6 +299,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($waarschuwingen as $waarschuwing) {
             flash('warning', $waarschuwing);
         }
+        header('Location: ' . url('admin/instellingen.php'));
+        exit;
+    }
+
+    // ─── Geüpload logo verwijderen ─────────────────────────────────────────
+    if ($actie === 'logo_verwijderen') {
+        logo_bestanden_verwijderen();
+        instelling_opslaan('branding_logo_url', '');
+        flash('success', 'Het logo is verwijderd; het portaal toont weer alleen de naam.');
         header('Location: ' . url('admin/instellingen.php'));
         exit;
     }
@@ -203,10 +386,23 @@ $methode = inst_waarde('email_methode', 'graph');
 $kleur   = preg_match('/^#[0-9A-Fa-f]{6}$/', inst_waarde('branding_kleur', '#0d6efd'))
     ? inst_waarde('branding_kleur', '#0d6efd') : '#0d6efd';
 
+// Voorbeeld van het logo: de ingestelde URL, anders een geüpload bestand.
+$logoBestand = logo_bestandsnaam();
+$huidigLogo  = inst_waarde('branding_logo_url');
+if ($huidigLogo === '' && $logoBestand !== null) {
+    $huidigLogo = url('assets/' . $logoBestand);
+}
+
 admin_start('Instellingen', 'Portaal, e-mail, inloggen en mailsjablonen');
 ?>
 
-<form method="post">
+<!-- Eigen formulier voor de verwijderknop; die staat via form="…" in de kaart hieronder. -->
+<form method="post" id="logo-verwijderen" class="d-none">
+    <?= csrf_field() ?>
+    <input type="hidden" name="actie" value="logo_verwijderen">
+</form>
+
+<form method="post" enctype="multipart/form-data">
     <?= csrf_field() ?>
     <input type="hidden" name="actie" value="opslaan">
 
@@ -240,12 +436,46 @@ admin_start('Instellingen', 'Portaal, e-mail, inloggen en mailsjablonen');
                 <textarea class="form-control" id="portaal_welkomst" name="portaal_welkomst" rows="3"
                     maxlength="2000"><?= h(inst_waarde('portaal_welkomst')) ?></textarea>
             </div>
-            <div class="col-12">
+            <div class="col-md-6">
+                <label class="form-label" for="logo">Logo uploaden</label>
+                <?php if ($huidigLogo !== ''): ?>
+                    <div class="border rounded p-3 mb-2 bg-white d-flex align-items-center gap-3">
+                        <img src="<?= h($huidigLogo) ?>" alt="Huidig logo" style="max-height:64px; max-width:220px;">
+                        <button class="btn btn-outline-danger btn-sm ms-auto" type="submit"
+                            form="logo-verwijderen">
+                            <i class="bi bi-trash me-1"></i>Logo verwijderen
+                        </button>
+                    </div>
+                <?php endif; ?>
+                <input class="form-control" type="file" id="logo" name="logo"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml">
+                <div class="form-text">
+                    PNG, JPEG, WEBP of SVG, maximaal <?= h(formatteer_bytes(LOGO_MAX_BYTES)) ?>.
+                    Het bestand komt in <code>assets/</code> te staan en overschrijft de logo-URL hiernaast.
+                </div>
+            </div>
+            <div class="col-md-6">
                 <label class="form-label" for="branding_logo_url">Logo-URL</label>
                 <input class="form-control" id="branding_logo_url" name="branding_logo_url" maxlength="500"
                     value="<?= h(inst_waarde('branding_logo_url')) ?>"
                     placeholder="https://… of /assets/logo.png">
-                <div class="form-text">Laat leeg om alleen de naam te tonen.</div>
+                <div class="form-text">
+                    Alternatief voor wie het logo elders host. Laat leeg om alleen de naam te tonen.
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label" for="contact_email">Contactadres</label>
+                <input class="form-control" type="email" id="contact_email" name="contact_email" maxlength="190"
+                    value="<?= h(inst_waarde('contact_email')) ?>" placeholder="hulp@example.nl">
+                <div class="form-text">
+                    Verschijnt onderaan de inlogpagina en bij een leeg videokoverzicht. Laat leeg om niets te tonen.
+                </div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="contact_tekst">Tekst bij het contactadres</label>
+                <input class="form-control" id="contact_tekst" name="contact_tekst" maxlength="255"
+                    value="<?= h(inst_waarde('contact_tekst', 'Lukt het inloggen niet? Neem contact met ons op.')) ?>">
             </div>
         </div>
     </div>
@@ -636,6 +866,24 @@ if ($deliveryMode !== 'auto') {
 
 $heeftAppKey = env('APP_KEY') !== '';
 $heeftPepper = env('OTP_PEPPER') !== '';
+
+$assetsMap     = logo_map();
+$assetsBestaat = is_dir($assetsMap);
+$assetsSchrijf = $assetsBestaat ? is_writable($assetsMap) : is_writable(dirname($assetsMap));
+
+/** Telt de rijen in een tabel; null als de tabel niet te lezen is. */
+function inst_aantal(string $tabel): ?int
+{
+    try {
+        return (int)db()->query('SELECT COUNT(*) FROM `' . str_replace('`', '', $tabel) . '`')->fetchColumn();
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+$aantalJaargangen = inst_aantal('jaargangen');
+$aantalBestanden  = inst_aantal('jaargang_bestanden');
+$aantalDeelnemers = inst_aantal('deelnemers');
 ?>
 <div class="kaart p-4">
     <h2 class="h6 text-uppercase text-muted mb-3"><i class="bi bi-cpu me-1"></i>Technische status</h2>
@@ -668,6 +916,33 @@ $heeftPepper = env('OTP_PEPPER') !== '';
                         <?php else: ?>
                             <span class="badge text-bg-success">bestaat en is schrijfbaar</span>
                         <?php endif; ?>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Map assets/ (logo-upload)</th>
+                    <td>
+                        <code class="pad"><?= h($assetsMap) ?></code><br>
+                        <?php if ($assetsBestaat && $assetsSchrijf): ?>
+                            <span class="badge text-bg-success">bestaat en is schrijfbaar</span>
+                        <?php elseif ($assetsBestaat): ?>
+                            <span class="badge text-bg-warning">bestaat, niet schrijfbaar</span>
+                            <span class="small text-muted ms-1">Een logo uploaden lukt zo niet.</span>
+                        <?php elseif ($assetsSchrijf): ?>
+                            <span class="badge text-bg-secondary">bestaat nog niet</span>
+                            <span class="small text-muted ms-1">
+                                Wordt bij de eerste logo-upload aangemaakt.
+                            </span>
+                        <?php else: ?>
+                            <span class="badge text-bg-warning">kan niet worden aangemaakt</span>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Inhoud van deze installatie</th>
+                    <td>
+                        <?= $aantalJaargangen === null ? '—' : (int)$aantalJaargangen ?> jaargangen ·
+                        <?= $aantalBestanden === null ? '—' : (int)$aantalBestanden ?> bestanden ·
+                        <?= $aantalDeelnemers === null ? '—' : (int)$aantalDeelnemers ?> deelnemers
                     </td>
                 </tr>
                 <tr>

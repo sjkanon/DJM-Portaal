@@ -59,7 +59,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $onthoudGekozen = $onthouden && !empty($_POST['onthouden']);
 
     $fouten    = [];
-    $deelnemer = otp_verifieren($email, $code, $fouten);
+    $deelnemer = null;
+
+    // Rem op het gokken van codes vanaf hetzelfde IP-adres, over alle
+    // e-mailadressen heen. De pogingenteller per code beschermt maar één code.
+    if (!otp_verificatie_toegestaan()) {
+        $fouten[] = 'Er zijn te veel codes ingevoerd vanaf dit apparaat. '
+            . 'Probeer het over een kwartier opnieuw.';
+        log_login('geblokkeerd', $email, false, 'te veel codepogingen per IP');
+    } else {
+        otp_verificatie_tellen();
+        $deelnemer = otp_verifieren($email, $code, $fouten);
+    }
 
     if ($deelnemer !== null) {
         deelnemer_inloggen($deelnemer);

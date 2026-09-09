@@ -35,10 +35,11 @@ pagina_start('Uw video\'s');
     <div class="text-center py-4">
         <i class="bi bi-camera-reels fs-1 text-secondary opacity-50"></i>
         <h1 class="h5 mt-3">Er staan op dit moment geen video's voor u klaar.</h1>
-        <p class="text-secondary small mb-0">
+        <p class="text-secondary small mb-2">
             Klopt dat niet? Neem dan contact met ons op, dan kijken wij het na.
             Vermeld daarbij het e-mailadres waarmee u bent ingelogd.
         </p>
+        <?php toon_contact(); ?>
     </div>
 
 <?php else: ?>

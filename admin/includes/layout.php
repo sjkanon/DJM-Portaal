@@ -23,6 +23,7 @@ function admin_menu(): array
         'index.php'       => ['Overzicht',   'bi-speedometer2'],
         'jaargangen.php'  => ['Jaargangen',  'bi-calendar3'],
         'bestanden.php'   => ['Bestanden',   'bi-film'],
+        'bestandscontrole.php' => ['Controle', 'bi-hdd-stack'],
         'toegang.php'     => ['Toegang',     'bi-person-check'],
         'deelnemers.php'  => ['Deelnemers',  'bi-people'],
         'logboek.php'     => ['Logboek',     'bi-journal-text'],
@@ -46,6 +47,7 @@ function admin_start(string $titel, string $subtitel = ''): void
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d6efd'/%3E%3Cpath d='M12 9.5v13l10-6.5z' fill='white'/%3E%3C/svg%3E">
     <title><?= h($titel) ?> — Beheer <?= h($naam) ?></title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -188,6 +190,7 @@ function admin_login_start(string $titel): void
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d6efd'/%3E%3Cpath d='M12 9.5v13l10-6.5z' fill='white'/%3E%3C/svg%3E">
     <title><?= h($titel) ?></title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
