@@ -19,6 +19,9 @@ done
 [ "$FOUTEN" -eq 0 ] && echo "  ✓ alle PHP-bestanden zijn syntactisch correct" || MISLUKT=$((MISLUKT+1))
 
 KOP "Statische controle";      bash audit.sh      || MISLUKT=$((MISLUKT+1))
+# Wist de database en loopt setup.php door; moet dus vóór de tests die gegevens
+# nodig hebben (smoke.php richt de database daarna opnieuw in).
+KOP "Verse installatie";       bash installatie.sh || MISLUKT=$((MISLUKT+1))
 KOP "Kernlogica";              docker compose exec -T web php /app/test/smoke.php || MISLUKT=$((MISLUKT+1))
 KOP "Inlogcodes";              docker compose exec -T web php /app/test/mailinstellingen.php >/dev/null
                                docker compose exec -T web php /app/test/otp_test.php || MISLUKT=$((MISLUKT+1))
