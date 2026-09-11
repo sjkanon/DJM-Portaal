@@ -51,3 +51,7 @@ Eerste versie.
 ### Tests
 - Testomgeving met Docker (MariaDB, Mailpit, PHP) en een testset van bijna 190 controles: statische analyse, een verse installatie, kernlogica, inlogcodes, de publieke flow, elke beheerpagina en de volledige jaarlijkse workflow.
 - Een test in een echte browser die portaal en beheer doorloopt, schermafdrukken maakt en faalt op console- en netwerkfouten. Die vond een Content-Security-Policy-probleem dat met alleen `curl` onzichtbaar was.
+- Alle drie de uitleveringsroutes zijn gedraaid op de webservers waar ze voor bedoeld zijn: PHP-streaming, nginx met `X-Accel-Redirect` en Apache met `mod_xsendfile`. Daaruit kwam dat `mod_xsendfile` Range-verzoeken wel honoreert maar niet aankondigt; het portaal zet die header nu zelf.
+- Een test met een video van 5 GB: groottes en offsets voorbij de 2 GB-grens kloppen op alle drie de routes, en PHP blijft daarbij onder de 3 MB geheugen.
+- Een controle op telefoonformaat dat geen enkele pagina horizontaal scrolt.
+- De foutafhandeling van de Graph-mailer is getest tegen het echte aanmeldpunt van Microsoft: verkeerde gegevens leveren een begrijpelijke melding op en worden in het mailboek vastgelegd.

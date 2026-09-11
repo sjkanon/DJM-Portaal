@@ -79,6 +79,16 @@ function bewaak(pagina, meldingen) {
         await schiet(beheer, naam);
     }
 
+    // Het beheer wordt ook op een telefoon gebruikt (een bestuurslid dat snel
+    // even kijkt wie de video nog niet heeft opgehaald), dus die kant ook vastleggen.
+    for (const [pad, naam] of [['index.php', 'beheer-overzicht-mobiel'],
+                               ['toegang.php', 'beheer-toegang-mobiel'],
+                               ['bestandscontrole.php', 'beheer-controle-mobiel']]) {
+        const resp = await beheer.goto(`${BASIS}/admin/${pad}`, { waitUntil: 'domcontentloaded' });
+        if (resp && resp.status() >= 400) continue;
+        await schiet(beheer, naam, 390, 844);
+    }
+
     // ── Portaal, als ingelogde ouder ─────────────────────────────────────
     const ouder = await browser.newPage();
     bewaak(ouder, meldingen);

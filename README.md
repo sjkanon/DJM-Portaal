@@ -113,15 +113,36 @@ hele keten zonder installatie te draaien is:
 bash test/alles.sh
 ```
 
-Dat draait achtereenvolgens de syntaxcontrole, een statische controle op
-SQL-interpolatie, CSRF, uitvoer-escaping en autorisatie, de kernlogica, de
-inlogcodes (eenmalig gebruik, pogingenlimiet, throttling, timinggedrag), de
-publieke inlogflow met een echte mailserver, elke beheerpagina, en tot slot de
-volledige jaarlijkse workflow: jaargang aanmaken, video koppelen,
-e-mailadressen importeren, uitnodigen, inloggen en downloaden.
+Dat draait achtereenvolgens:
 
-De testomgeving is bereikbaar op <http://localhost:8123> (portaal) en
-<http://localhost:8125> (Mailpit, om de verstuurde e-mails te bekijken).
+- syntaxcontrole en een statische controle op SQL-interpolatie, dubbel gebruikte
+  query-parameters, CSRF, uitvoer-escaping en autorisatie;
+- een verse installatie via `setup.php`;
+- de kernlogica en de inlogcodes (eenmalig gebruik, pogingenlimiet, throttling,
+  binding aan de browser, timinggedrag);
+- de publieke inlogflow met een echte mailserver, en elke beheerpagina;
+- de volledige jaarlijkse workflow: jaargang aanmaken, video koppelen,
+  e-mailadressen importeren, uitnodigen, inloggen en downloaden;
+- het portaal en het beheer in een echte browser, ook op telefoonformaat;
+- **de uitlevering op de webservers waar hij voor bedoeld is**: PHP-streaming,
+  nginx met `X-Accel-Redirect` en Apache met `mod_xsendfile`, elk met volledige
+  download, hervatten via Range, een 416 bij een onmogelijk bereik, en de
+  controle dat de videomap niet rechtstreeks bereikbaar is;
+- de foutafhandeling van de Graph-mailer en het opschoonscript.
+
+**Grote bestanden.** Er is een aparte test voor een video van 5 GB, die controleert
+of groottes en offsets voorbij de 2 GB-grens kloppen. Het testbestand staat niet in
+git; maak het eerst aan (het kost geen schijfruimte, het is een sparse bestand):
+
+```bash
+truncate -s 5G opslag/2028/musical-2028.mp4
+```
+
+Zonder dat bestand slaat die test zichzelf over.
+
+De testomgeving is bereikbaar op <http://localhost:8123> (ingebouwde PHP-server),
+<http://localhost:8126> (nginx) en <http://localhost:8127> (Apache), met
+<http://localhost:8125> als Mailpit om de verstuurde e-mails te bekijken.
 Afsluiten met `docker compose -f test/docker-compose.yml down`.
 
 ## Beveiliging

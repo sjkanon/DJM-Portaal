@@ -48,3 +48,63 @@ services:
     ports:
       - "8123:8080"
     command: php -S 0.0.0.0:8080 -t /app
+
+  # ── nginx + PHP-FPM: de X-Accel-Redirect-route ────────────────────────────
+  fpm:
+    build:
+      context: .
+      dockerfile: Dockerfile.fpm
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ..:/app
+      - ../opslag:/opslag
+    environment:
+      DB_HOST: db
+      DB_NAME: djm_portaal
+      DB_USER: djm_portaal
+      DB_PASS: djmtest
+      APP_URL: ""
+      APP_KEY: testsleutel_0123456789abcdef
+      OTP_PEPPER: testpepper_0123456789abcdef
+      DEBUG: "true"
+      DELIVERY_MODE: auto
+      XACCEL_PREFIX: /beveiligd/
+      OPSLAG_PAD: /opslag
+
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      - fpm
+    volumes:
+      - ..:/app:ro
+      - ../opslag:/opslag:ro
+      - ./nginx.test.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8126:8080"
+
+  # ── Apache + mod_xsendfile: de X-Sendfile-route ───────────────────────────
+  apache:
+    build:
+      context: .
+      dockerfile: Dockerfile.apache
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ..:/var/www/html
+      - ../opslag:/opslag
+    environment:
+      DB_HOST: db
+      DB_NAME: djm_portaal
+      DB_USER: djm_portaal
+      DB_PASS: djmtest
+      APP_URL: ""
+      APP_KEY: testsleutel_0123456789abcdef
+      OTP_PEPPER: testpepper_0123456789abcdef
+      DEBUG: "true"
+      DELIVERY_MODE: auto
+      OPSLAG_PAD: /opslag
+    ports:
+      - "8127:80"

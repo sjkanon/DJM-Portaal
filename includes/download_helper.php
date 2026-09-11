@@ -230,6 +230,10 @@ function download_uitleveren(array $bestand, string $absoluutPad, string $method
     if ($methode === 'xsendfile') {
         header('X-Sendfile: ' . $absoluutPad);
         download_content_headers($bestand, $absoluutPad, $grootte);
+        // mod_xsendfile honoreert Range-verzoeken wel, maar kondigt dat niet aan.
+        // Zonder deze header gaan downloadmanagers ervan uit dat hervatten niet
+        // kan, en beginnen ze na een onderbreking helemaal opnieuw.
+        header('Accept-Ranges: bytes');
         exit;
     }
 
