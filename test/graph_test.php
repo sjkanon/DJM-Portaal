@@ -88,7 +88,7 @@ printf("    melding: %s\n", mb_substr((string)($fouten[0] ?? '(geen)'), 0, 160))
 echo "\n── Diagnose in het beheer ──────────────────────────────────\n";
 $diagnose = $mailer->diagnoseConfiguration();
 toets_waar('diagnose geeft een array terug', is_array($diagnose));
-foreach (['token_ok', 'roles', 'has_mail_send', 'mailbox_status', 'mailbox_hint', 'errors'] as $sleutel) {
+foreach (['token_ok', 'roles', 'has_mail_send', 'mailbox_status', 'mailbox_conclusief', 'mailbox_hint', 'errors'] as $sleutel) {
     toets("sleutel '$sleutel' aanwezig", true, array_key_exists($sleutel, $diagnose));
 }
 toets('token niet opgehaald met onzin-gegevens', false, (bool)$diagnose['token_ok']);

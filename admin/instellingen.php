@@ -851,9 +851,15 @@ admin_start('Instellingen', 'Portaal, e-mail, inloggen en mailsjablonen');
                                 <th>Mailbox-status</th>
                                 <td>
                                     <?php $status = (int)($diagnose['mailbox_status'] ?? 0); ?>
-                                    <span class="badge text-bg-<?= $status === 200 ? 'success' : ($status === 0 ? 'secondary' : 'warning') ?>">
-                                        HTTP <?= (int)$status ?>
-                                    </span>
+                                    <?php $conclusief = !empty($diagnose['mailbox_conclusief']); ?>
+                                    <?php if ($status !== 0 && !$conclusief): ?>
+                                        <span class="badge text-bg-secondary">niet te controleren</span>
+                                        <span class="small text-muted ms-1">HTTP <?= $status ?></span>
+                                    <?php else: ?>
+                                        <span class="badge text-bg-<?= $status === 200 ? 'success' : ($status === 0 ? 'secondary' : 'warning') ?>">
+                                            HTTP <?= $status ?>
+                                        </span>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                             <tr>

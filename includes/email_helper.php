@@ -695,6 +695,7 @@ class GraphMailer
             'roles' => [],
             'has_mail_send' => false,
             'mailbox_status' => 0,
+            'mailbox_conclusief' => false,
             'mailbox_hint' => '',
             'errors' => [],
         ];
@@ -722,11 +723,19 @@ class GraphMailer
         $result['mailbox_status'] = (int)($probe['status'] ?? 0);
 
         if ($result['mailbox_status'] === 200) {
+            $result['mailbox_conclusief'] = true;
             $result['mailbox_hint'] = 'Mailbox is bereikbaar via Graph.';
+        } elseif ($this->isDirectoryPermissionDenial($probe, $result['roles'])) {
+            $result['mailbox_hint'] = 'Niet te controleren: de app heeft alleen Mail.Send en mag de directory '
+                . 'niet uitlezen. Dat is de bedoelde inrichting en geen fout — deze uitslag zegt niets over '
+                . 'het verzenden. Gebruik de testmail om te controleren of mailen werkt.';
         } elseif ($result['mailbox_status'] === 404) {
+            $result['mailbox_conclusief'] = true;
             $result['mailbox_hint'] = 'Mailbox niet gevonden in tenant of geen Exchange mailbox.';
         } elseif ($result['mailbox_status'] === 403) {
-            $result['mailbox_hint'] = 'Mailbox toegang geweigerd (mogelijk policy/rechtenprobleem).';
+            $result['mailbox_conclusief'] = true;
+            $result['mailbox_hint'] = 'Mailbox toegang geweigerd: mogelijk een Application Access Policy die deze '
+                . 'postbus uitsluit, of ontbrekende rechten in Exchange Online.';
         } elseif (!empty($probe['error'])) {
             $result['mailbox_hint'] = 'Mailbox-check cURL fout: ' . (string)$probe['error'];
         }
@@ -792,7 +801,7 @@ class GraphMailer
         $mailboxProbe = $this->probeMailboxAccess($token);
         if ($mailboxProbe['status'] === 404) {
             $hints[] = '403 diagnose: afzender-mailbox bestaat niet in deze tenant of heeft geen Exchange mailbox.';
-        } elseif ($mailboxProbe['status'] === 403) {
+        } elseif ($mailboxProbe['status'] === 403 && !$this->isDirectoryPermissionDenial($mailboxProbe, $roles)) {
             $hints[] = '403 diagnose: app heeft geen toegang tot deze mailbox (mogelijk Application Access Policy of ontbrekende rechten in Exchange Online).';
         }
 
@@ -834,10 +843,59 @@ class GraphMailer
         curl_close($ch);
 
         if ($curlError) {
-            return ['status' => 0, 'error' => $curlError];
+            return ['status' => 0, 'error' => $curlError, 'code' => ''];
         }
 
-        return ['status' => $httpCode, 'response' => (string)$response];
+        return [
+            'status'   => $httpCode,
+            'response' => (string)$response,
+            'code'     => $this->extractGraphErrorCode((string)$response),
+        ];
+    }
+
+    /**
+     * Haalt de foutcode uit een Graph-foutantwoord, bijvoorbeeld
+     * "Authorization_RequestDenied" of "ErrorAccessDenied".
+     */
+    private function extractGraphErrorCode(string $response): string
+    {
+        $data = json_decode($response, true);
+        if (!is_array($data) || !isset($data['error'])) {
+            return '';
+        }
+        if (is_array($data['error']) && isset($data['error']['code']) && is_string($data['error']['code'])) {
+            return $data['error']['code'];
+        }
+        return is_string($data['error']) ? $data['error'] : '';
+    }
+
+    /**
+     * Een 403 op de directory-aanroep /users/{adres} betekent vrijwel altijd dat de app
+     * alleen Mail.Send heeft en de directory niet mag uitlezen. Dat is precies de
+     * inrichting die docs/GRAPH-SETUP.md voorschrijft: het is geen fout en het zegt niets
+     * over het verzenden. Een Application Access Policy geldt namelijk voor
+     * Exchange-resources, niet voor /users.
+     */
+    private function isDirectoryPermissionDenial(array $probe, array $roles): bool
+    {
+        if ((int)($probe['status'] ?? 0) !== 403) {
+            return false;
+        }
+
+        $code = (string)($probe['code'] ?? '');
+        if ($code !== '') {
+            return stripos($code, 'Authorization_RequestDenied') !== false;
+        }
+
+        // Geen bruikbare foutcode: kijk of het token de directory überhaupt mag lezen.
+        $leesrollen = [
+            'User.Read.All',
+            'User.ReadBasic.All',
+            'User.ReadWrite.All',
+            'Directory.Read.All',
+            'Directory.ReadWrite.All',
+        ];
+        return array_intersect($leesrollen, $roles) === [];
     }
 
     private function base64UrlDecode(string $value): string

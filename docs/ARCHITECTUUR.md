@@ -80,7 +80,13 @@ nooit zelf uit `$_SERVER`: alleen deze functie weet of `X-Forwarded-For` te vert
 `verstuur_mail()`, `verstuur_inlogcode_mail()`, `verstuur_uitnodiging_mail()`,
 `verstuur_testmail()`, `mail_html_omhulsel()`, `mail_sjabloon_vullen()`.
 `GraphMailer` heeft `diagnoseConfiguration(): array` met `token_ok`, `roles`,
-`has_mail_send`, `mailbox_status`, `mailbox_hint`, `errors`.
+`has_mail_send`, `mailbox_status`, `mailbox_conclusief`, `mailbox_hint`, `errors`.
+
+De mailbox-check doet `GET /users/{adres}`; dat is een directory-aanroep en vereist
+leesrechten die de app bewust niet heeft. Levert die een 403 met
+`Authorization_RequestDenied`, dan staat `mailbox_conclusief` op `false`: de uitslag
+zegt dan niets over het verzenden en wordt in Beheer als *niet te controleren*
+getoond in plaats van als fout.
 
 **layout.php:** `pagina_start($titel, ['smal' => true])`, `pagina_eind()`, `toon_fout()`,
 `toon_melding()`, `toon_contact()`, `branding_kleur()`, `branding_logo()`.
