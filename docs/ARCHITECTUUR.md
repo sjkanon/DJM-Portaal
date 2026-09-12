@@ -56,7 +56,14 @@ opslag/                     videobestanden (niet publiek benaderbaar)
 `opslag_absoluut_pad()`, `normaliseer_email()`, `geldig_email()`, `client_ip()`,
 `client_ip_bin()`, `ip_leesbaar()`, `client_user_agent()`, `app_key()`, `otp_pepper()`,
 `log_login()`, `app_log()`, `stuur_security_headers()`, `vereis_installatie()`,
-`ensure_session_started()`, `destroy_current_session()`, `app_url_afwijking()`.
+`ensure_session_started()`, `destroy_current_session()`, `app_url_afwijking()`,
+`https_actief()`, `veilige_host()`, `vertrouwde_proxies()`, `is_vertrouwde_proxy()`,
+`ip_in_bereik()`, `geldig_ip_of_bereik()`.
+
+`client_ip()` is de enige plek die bepaalt welk IP-adres bij een bezoeker hoort. Lees hem
+nooit zelf uit `$_SERVER`: alleen deze functie weet of `X-Forwarded-For` te vertrouwen is
+(zie `TRUSTED_PROXIES` in `.env`). Hetzelfde geldt voor `https_actief()` en
+`veilige_host()` — allebei kijken ze naar headers die een bezoeker zelf kan zetten.
 
 **auth.php:** `csrf_token()`, `csrf_field()`, `verify_csrf()`, `vereis_csrf()`,
 `deelnemer_inloggen()`, `deelnemer_ingelogd()`, `huidige_deelnemer()`, `vereis_deelnemer()`,

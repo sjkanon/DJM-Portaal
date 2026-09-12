@@ -26,6 +26,19 @@ const ZELFTEST_MAP = 'zelftest';
 /** Naam van het testbestand. Geen video-extensie: het is geen jaargangbestand. */
 const ZELFTEST_BESTAND = 'uitlevering-zelftest.bin';
 
+/**
+ * Extensies waarmee de test óók probeert of de opslagmap rechtstreeks
+ * bereikbaar is.
+ *
+ * Dit is geen overbodige herhaling. Op panelen als Plesk staat nginx vóór
+ * Apache en levert nginx statische bestanden zélf uit, gekozen op extensie —
+ * en dan komt het verzoek nooit bij Apache aan, dus doet .htaccess niets meer.
+ * In die lijst staan juist wél mp4 en zip. Zou de test alleen het .bin-bestand
+ * proberen, dan meldde hij "niet bereikbaar" terwijl de echte video's voor
+ * iedereen te downloaden zijn.
+ */
+const ZELFTEST_PROBEER_EXTENSIES = ['mp4', 'mkv', 'mov', 'm4v', 'webm', 'avi', 'zip'];
+
 /** Grootte van het testbestand: groot genoeg voor een bereikaanvraag, klein genoeg om niets te merken. */
 const ZELFTEST_BYTES = 65536;
 
@@ -138,7 +151,20 @@ function zelftest_bestand_aanmaken(string &$fout): ?string
         return null;
     }
 
+    // Een paar bytes per videoformaat, om straks per extensie te kunnen kijken
+    // of de webserver ze rechtstreeks uitlevert. Mislukt er een, dan is dat
+    // geen reden de hele test af te breken: de check slaat die extensie over.
+    foreach (ZELFTEST_PROBEER_EXTENSIES as $extensie) {
+        @file_put_contents($map . '/' . zelftest_proefnaam($extensie), 'djm-zelftest');
+    }
+
     return $pad;
+}
+
+/** Naam van het proefbestand voor één extensie. */
+function zelftest_proefnaam(string $extensie): string
+{
+    return 'uitlevering-zelftest-proef.' . $extensie;
 }
 
 /** Ruimt het testbestand en zijn map weer op. */
@@ -146,6 +172,9 @@ function zelftest_opruimen(): void
 {
     $map = opslag_pad() . '/' . ZELFTEST_MAP;
     @unlink($map . '/' . ZELFTEST_BESTAND);
+    foreach (ZELFTEST_PROBEER_EXTENSIES as $extensie) {
+        @unlink($map . '/' . zelftest_proefnaam($extensie));
+    }
     @rmdir($map);
 }
 

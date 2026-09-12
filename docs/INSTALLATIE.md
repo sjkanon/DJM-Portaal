@@ -228,6 +228,7 @@ Een echte omgevingsvariabele (uit Docker, systemd of `SetEnv`) wint altijd van `
 | `DB_CHARSET` | Laat op `utf8mb4` staan. |
 | `OTP_PEPPER` | Geheime sleutel waarmee inlogcodes worden gehasht. Codes worden nooit als platte tekst opgeslagen. |
 | `APP_KEY` | Geheime sleutel die downloadlinks en tokens ondertekent. |
+| `TRUSTED_PROXIES` | Alleen invullen als er een reverse proxy of load balancer vóór het portaal staat. Zie de toelichting hieronder. |
 | `OPSLAG_PAD` | Absoluut pad naar de map met de videobestanden. Zie hoofdstuk 6. Leeg = de map `opslag/` in het project. |
 | `DELIVERY_MODE` | `auto`, `xaccel`, `xsendfile` of `php`. Zie hoofdstuk 7. |
 | `XACCEL_PREFIX` | Alleen voor nginx: het interne pad uit het `internal` location-blok, standaard `/beveiligd/`. |
@@ -240,6 +241,40 @@ Een echte omgevingsvariabele (uit Docker, systemd of `SetEnv`) wint altijd van `
 
 De Graph- en SMTP-gegevens kunt u ook later invullen via **Beheer → Instellingen**. Wat in
 `.env` staat, wordt gebruikt bij een verse installatie.
+
+### Staat er een proxy vóór het portaal?
+
+Draait het portaal achter nginx als reverse proxy, achter HAProxy, Traefik, een load
+balancer of Cloudflare, vul dan `TRUSTED_PROXIES` in met het adres of het bereik van die
+proxy:
+
+```ini
+TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12
+```
+
+Losse IP-adressen en CIDR-bereiken mogen door elkaar, gescheiden door komma's, en zowel
+IPv4 als IPv6.
+
+**Waarom dit uitmaakt.** Zonder deze regel ziet het portaal van elke bezoeker het
+IP-adres van de proxy, want dat is wat de webserver doorgeeft. Alle bezoekers delen dan
+dezelfde teller, en de limiet van tien inlogcodes per uur per IP-adres sluit op een drukke
+avond de hele vereniging tegelijk buiten. Met de regel erbij leest het portaal het echte
+bezoekersadres uit de `X-Forwarded-For`-header en telt iedereen weer apart.
+
+**Waarom dit niet standaard aanstaat.** `X-Forwarded-For` is een gewone header: iedere
+bezoeker kan er zelf een meesturen. Zou het portaal die altijd geloven, dan kon iemand bij
+elke aanvraag een ander adres opgeven en de limiet eindeloos omzeilen. Daarom wordt de
+header alléén aangenomen van adressen die u hier zelf opgeeft, en telt binnen die header
+alleen het deel dat uw eigen proxy heeft geschreven.
+
+> **Vul hier niets in als er geen proxy voor staat.** Een te ruim bereik — of het bereik
+> waar uw bezoekers zelf vandaan komen — geeft ze precies de mogelijkheid die deze
+> instelling juist moet afsluiten.
+
+Het beheeroverzicht waarschuwt zodra er doorstuurheaders binnenkomen terwijl
+`TRUSTED_PROXIES` leeg is, zodat u het niet per ongeluk overslaat. Controleren of het
+klopt kan in **Beheer → Logboek → Inloggen**: daar hoort bij uw eigen inlogpoging uw
+eigen IP-adres te staan, niet dat van de proxy.
 
 ### APP_KEY en OTP_PEPPER genereren
 

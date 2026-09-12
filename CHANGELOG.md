@@ -2,7 +2,7 @@
 
 Alle noemenswaardige wijzigingen aan het DJM Portaal.
 
-## Nog niet uitgebracht
+## 1.1.0 — 12 september 2026
 
 ### Beveiliging
 - **Content-Security-Policy zonder `'unsafe-inline'` voor scripts.** Alle JavaScript
@@ -117,6 +117,19 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
   browsers na een update vanzelf de nieuwe versie ophalen.
 - Brede tabellen in het beheer laten op telefoon en tablet een schuifbalk zien, zodat
   zichtbaar is dat er nog kolommen naast staan.
+- **Instellingen is bruikbaar geworden op zijn eigen lengte.** De pagina is bijna
+  4000 pixels lang; de opslaanknop stond halverwege, dus na een wijziging onderin moest
+  je terugscrollen. Die knop is nu een balk die in beeld blijft zolang het formulier in
+  beeld is, met erbij wat hij wel en niet bewaart. Bovenaan staat een sprongnavigatie
+  naar de zeven onderdelen. Allebei zonder JavaScript — gewone ankerlinks en
+  `position: sticky` — zodat er niets kan haperen.
+- **De knoppenbalk bij de toegangslijst liep op een telefoon uit zijn kader:** de
+  keuzelijst was afgekapt tot "wie de video nc" en de tekst van "Herinnering versturen"
+  stak buiten de knop uit. Onder 576 pixels staan de keuzelijst en beide knoppen nu
+  onder elkaar over de volle breedte.
+- Bij stap 1 van Toegang stond naast het plakvak een halflege kolom. Het CSV-blok heeft
+  nu een eigen kader dat even hoog is als het plakvak ernaast, en de verdeling is 7/5
+  in plaats van 8/4.
 - De downloadknop in het portaal staat op een telefoon over de volle breedte.
 - `setup.php` gebruikt hetzelfde `<head>` en dezelfde stijl als de rest.
 
