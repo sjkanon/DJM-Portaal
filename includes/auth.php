@@ -147,10 +147,13 @@ function onthoud_dit_apparaat(int $deelnemerId): void
             ':ip' => client_ip_bin(),
         ]);
 
+    // https_actief() kijkt ook naar X-Forwarded-Proto. Zonder dat zou dit cookie
+    // achter een TLS-afsluitende proxy zonder `secure` de deur uit gaan, en dan
+    // reist een sleutel die dertig dagen toegang geeft mee over gewoon http.
     setcookie(REMEMBER_COOKIE, $selector . ':' . $geheim, [
         'expires'  => $verloopt,
         'path'     => '/',
-        'secure'   => (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off'),
+        'secure'   => https_actief(),
         'httponly' => true,
         'samesite' => 'Lax',
     ]);
@@ -212,6 +215,7 @@ function vergeet_dit_apparaat(): void
     setcookie(REMEMBER_COOKIE, '', [
         'expires'  => time() - 42000,
         'path'     => '/',
+        'secure'   => https_actief(),
         'httponly' => true,
         'samesite' => 'Lax',
     ]);

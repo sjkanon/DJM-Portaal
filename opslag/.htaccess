@@ -1,0 +1,26 @@
+# De videobestanden lopen uitsluitend via download.php, dat eerst de sessie en
+# de toegangsrechten controleert. Rechtstreeks opvragen mag nooit.
+#
+# Dit bestand is een vangnet naast de regels in de .htaccess van de projectroot
+# en naast de serverconfiguratie. Staat de opslagmap buiten de webroot — de
+# aanbevolen inrichting via OPSLAG_PAD in .env — dan is het overbodig, maar het
+# kan geen kwaad.
+#
+# Let op: hier staan bewust geen php_flag-regels. Die kent Apache alleen met
+# mod_php; onder PHP-FPM levert zo'n regel een 500 op de hele map op.
+
+<IfModule mod_authz_core.c>
+    # Apache 2.4
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    # Apache 2.2
+    Order allow,deny
+    Deny from all
+</IfModule>
+
+# Mocht een script in deze map belanden: nooit als PHP uitvoeren.
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8
+RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8
+
+Options -Indexes -ExecCGI

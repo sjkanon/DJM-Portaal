@@ -15,6 +15,7 @@ if (!function_exists('db')) {
     require_once dirname(dirname(__DIR__)) . '/config.php';
 }
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
+require_once dirname(dirname(__DIR__)) . '/includes/opmaak.php';
 
 /** Navigatie-items: bestand => [label, icoon] */
 function admin_menu(): array
@@ -23,6 +24,7 @@ function admin_menu(): array
         'index.php'       => ['Overzicht',   'bi-speedometer2'],
         'jaargangen.php'  => ['Jaargangen',  'bi-calendar3'],
         'bestanden.php'   => ['Bestanden',   'bi-film'],
+        'bestandscontrole.php' => ['Controle', 'bi-hdd-stack'],
         'toegang.php'     => ['Toegang',     'bi-person-check'],
         'deelnemers.php'  => ['Deelnemers',  'bi-people'],
         'logboek.php'     => ['Logboek',     'bi-journal-text'],
@@ -30,91 +32,40 @@ function admin_menu(): array
     ];
 }
 
+/**
+ * Bouwt het attribuut waarmee admin.js om een bevestiging vraagt.
+ *
+ * De Content-Security-Policy staat geen onsubmit="…" toe, dus zet de tekst in
+ * een data-attribuut. Regeleindes moeten daarin als &#10; staan, anders komen
+ * ze niet in de melding terecht.
+ */
+function bevestig_attribuut(string $tekst): string
+{
+    return ' data-bevestig="' . str_replace("\n", '&#10;', h($tekst)) . '"';
+}
+
 function admin_start(string $titel, string $subtitel = ''): void
 {
     stuur_security_headers();
     $huidig = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));
     $naam   = portaal_naam();
-    $kleur  = preg_match('/^#[0-9A-Fa-f]{6}$/', instelling('branding_kleur', '#0d6efd'))
-        ? instelling('branding_kleur', '#0d6efd') : '#0d6efd';
+    $kleur  = branding_kleur();
     $beheerderNaam = (string)($_SESSION['beheerder_naam'] ?? '');
     ?>
 <!DOCTYPE html>
 <html lang="nl">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="robots" content="noindex, nofollow">
-    <title><?= h($titel) ?> — Beheer <?= h($naam) ?></title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <style>
-        :root {
-            --djm: <?= h($kleur) ?>;
-        }
-
-        body {
-            background: #f4f6f9;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-
-        .navbar-djm {
-            background: var(--djm);
-        }
-
-        .navbar-djm .nav-link,
-        .navbar-djm .navbar-brand {
-            color: rgba(255, 255, 255, .85);
-        }
-
-        .navbar-djm .nav-link:hover,
-        .navbar-djm .nav-link.active {
-            color: #fff;
-        }
-
-        .navbar-djm .nav-link.active {
-            font-weight: 600;
-            border-bottom: 2px solid #fff;
-        }
-
-        .btn-djm {
-            background: var(--djm);
-            border-color: var(--djm);
-            color: #fff;
-        }
-
-        .btn-djm:hover {
-            filter: brightness(.92);
-            color: #fff;
-        }
-
-        .kaart {
-            background: #fff;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-        }
-
-        .tabel-compact td,
-        .tabel-compact th {
-            vertical-align: middle;
-        }
-
-        code.pad {
-            font-size: .8rem;
-            color: #6b7280;
-            word-break: break-all;
-        }
-    </style>
+    <?php djm_head($titel . ' — Beheer ' . $naam, $kleur); ?>
 </head>
 
-<body>
-    <nav class="navbar navbar-expand-lg navbar-djm mb-4">
+<body class="djm-beheer">
+    <nav class="navbar navbar-expand-xl navbar-djm mb-4">
         <div class="container-xl">
             <a class="navbar-brand fw-semibold" href="<?= h(url('admin/index.php')) ?>">
                 <i class="bi bi-collection-play me-1"></i><?= h($naam) ?>
             </a>
-            <button class="navbar-toggler border-0 text-white" type="button" data-bs-toggle="collapse"
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse"
                 data-bs-target="#adminNav"><i class="bi bi-list fs-3"></i></button>
             <div class="collapse navbar-collapse" id="adminNav">
                 <ul class="navbar-nav me-auto">
@@ -134,9 +85,17 @@ function admin_start(string $titel, string $subtitel = ''): void
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="<?= h(url('admin/logout.php')) ?>">
-                            <i class="bi bi-box-arrow-right me-1"></i><?= h($beheerderNaam ?: 'Uitloggen') ?>
-                        </a>
+                        <!-- Uitloggen wijzigt de sessie en gaat daarom via POST met een
+                             CSRF-token; een <img src="…/logout.php"> op een andere site
+                             kan de beheerder dan niet ongevraagd uitloggen. -->
+                        <form method="post" action="<?= h(url('admin/logout.php')) ?>" class="d-inline">
+                            <?= csrf_field() ?>
+                            <button type="submit" class="nav-link btn btn-link text-decoration-none"
+                                title="Uitloggen">
+                                <i class="bi bi-box-arrow-right me-1"></i><span
+                                    class="djm-afkappen djm-beheerdersnaam"><?= h($beheerderNaam ?: 'Uitloggen') ?></span>
+                            </button>
+                        </form>
                     </li>
                 </ul>
             </div>
@@ -144,14 +103,11 @@ function admin_start(string $titel, string $subtitel = ''): void
     </nav>
 
     <div class="container-xl pb-5">
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-            <div>
-                <h1 class="h4 mb-0"><?= h($titel) ?></h1>
-                <?php if ($subtitel !== ''): ?>
-                    <div class="text-muted small"><?= h($subtitel) ?></div>
-                <?php endif; ?>
-            </div>
-            <div id="paginaActies"></div>
+        <div class="mb-3">
+            <h1 class="h4 mb-0"><?= h($titel) ?></h1>
+            <?php if ($subtitel !== ''): ?>
+                <div class="text-muted small"><?= h($subtitel) ?></div>
+            <?php endif; ?>
         </div>
 
         <?php foreach (flash_ophalen() as $melding): ?>
@@ -167,7 +123,8 @@ function admin_eind(): void
 {
     ?>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="<?= h(djm_asset('assets/vendor/bootstrap.bundle.min.js')) ?>"></script>
+    <script src="<?= h(djm_asset('admin/assets/admin.js')) ?>"></script>
 </body>
 
 </html>
@@ -178,53 +135,16 @@ function admin_eind(): void
 function admin_login_start(string $titel): void
 {
     stuur_security_headers();
-    $kleur = preg_match('/^#[0-9A-Fa-f]{6}$/', instelling('branding_kleur', '#0d6efd'))
-        ? instelling('branding_kleur', '#0d6efd') : '#0d6efd';
+    $kleur = branding_kleur();
     ?>
 <!DOCTYPE html>
 <html lang="nl">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="robots" content="noindex, nofollow">
-    <title><?= h($titel) ?></title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <style>
-        body {
-            background: #0f172a;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-
-        .kaart {
-            width: 100%;
-            max-width: 420px;
-            border-radius: 14px;
-            overflow: hidden;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, .4);
-        }
-
-        .kop {
-            background: <?= h($kleur) ?>;
-            color: #fff;
-            padding: 24px;
-            text-align: center;
-        }
-
-        .btn-djm {
-            background: <?= h($kleur) ?>;
-            border-color: <?= h($kleur) ?>;
-            color: #fff;
-        }
-    </style>
+    <?php djm_head($titel, $kleur); ?>
 </head>
 
-<body>
+<body class="djm-inlogkaart">
     <div class="card kaart">
         <div class="kop">
             <div class="fs-5 fw-semibold"><i class="bi bi-shield-lock me-2"></i><?= h($titel) ?></div>

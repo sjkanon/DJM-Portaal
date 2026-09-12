@@ -197,6 +197,8 @@ INSERT INTO instellingen (sleutel, waarde) VALUES
     ('portaal_naam',            'Deventer Jeugd Musical'),
     ('portaal_welkomst',        'Vul uw e-mailadres in. U ontvangt een eenmalige inlogcode waarmee u de videoregistratie van de musical kunt downloaden.'),
     ('portaal_ingeschakeld',    '1'),
+    ('contact_email',           ''),
+    ('contact_tekst',           'Lukt het inloggen niet? Neem contact met ons op.'),
     ('branding_kleur',          '#0d6efd'),
     ('branding_logo_url',       ''),
     ('email_methode',           'graph'),

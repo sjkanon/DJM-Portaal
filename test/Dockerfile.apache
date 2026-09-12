@@ -1,0 +1,10 @@
+# Apache met mod_xsendfile, om de X-Sendfile-route echt te kunnen testen.
+FROM php:8.3-apache
+RUN apt-get update > /dev/null \
+    && apt-get install -y --no-install-recommends libapache2-mod-xsendfile > /dev/null \
+    && rm -rf /var/lib/apt/lists/* \
+    && docker-php-ext-install pdo_mysql > /dev/null 2>&1 \
+    && a2enmod xsendfile headers rewrite > /dev/null
+# De opslagmap ligt buiten de documentroot; mod_xsendfile moet hem wel mogen lezen.
+RUN printf 'XSendFile On\nXSendFilePath /opslag\n' > /etc/apache2/conf-available/xsendfile.conf \
+    && a2enconf xsendfile > /dev/null

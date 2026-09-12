@@ -1,0 +1,4 @@
+# PHP-FPM voor de nginx-opstelling (X-Accel-Redirect).
+FROM php:8.3-fpm
+RUN docker-php-ext-install pdo_mysql > /dev/null 2>&1
+WORKDIR /app

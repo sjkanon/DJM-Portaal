@@ -18,14 +18,17 @@ index.php                   e-mailadres invoeren -> code aanvragen
 verifieer.php               code invoeren
 logout.php
 download.php                toegangscontrole + uitlevering
+zelftest.php                testbestand van de uitleveringszelftest (ondertekend, geen sessie)
 portaal/index.php           overzicht jaargangen van de ingelogde deelnemer
 includes/auth.php           sessies, CSRF, deelnemer- en beheerderidentiteit
 includes/otp.php            codes genereren, versturen, verifiëren, throttling
 includes/email_helper.php   GraphMailer + SimpleMailer + mailsjablonen
 includes/toegang_helper.php wie mag welke jaargang / welk bestand
 includes/download_helper.php uitlevering: X-Accel / X-Sendfile / PHP-stream
+includes/uitlevering_helper.php serverconfig tonen + de uitlevering echt uitproberen
 includes/layout.php         pagina_start() / pagina_eind() voor het portaal
 admin/includes/layout.php   admin_start() / admin_eind() / admin_login_start()
+admin/bestandscontrole.php  controle: staan alle gekoppelde bestanden er nog?
 admin/*.php                 beheerinterface
 opslag/                     videobestanden (niet publiek benaderbaar)
 ```
@@ -52,7 +55,7 @@ opslag/                     videobestanden (niet publiek benaderbaar)
 `opslag_absoluut_pad()`, `normaliseer_email()`, `geldig_email()`, `client_ip()`,
 `client_ip_bin()`, `ip_leesbaar()`, `client_user_agent()`, `app_key()`, `otp_pepper()`,
 `log_login()`, `app_log()`, `stuur_security_headers()`, `vereis_installatie()`,
-`ensure_session_started()`, `destroy_current_session()`.
+`ensure_session_started()`, `destroy_current_session()`, `app_url_afwijking()`.
 
 **auth.php:** `csrf_token()`, `csrf_field()`, `verify_csrf()`, `vereis_csrf()`,
 `deelnemer_inloggen()`, `deelnemer_ingelogd()`, `huidige_deelnemer()`, `vereis_deelnemer()`,
@@ -72,7 +75,7 @@ opslag/                     videobestanden (niet publiek benaderbaar)
 `has_mail_send`, `mailbox_status`, `mailbox_hint`, `errors`.
 
 **layout.php:** `pagina_start($titel, ['smal' => true])`, `pagina_eind()`, `toon_fout()`,
-`toon_melding()`, `branding_kleur()`, `branding_logo()`.
+`toon_melding()`, `toon_contact()`, `branding_kleur()`, `branding_logo()`.
 
 **admin/includes/layout.php:** `admin_start($titel, $subtitel = '')`, `admin_eind()`,
 `admin_login_start($titel)`, `admin_login_eind()`, `admin_menu()`.
@@ -97,3 +100,14 @@ uitsluitend via `opslag_absoluut_pad()` naar een absoluut pad omgezet.
 4. Rate limiting per e-mailadres én per IP via de tabel `aanvraag_limiet`.
 5. Bestandspaden komen nooit uit gebruikersinvoer: id → database → `opslag_absoluut_pad()`.
 6. `session_regenerate_id(true)` bij elke inlog.
+7. Codepogingen worden ook per IP-adres geremd (twintig per kwartier), naast de
+   pogingenteller per code.
+
+## Let op bij installatie
+
+`APP_URL` moet exact overeenkomen met het adres waarop het portaal draait. Wijkt het af,
+dan wijzen alle omleidingen naar een andere origin en weigeren browsers formulieren te
+versturen vanwege `form-action 'self'` in de Content-Security-Policy — met als gevolg dat
+niemand kan inloggen. `app_url_afwijking()` signaleert dit; het beheeroverzicht toont er
+een waarschuwing over. De regel mag ook leeg blijven: dan leidt het portaal het adres af
+uit het verzoek.
