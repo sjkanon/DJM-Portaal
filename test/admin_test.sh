@@ -112,7 +112,13 @@ toets "POST zonder token wordt geweigerd" "419" "$CSRF_STATUS"
 
 echo ""
 echo "── Uitloggen ───────────────────────────────────────────────"
+# Een GET mag niets doen: uitloggen vraagt om POST met een geldig CSRF-token.
 haal -o /dev/null -L "$BASIS/admin/logout.php"
+toets "GET logt niet uit" "200" "$(status "$BASIS/admin/index.php")"
+
+OVERZICHT=$(haal "$BASIS/admin/index.php")
+UIT_TOKEN=$(csrf "$OVERZICHT")
+haal -o /dev/null -L -X POST -d "csrf_token=$UIT_TOKEN" "$BASIS/admin/logout.php"
 toets "beheer weer afgeschermd" "302" "$(status "$BASIS/admin/index.php")"
 
 echo ""

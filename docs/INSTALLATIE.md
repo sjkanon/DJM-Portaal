@@ -316,6 +316,11 @@ Er liggen twee kant-en-klare voorbeelden in deze map:
 
 Beide bevatten uitleg in commentaar. Twee punten verdienen extra aandacht.
 
+> **Tip:** zodra het beheer bereikbaar is, staat onder **Beheer › Instellingen ›
+> Serverconfiguratie** hetzelfde blok nog een keer, maar dan met de opslagmap en de prefix
+> van *deze* installatie al ingevuld. Kopiëren en plakken scheelt het handmatig aanpassen
+> van de paden — en daarmee de meest gemaakte fout.
+
 ### Uitlevering van grote bestanden
 
 `DELIVERY_MODE` in `.env` bepaalt hoe een video bij de bezoeker komt:
@@ -344,6 +349,13 @@ OPSLAG_PAD=/var/djm-opslag
 Test daarna of het `internal` echt werkt: open
 `https://portaal.example.nl/beveiligd/2026/musical-2026.mp4` rechtstreeks in de browser.
 Dat **moet** een 404 opleveren.
+
+Sneller gaat het met de knop **Uitproberen** onder **Beheer › Instellingen › Testen**. Die
+zet kort een testbestand in de opslagmap, haalt het via dezelfde route op als een echte
+video — volledig, hervat en met een onmogelijk bereik — controleert of het bestand
+rechtstreeks te downloaden is, en ruimt zichzelf daarna op. Blijft dit ongedaan, dan merkt u
+een verkeerde configuratie pas bij de eerste deelnemer met een video van meerdere
+gigabytes.
 
 ### `.env` afschermen
 
@@ -441,7 +453,11 @@ Loop deze lijst af zodra het portaal draait.
 8. **Zet een herinnering voor de vervaldatum van het Graph client secret.** Loopt dat af,
    dan stopt de mail — en daarmee het inloggen. Zie `GRAPH-SETUP.md`.
 
-9. **Doe een volledige test met uw eigen e-mailadres**: code aanvragen, inloggen, downloaden.
+9. **Draai de uitleveringszelftest** onder **Beheer › Instellingen › Testen**, knop
+   **Uitproberen**. Alle stappen horen groen te zijn. Dit is de snelste controle dat de
+   serverconfiguratie uit hoofdstuk 7 ook echt doet wat de bedoeling is.
+
+10. **Doe een volledige test met uw eigen e-mailadres**: code aanvragen, inloggen, downloaden.
 
 ---
 

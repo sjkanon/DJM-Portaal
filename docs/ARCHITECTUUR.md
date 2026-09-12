@@ -18,12 +18,14 @@ index.php                   e-mailadres invoeren -> code aanvragen
 verifieer.php               code invoeren
 logout.php
 download.php                toegangscontrole + uitlevering
+zelftest.php                testbestand van de uitleveringszelftest (ondertekend, geen sessie)
 portaal/index.php           overzicht jaargangen van de ingelogde deelnemer
 includes/auth.php           sessies, CSRF, deelnemer- en beheerderidentiteit
 includes/otp.php            codes genereren, versturen, verifiëren, throttling
 includes/email_helper.php   GraphMailer + SimpleMailer + mailsjablonen
 includes/toegang_helper.php wie mag welke jaargang / welk bestand
 includes/download_helper.php uitlevering: X-Accel / X-Sendfile / PHP-stream
+includes/uitlevering_helper.php serverconfig tonen + de uitlevering echt uitproberen
 includes/layout.php         pagina_start() / pagina_eind() voor het portaal
 admin/includes/layout.php   admin_start() / admin_eind() / admin_login_start()
 admin/bestandscontrole.php  controle: staan alle gekoppelde bestanden er nog?

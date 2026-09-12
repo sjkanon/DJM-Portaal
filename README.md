@@ -54,6 +54,7 @@ index.php                    e-mailadres invoeren, code aanvragen
 verifieer.php                code invoeren
 logout.php
 download.php                 toegangscontrole en uitlevering
+zelftest.php                 levert het testbestand van de uitleveringszelftest uit
 cron_opschonen.php           dagelijkse opschoontaak (CLI)
 .htaccess                    Apache: afscherming en securityheaders
 VERSION
@@ -66,9 +67,11 @@ includes/
 ├── email_helper.php         GraphMailer, SMTP-fallback, mailsjablonen
 ├── toegang_helper.php       wie mag welke jaargang en welk bestand
 ├── download_helper.php      X-Accel-Redirect / X-Sendfile / PHP-stream
+├── uitlevering_helper.php   serverconfiguratie tonen en de uitlevering uitproberen
 └── layout.php               gedeelde opmaak voor het portaal
 
 admin/                       beheerinterface
+admin/assets/admin.js        het enige JavaScript van het beheer (de CSP staat inline niet toe)
 opslag/                      videobestanden — .htaccess weigert alles
 logs/                        applicatie- en foutlogboek
 docs/                        documentatie en voorbeeldconfiguraties
@@ -120,6 +123,9 @@ Dat draait achtereenvolgens:
 - een verse installatie via `setup.php`;
 - de kernlogica en de inlogcodes (eenmalig gebruik, pogingenlimiet, throttling,
   binding aan de browser, timinggedrag);
+- de beveiliging: securityheaders, afgeschermde paden per webserver, uitloggen dat
+  alleen via POST gaat, en de helpers voor mailheaders, bestandspaden,
+  downloadhandtekeningen, de Host-header en de CSV-export;
 - de publieke inlogflow met een echte mailserver, en elke beheerpagina;
 - de volledige jaarlijkse workflow: jaargang aanmaken, video koppelen,
   e-mailadressen importeren, uitnodigen, inloggen en downloaden;
@@ -128,6 +134,8 @@ Dat draait achtereenvolgens:
   nginx met `X-Accel-Redirect` en Apache met `mod_xsendfile`, elk met volledige
   download, hervatten via Range, een 416 bij een onmogelijk bereik, en de
   controle dat de videomap niet rechtstreeks bereikbaar is;
+- dezelfde drie routes nog een keer via de zelftest die in het beheer achter de
+  knop **Uitproberen** zit, zodat die knop meeloopt met elke wijziging;
 - de foutafhandeling van de Graph-mailer en het opschoonscript.
 
 **Grote bestanden.** Er is een aparte test voor een video van 5 GB, die controleert
@@ -158,15 +166,24 @@ Afsluiten met `docker compose -f test/docker-compose.yml down`.
 - **Bestandspaden komen nooit uit gebruikersinvoer.** Een download loopt van id naar database
   naar een pad dat gecontroleerd binnen de opslagmap moet vallen. De videobestanden staan bij
   voorkeur buiten de webroot en zijn niet met een directe URL te benaderen.
-- **CSRF-token** op elk formulier; `session_regenerate_id(true)` bij elke inlog; sessiecookies
-  met `httponly`, `secure` en `samesite`.
+- **CSRF-token** op elk formulier, ook op uitloggen; `session_regenerate_id(true)` bij elke
+  inlog; sessiecookies met `httponly`, `secure` en `samesite`. De `secure`-vlag wordt ook
+  gezet achter een TLS-afsluitende proxy.
 - **Securityheaders** (CSP, HSTS, `X-Content-Type-Options`, `X-Frame-Options`,
-  `Referrer-Policy`) worden door PHP gestuurd en nog eens door de webserver als vangnet.
+  `Referrer-Policy`, `Cache-Control: no-store`) worden door PHP gestuurd en nog eens door
+  de webserver als vangnet. De CSP staat geen inline JavaScript toe: alle scripts staan in
+  losse bestanden.
 - **Logging** van alle inlog-, mail- en downloadgebeurtenissen met IP en tijdstip, met een
   instelbare bewaartermijn die `cron_opschonen.php` dagelijks afdwingt.
 - **`.env` bevat de geheimen** (databasewachtwoord, `APP_KEY`, `OTP_PEPPER`) en staat niet in
   git. Controleer na installatie dat het bestand niet via de browser te downloaden is, en
   verwijder `setup.php`.
+- **Afscherming in lagen.** De webserverconfiguratie is de eerste laag; `opslag/`, `logs/`,
+  `includes/` en `docs/` hebben daarnaast elk een eigen `.htaccess`. Let bij nginx op de
+  volgorde van de `location`-blokken: de eerste passende regex wint, dus de deny-blokken
+  horen bóven het PHP-blok te staan. `docs/nginx.voorbeeld.conf` heeft die volgorde al.
+- **`bash test/beveiliging.sh`** meet dit allemaal aan de draaiende server: securityheaders,
+  afgeschermde paden op nginx én Apache, het uitloggedrag, en de beveiligingshelpers.
 
 Een beveiligingsprobleem gevonden? Meld het bij de beheerder van de vereniging in plaats van
 het publiek te maken.

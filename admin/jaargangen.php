@@ -382,7 +382,7 @@ admin_start('Jaargangen', 'Eén rij per jaar: titel, zichtbaarheidsperiode en pu
                                         </form>
 
                                         <form method="post" class="d-inline"
-                                            onsubmit="return confirm('Jaargang <?= (int)$rij['jaar'] ?> verwijderen?\n\nAlle gekoppelde bestandsregels en toegangsrechten van deze jaargang verdwijnen mee.\nDe videobestanden zelf blijven gewoon in de opslagmap staan.\n\nDit kan niet ongedaan worden gemaakt.');">
+                                            <?= bevestig_attribuut("Jaargang " . (int)$rij['jaar'] . " verwijderen?\n\nAlle gekoppelde bestandsregels en toegangsrechten van deze jaargang verdwijnen mee.\nDe videobestanden zelf blijven gewoon in de opslagmap staan.\n\nDit kan niet ongedaan worden gemaakt.") ?>>
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="actie" value="verwijderen">
                                             <input type="hidden" name="id" value="<?= $rijId ?>">

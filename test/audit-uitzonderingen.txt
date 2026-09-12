@@ -3,3 +3,4 @@
 admin/instellingen.php:$heeftGraphSecret   # ternary over twee vaste teksten, geen invoer
 admin/jaargangen.php:$aantalDeelnemers     # jaargang_aantal_deelnemers() geeft een int terug
 setup.php:$uitleg                          # bewust HTML; dynamische delen gaan bij de aanroep door h()
+setup.php:$opties['uitleg']                # idem: de hint bij een veld of keuzelijst mag <code> bevatten

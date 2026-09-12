@@ -74,6 +74,21 @@ DirectoryIndex index.php index.html
     # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
 </IfModule>
 
+# ─── Statische bestanden laten cachen ──────────────────────────────────────
+# Achter elke stijl- en scripturl staat ?v=<versie uit VERSION>. Zodra die
+# versie verandert, is het een ander adres en haalt de browser het bestand
+# opnieuw op. Daarom kan de bewaartermijn ruim staan zonder dat een update
+# blijft hangen. PHP-pagina's raakt dit niet: die sturen zelf no-store.
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css                "access plus 30 days"
+    ExpiresByType text/javascript         "access plus 30 days"
+    ExpiresByType application/javascript  "access plus 30 days"
+    ExpiresByType font/woff2              "access plus 365 days"
+    ExpiresByType image/svg+xml           "access plus 7 days"
+    ExpiresByType image/png               "access plus 7 days"
+</IfModule>
+
 # ─── SVG-bestanden onschadelijk maken ──────────────────────────────────────
 # Een geüpload logo in SVG-formaat kan JavaScript bevatten. Bij gebruik in een
 # <img>-tag voert geen enkele browser dat uit, maar bij het rechtstreeks openen

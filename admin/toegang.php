@@ -418,6 +418,23 @@ function toegang_status_badge(string $status): array
     };
 }
 
+/**
+ * Maakt één CSV-veld onschadelijk voor Excel en LibreOffice.
+ *
+ * Een cel die met =, +, -, @ of een tab begint, wordt door die programma's als
+ * formule uitgevoerd zodra de beheerder het export-bestand opent. In een naam
+ * uit een geïmporteerde ledenlijst kan zoiets prima staan. Een enkel
+ * aanhalingsteken ervoor maakt er weer gewoon tekst van.
+ */
+function toegang_csv_veld(?string $waarde): string
+{
+    $waarde = (string)$waarde;
+    if ($waarde === '') {
+        return '';
+    }
+    return str_contains("=+-@\t\r", $waarde[0]) ? "'" . $waarde : $waarde;
+}
+
 /** Percentage van $deel binnen $totaal, afgerond op hele procenten. */
 function toegang_percentage(int $deel, int $totaal): int
 {
@@ -947,7 +964,8 @@ if (($_GET['actie'] ?? '') === 'export' && $jaargang !== null) {
     $bestandsnaam = 'toegang-' . (int)$jaargang['jaar'] . '-' . date('Ymd') . '.csv';
 
     header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="' . $bestandsnaam . '"');
+    header('Content-Disposition: attachment; filename="'
+        . preg_replace('/[^A-Za-z0-9._-]+/', '-', $bestandsnaam) . '"');
     header('Cache-Control: no-store, no-cache, must-revalidate');
     header('Pragma: no-cache');
 
@@ -960,14 +978,14 @@ if (($_GET['actie'] ?? '') === 'export' && $jaargang !== null) {
     foreach ($stmt->fetchAll() as $rij) {
         [, $statusLabel] = toegang_status_badge(toegang_rij_status($rij));
         fputcsv($uitvoer, [
-            (string)$rij['email'],
-            (string)($rij['naam'] ?? ''),
-            (string)($rij['toegevoegd_op'] ?? ''),
-            (string)($rij['toegevoegd_door'] ?? ''),
-            (string)($rij['laatst_ingelogd_op'] ?? ''),
+            toegang_csv_veld((string)$rij['email']),
+            toegang_csv_veld((string)($rij['naam'] ?? '')),
+            toegang_csv_veld((string)($rij['toegevoegd_op'] ?? '')),
+            toegang_csv_veld((string)($rij['toegevoegd_door'] ?? '')),
+            toegang_csv_veld((string)($rij['laatst_ingelogd_op'] ?? '')),
             (int)$rij['geblokkeerd'] === 1 ? 'ja' : 'nee',
             $statusLabel,
-            (string)($rij['eerste_download'] ?? ''),
+            toegang_csv_veld((string)($rij['eerste_download'] ?? '')),
         ], ';');
     }
     fclose($uitvoer);
@@ -1061,7 +1079,7 @@ admin_start(
         <form method="get" class="row g-2 align-items-end">
             <div class="col-sm-6 col-lg-4">
                 <label class="form-label small text-muted mb-1" for="jaargangKeuze">Jaargang</label>
-                <select class="form-select" id="jaargangKeuze" name="jaargang" onchange="this.form.submit()">
+                <select class="form-select" id="jaargangKeuze" name="jaargang" data-auto-verzenden>
                     <?php foreach ($jaargangen as $rij): ?>
                         <option value="<?= (int)$rij['id'] ?>" <?= (int)$rij['id'] === $gekozenId ? 'selected' : '' ?>>
                             <?= (int)$rij['jaar'] ?> — <?= h((string)$rij['titel']) ?>
@@ -1079,7 +1097,7 @@ admin_start(
             </div>
             <div class="col-sm-6 col-lg-3">
                 <label class="form-label small text-muted mb-1" for="statusKeuze">Ophaalstatus</label>
-                <select class="form-select" id="statusKeuze" name="status" onchange="this.form.submit()">
+                <select class="form-select" id="statusKeuze" name="status" data-auto-verzenden>
                     <?php foreach (toegang_status_filters() as $sleutel => $opschrift): ?>
                         <option value="<?= h((string)$sleutel) ?>" <?= $sleutel === $statusFilter ? 'selected' : '' ?>>
                             <?= h((string)$opschrift) ?>
@@ -1488,7 +1506,7 @@ admin_start(
                                         </button>
                                     </form>
                                     <form method="post" class="d-inline"
-                                        onsubmit="return confirm('Toegang van <?= h((string)$rij['email']) ?> tot <?= (int)$jaargang['jaar'] ?> intrekken?');">
+                                        <?= bevestig_attribuut('Toegang van ' . (string)$rij['email'] . ' tot ' . (int)$jaargang['jaar'] . ' intrekken?') ?>>
                                         <?= csrf_field() ?>
                                         <input type="hidden" name="actie" value="intrekken">
                                         <input type="hidden" name="jaargang" value="<?= (int)$gekozenId ?>">

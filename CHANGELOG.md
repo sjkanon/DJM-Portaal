@@ -2,6 +2,52 @@
 
 Alle noemenswaardige wijzigingen aan het DJM Portaal.
 
+## Nog niet uitgebracht
+
+### Beveiliging
+- **Content-Security-Policy zonder `'unsafe-inline'` voor scripts.** Alle JavaScript
+  staat nu in `admin/assets/admin.js` in plaats van in `onclick=`-attributen en
+  scriptblokken in de pagina. Zou er ooit tekst van een bezoeker ongeëscaped op een
+  pagina belanden, dan voert de browser het daarin gesmokkelde script niet uit.
+  Ook `object-src 'none'` toegevoegd.
+- **Pagina's worden niet meer gecachet** (`Cache-Control: no-store, private`). Op een
+  geleende of gedeelde computer zijn e-mailadressen en logboeken na het uitloggen niet
+  meer uit de browsercache terug te halen.
+- **Het onthoud-dit-apparaat-cookie krijgt nu ook achter een reverse proxy de
+  `secure`-vlag.** Achter een TLS-afsluitende proxy (nginx, HAProxy, Cloudflare) staat
+  `$_SERVER['HTTPS']` niet; het cookie — dertig dagen geldig — kon daardoor over gewoon
+  http meereizen. De HTTPS-detectie staat nu op één plek, `https_actief()`, en wordt
+  door de sessiecookie, het onthoud-cookie, HSTS en `app_base_url()` gedeeld.
+- **Uitloggen vraagt om POST met een CSRF-token.** Een andere website kan een bezoeker
+  of beheerder niet langer met een enkel plaatje uitloggen.
+- **De Host-header wordt gecontroleerd.** Zonder `APP_URL` in `.env` kwam die header
+  ongefilterd in elke link terecht die het portaal maakt, ook in de uitnodigingsmail.
+- **De SMTP-mailer weigert regeleindes in adressen en namen.** Laatste zeef tegen
+  header-injectie, mocht een controle elders ooit worden overgeslagen.
+- **De CSV-export van de toegangslijst maakt formules onschadelijk.** Een naam die met
+  `=`, `+`, `-` of `@` begint werd door Excel en LibreOffice als formule uitgevoerd
+  zodra de beheerder het bestand opende.
+- **Het beheerdersinloggen heeft nu ook een rem per account,** naast die per IP-adres,
+  en een mislukte poging op een onbekend adres duurt even lang als op een bestaand adres.
+- **`opslag/.htaccess` en `logs/.htaccess` zitten weer in git.** Ze stonden in de
+  documentatie beschreven, maar `.gitignore` hield ze buiten de repository: na een verse
+  checkout stonden ze niet op de server. Ook `includes/` en `docs/` hebben er nu een.
+- **Volgorde in `docs/nginx.voorbeeld.conf` vastgelegd.** nginx gebruikt de eerste
+  regex-`location` die past; stond het PHP-blok boven de deny-blokken, dan voerde
+  PHP-FPM `/includes/auth.php` alsnog uit. Dat was in `test/nginx.test.conf` ook echt
+  het geval en is daar gecorrigeerd.
+- **`docs/apache.voorbeeld.conf` levert SVG's nu ook met een strikte policy uit,**
+  net als de `.htaccess` en de nginx-configuratie al deden.
+
+### Testen
+- Nieuw: `test/beveiliging.sh` en `test/beveiliging.php` meten de securityheaders, de
+  afgeschermde paden op alle drie de webservers, het uitloggedrag en de
+  beveiligingshelpers (mailheaders, bestandspaden, downloadhandtekeningen,
+  Host-header, CSV-export). Ze draaien mee in `test/alles.sh`.
+- De statische controle kijkt nu naar ieder bestand dat `$_POST` of `$_FILES` leest in
+  plaats van naar ieder bestand met een formulier erin, zodat een formulier en de
+  verwerking ervan in verschillende bestanden mogen staan.
+
 ## 1.0.0 — 9 september 2026
 
 Eerste versie.
@@ -34,6 +80,8 @@ Eerste versie.
 - Logboek voor inlogpogingen, verstuurde e-mails en downloads, met een opruimfunctie.
 - Instellingen voor branding, mailsjablonen, inloggedrag en de Microsoft Graph-koppeling, inclusief testmail en een Graph-diagnose.
 - Logo uploaden vanaf de eigen computer (PNG, JPEG, WEBP of SVG; SVG's worden opgeschoond en met een strikte policy uitgeleverd), en een contactadres dat op de inlogpagina en bij een leeg overzicht verschijnt.
+- Het serverconfiguratieblok dat bij de gedetecteerde uitleveringsmethode hoort, met de paden van de installatie al ingevuld en een kopieerknop — voor alle drie de methoden, niet alleen de actieve.
+- Zelftest van de uitlevering: zet kort een testbestand in de opslagmap en haalt het via dezelfde route op als een echte video — volledig, hervat en met een onmogelijk bereik — en controleert dat het bestand niet rechtstreeks te downloaden is. Dat laatste vangt een ontbrekend `internal` in nginx, wat anders onzichtbaar blijft omdat de download via het portaal gewoon lijkt te werken.
 
 ### E-mail
 - Verzending via de Microsoft Graph API (app-only, alleen `Mail.Send`), met SMTP als terugvaloptie.
@@ -54,4 +102,5 @@ Eerste versie.
 - Alle drie de uitleveringsroutes zijn gedraaid op de webservers waar ze voor bedoeld zijn: PHP-streaming, nginx met `X-Accel-Redirect` en Apache met `mod_xsendfile`. Daaruit kwam dat `mod_xsendfile` Range-verzoeken wel honoreert maar niet aankondigt; het portaal zet die header nu zelf.
 - Een test met een video van 5 GB: groottes en offsets voorbij de 2 GB-grens kloppen op alle drie de routes, en PHP blijft daarbij onder de 3 MB geheugen.
 - Een controle op telefoonformaat dat geen enkele pagina horizontaal scrolt.
+- De zelftest uit het beheer draait mee op alle drie de routes. Een verkeerde `alias` in het nginx-blok komt eruit als HTTP 404, een weggelaten `internal` als een bestand dat zonder inloggen op te halen is.
 - De foutafhandeling van de Graph-mailer is getest tegen het echte aanmeldpunt van Microsoft: verkeerde gegevens leveren een begrijpelijke melding op en worden in het mailboek vastgelegd.

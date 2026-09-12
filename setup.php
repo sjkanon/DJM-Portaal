@@ -3,10 +3,11 @@
 /**
  * DJM Portaal — installatiewizard.
  *
- * Stap 1  omgevingscontrole (PHP, extensies, schrijfrechten, .env)
- * Stap 2  databaseverbinding testen en db.sql uitvoeren
- * Stap 3  eerste beheerder aanmaken
- * Stap 4  afronden
+ * Stap 1  omgevingscontrole (PHP, extensies, schrijfrechten)
+ * Stap 2  .env invullen en wegschrijven
+ * Stap 3  databaseverbinding testen en db.sql uitvoeren
+ * Stap 4  eerste beheerder aanmaken
+ * Stap 5  afronden
  *
  * Beveiliging: zodra er een actieve beheerder in de database staat doet dit
  * bestand niets meer, tenzij er in de projectroot een bestand
@@ -14,9 +15,12 @@
  *
  * Dit bestand gebruikt met opzet niet includes/layout.php of admin/includes/layout.php:
  * die verwachten een werkende database, en die is er tijdens de installatie nog niet.
+ * Het <head>-blok komt wél uit includes/opmaak.php; dat werkt zonder database,
+ * zolang er een vaste kleur wordt meegegeven in plaats van de ingestelde.
  */
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/includes/opmaak.php';
 
 ensure_session_started();
 stuur_security_headers();
@@ -157,28 +161,647 @@ function setup_stap_url(int $stap): string
     return 'setup.php?stap=' . $stap;
 }
 
+
+// ─── Omgevingsbestand (.env) ─────────────────────────────────────────────────
+
+function setup_env_pad(): string
+{
+    return APP_ROOT . '/.env';
+}
+
+/**
+ * De sleutels die de wizard beheert, gegroepeerd zoals ze in .env komen te
+ * staan. Sleutels die iemand er zelf bij heeft gezet blijven bewaard; die
+ * komen onderaan onder "Overige" terecht.
+ *
+ * @return array<string, array{uitleg: string[], sleutels: string[]}>
+ */
+function setup_env_blokken(): array
+{
+    return [
+        'Applicatie' => [
+            'uitleg'   => [],
+            'sleutels' => ['APP_NAME', 'APP_URL', 'DEBUG'],
+        ],
+        'Database' => [
+            'uitleg'   => ['DB_SOCKET heeft voorrang op DB_HOST en DB_PORT.'],
+            'sleutels' => ['DB_HOST', 'DB_PORT', 'DB_SOCKET', 'DB_NAME', 'DB_USER', 'DB_PASS', 'DB_CHARSET'],
+        ],
+        'Beveiliging' => [
+            'uitleg'   => [
+                'OTP_PEPPER hasht de inlogcodes, APP_KEY ondertekent downloadlinks',
+                'en onthoud-cookies. Bewaar ze: wijzigen maakt lopende codes en',
+                'links ongeldig.',
+            ],
+            'sleutels' => ['OTP_PEPPER', 'APP_KEY'],
+        ],
+        'Opslag' => [
+            'uitleg'   => ['Leeg laten betekent de map opslag/ in dit project.'],
+            'sleutels' => ['OPSLAG_PAD'],
+        ],
+        'Uitlevering van downloads' => [
+            'uitleg'   => ['auto | xaccel (nginx) | xsendfile (Apache) | php'],
+            'sleutels' => ['DELIVERY_MODE', 'XACCEL_PREFIX'],
+        ],
+        'Microsoft Graph' => [
+            'uitleg'   => ['Kan ook later via Beheer > Instellingen.'],
+            'sleutels' => ['GRAPH_TENANT_ID', 'GRAPH_CLIENT_ID', 'GRAPH_CLIENT_SECRET', 'MAIL_VAN_ADRES', 'MAIL_VAN_NAAM'],
+        ],
+        'SMTP (terugvaloptie)' => [
+            'uitleg'   => ['Alleen nodig als de e-mailmethode op smtp staat.'],
+            'sleutels' => ['SMTP_HOST', 'SMTP_POORT', 'SMTP_BEVEILIGING', 'SMTP_GEBRUIKER', 'SMTP_WACHTWOORD'],
+        ],
+    ];
+}
+
+/** @return string[] Alle sleutels die de wizard beheert, op volgorde. */
+function setup_env_sleutels(): array
+{
+    $alles = [];
+    foreach (setup_env_blokken() as $blok) {
+        foreach ($blok['sleutels'] as $sleutel) {
+            $alles[] = $sleutel;
+        }
+    }
+    return $alles;
+}
+
+/**
+ * Velden die nooit teruggetoond worden in het formulier. Laat de gebruiker er
+ * een leeg, dan blijft de bestaande waarde staan. Zo hoeft een wachtwoord niet
+ * in de HTML te belanden om de wizard te kunnen herhalen.
+ *
+ * @return string[]
+ */
+function setup_env_geheim(): array
+{
+    return ['DB_PASS', 'GRAPH_CLIENT_SECRET', 'SMTP_WACHTWOORD', 'APP_KEY', 'OTP_PEPPER'];
+}
+
+/** De huidige inhoud van .env, of een lege array als het bestand er nog niet is. */
+function setup_env_bestaand(): array
+{
+    return env_parse(setup_env_pad());
+}
+
+/**
+ * Schrijft het complete .env-bestand uit.
+ *
+ * @param array<string, string> $waarden De beheerde sleutels.
+ * @param array<string, string> $overige Sleutels die al in .env stonden en die
+ *                                       de wizard niet kent.
+ */
+function setup_env_samenstellen(array $waarden, array $overige = []): string
+{
+    $regels = [
+        '# ─── DJM Portaal — omgevingsconfiguratie ─────────────────────────────────',
+        '# Geschreven door setup.php op ' . date('d-m-Y H:i'),
+        '# Dit bestand hoort NIET in git en mag nooit publiek te downloaden zijn.',
+    ];
+
+    foreach (setup_env_blokken() as $kop => $blok) {
+        $regels[] = '';
+        $regels[] = '# ─── ' . $kop . ' ' . str_repeat('─', max(1, 68 - mb_strlen($kop)));
+        foreach ($blok['uitleg'] as $uitleg) {
+            $regels[] = '# ' . $uitleg;
+        }
+        foreach ($blok['sleutels'] as $sleutel) {
+            $regels[] = env_regel($sleutel, (string)($waarden[$sleutel] ?? ''));
+        }
+    }
+
+    if ($overige) {
+        $regels[] = '';
+        $regels[] = '# ─── Overige (stond al in .env en is ongemoeid gelaten) ──────────────────';
+        foreach ($overige as $sleutel => $waarde) {
+            $regels[] = env_regel($sleutel, (string)$waarde);
+        }
+    }
+
+    return implode("\n", $regels) . "\n";
+}
+
+/**
+ * Zet de inhoud op schijf: eerst een reservekopie, dan een tijdelijk bestand
+ * met rechten 0600, en dat pas met rename() op zijn plaats. rename() is binnen
+ * dezelfde map één ondeelbare stap, dus een half geschreven .env kan niet
+ * bestaan — ook niet als PHP er middenin mee ophoudt.
+ *
+ * @param array<string, string> $waarden De waarden waarmee $inhoud is opgebouwd,
+ *                                       om achteraf te kunnen terugcontroleren.
+ * @return array{ok: bool, fout: string, backup: string}
+ */
+function setup_env_schrijven(string $inhoud, array $waarden): array
+{
+    $pad      = setup_env_pad();
+    $map      = dirname($pad);
+    $bestaat  = is_file($pad);
+    $mislukt  = static fn(string $fout): array => ['ok' => false, 'fout' => $fout, 'backup' => ''];
+
+    if ($bestaat && !is_writable($pad)) {
+        return $mislukt('Het bestand .env bestaat al, maar de webserver mag er niet in schrijven.');
+    }
+    if (!is_writable($map)) {
+        return $mislukt('De projectmap ' . $map . ' is niet beschrijfbaar voor de webserver.');
+    }
+
+    // Reservekopie. Lukt die niet, dan stoppen we: liever geen wijziging dan
+    // een oude configuratie die we niet kunnen terugzetten.
+    $backup = '';
+    if ($bestaat) {
+        $basis = $pad . '.backup-' . date('Ymd-His');
+        $backup = $basis;
+        for ($n = 2; file_exists($backup) && $n < 100; $n++) {
+            $backup = $basis . '-' . $n;
+        }
+        if (!@copy($pad, $backup)) {
+            return $mislukt('De reservekopie ' . basename($backup) . ' kon niet worden gemaakt.');
+        }
+        @chmod($backup, 0600);
+    }
+
+    $tijdelijk = $map . '/.env.tmp-' . bin2hex(random_bytes(6));
+    if (@file_put_contents($tijdelijk, $inhoud, LOCK_EX) !== strlen($inhoud)) {
+        @unlink($tijdelijk);
+        return $mislukt('Het tijdelijke bestand kon niet worden weggeschreven.');
+    }
+    @chmod($tijdelijk, 0600);
+
+    if (!@rename($tijdelijk, $pad)) {
+        @unlink($tijdelijk);
+        return $mislukt('Het tijdelijke bestand kon niet naar .env worden hernoemd.');
+    }
+    @chmod($pad, 0600);
+    clearstatcache(true, $pad);
+
+    // Teruglezen: pas als de parser er weer precies uithaalt wat erin ging, is
+    // het echt gelukt. Dit vangt een halfvolle schijf, een rare tekenset of een
+    // waarde die de aanhalingstekens breekt allemaal in één keer af.
+    $terug = env_parse($pad);
+    foreach ($waarden as $sleutel => $waarde) {
+        if (($terug[$sleutel] ?? null) !== $waarde) {
+            return $mislukt('Het bestand is geschreven, maar ' . $sleutel
+                . ' komt er anders weer uit. De reservekopie staat nog in de projectmap.');
+        }
+    }
+
+    return ['ok' => true, 'fout' => '', 'backup' => $backup === '' ? '' : basename($backup)];
+}
+
+// ─── Databasecontrole met opgegeven gegevens ─────────────────────────────────
+
+/**
+ * Probeert verbinding te maken. Zonder $metDatabase wordt er verbonden met de
+ * server zelf, zonder database te kiezen — zo is te zien of de inloggegevens
+ * kloppen terwijl de database nog niet bestaat.
+ *
+ * @param array<string, string> $g
+ * @return array{ok: bool, fout: string, onbekendeDatabase: bool}
+ */
+function setup_db_verbinden(array $g, bool $metDatabase = true): array
+{
+    $dsn = mysql_dsn([
+        'host'    => $g['DB_HOST'] ?? '',
+        'port'    => $g['DB_PORT'] ?? '',
+        'socket'  => $g['DB_SOCKET'] ?? '',
+        'dbname'  => $metDatabase ? ($g['DB_NAME'] ?? '') : '',
+        'charset' => $g['DB_CHARSET'] ?? 'utf8mb4',
+    ]);
+
+    try {
+        new PDO($dsn, (string)($g['DB_USER'] ?? ''), (string)($g['DB_PASS'] ?? ''), [
+            PDO::ATTR_ERRMODE          => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_EMULATE_PREPARES => false,
+            // Zonder tijdslimiet blijft de wizard hangen op een adres dat niet
+            // antwoordt, tot PHP zelf de stekker eruit trekt.
+            PDO::ATTR_TIMEOUT          => 5,
+        ]);
+        return ['ok' => true, 'fout' => '', 'onbekendeDatabase' => false];
+    } catch (Throwable $e) {
+        $melding = $e->getMessage();
+        return [
+            'ok'                => false,
+            'fout'              => $melding,
+            'onbekendeDatabase' => str_contains($melding, '[1049]') || str_contains($melding, 'Unknown database'),
+        ];
+    }
+}
+
+/**
+ * Maakt de database aan met de opgegeven gegevens.
+ *
+ * @param array<string, string> $g
+ * @return array{ok: bool, fout: string}
+ */
+function setup_db_database_aanmaken(array $g): array
+{
+    $naam = (string)($g['DB_NAME'] ?? '');
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $naam)) {
+        return ['ok' => false, 'fout' => 'De databasenaam bevat tekens die hier niet zijn toegestaan.'];
+    }
+    $charset = (string)($g['DB_CHARSET'] ?? 'utf8mb4');
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $charset)) {
+        $charset = 'utf8mb4';
+    }
+
+    $dsn = mysql_dsn([
+        'host'    => $g['DB_HOST'] ?? '',
+        'port'    => $g['DB_PORT'] ?? '',
+        'socket'  => $g['DB_SOCKET'] ?? '',
+        'dbname'  => '',
+        'charset' => $charset,
+    ]);
+
+    try {
+        $pdo = new PDO($dsn, (string)($g['DB_USER'] ?? ''), (string)($g['DB_PASS'] ?? ''), [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_TIMEOUT => 5,
+        ]);
+        $pdo->exec('CREATE DATABASE IF NOT EXISTS `' . $naam . '` CHARACTER SET ' . $charset);
+        return ['ok' => true, 'fout' => ''];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'fout' => $e->getMessage()];
+    }
+}
+
+// ─── Mappen ──────────────────────────────────────────────────────────────────
+
+/**
+ * Maakt de map zo nodig aan en controleert met een echte schrijfpoging of de
+ * webserver erin kan. is_writable() kijkt alleen naar de rechtenbits en zegt
+ * onder SELinux, een read-only mount of een ACL nog wel eens ten onrechte ja.
+ *
+ * @return array{ok: bool, fout: string, aangemaakt: bool}
+ */
+function setup_map_klaarmaken(string $pad): array
+{
+    $aangemaakt = false;
+    if (!is_dir($pad)) {
+        if (!@mkdir($pad, 0775, true) && !is_dir($pad)) {
+            return ['ok' => false, 'fout' => 'De map bestaat niet en kon niet worden aangemaakt.', 'aangemaakt' => false];
+        }
+        $aangemaakt = true;
+    }
+
+    $proef = rtrim($pad, '/') . '/.schrijfproef-' . bin2hex(random_bytes(4));
+    if (@file_put_contents($proef, 'ok') === false) {
+        return ['ok' => false, 'fout' => 'De map bestaat, maar de webserver kan er niet in schrijven.', 'aangemaakt' => $aangemaakt];
+    }
+    @unlink($proef);
+
+    return ['ok' => true, 'fout' => '', 'aangemaakt' => $aangemaakt];
+}
+
+// ─── Is .env van buitenaf te downloaden? ─────────────────────────────────────
+
+/**
+ * Haalt het eigen .env op via HTTP. Komt de inhoud terug, dan staat het
+ * databasewachtwoord op straat en moet de webserverconfiguratie eerst worden
+ * gerepareerd.
+ *
+ * De TLS-controle staat hier uit: dit is een verzoek van de server aan
+ * zichzelf, waarbij een zelfondertekend of nog niet uitgerold certificaat
+ * gewoon voorkomt. Er wordt niets vertrouwelijks verstuurd; we kijken alleen
+ * naar wat er terugkomt.
+ *
+ * @return array{status: string, tekst: string}  status: open | dicht | onbekend
+ */
+function setup_env_bereikbaar(): array
+{
+    if (!function_exists('curl_init')) {
+        return ['status' => 'onbekend', 'tekst' => 'De PHP-extensie curl ontbreekt, dus deze controle kan niet automatisch.'];
+    }
+
+    $adres = url('.env');
+    $ch    = @curl_init($adres);
+    if ($ch === false) {
+        return ['status' => 'onbekend', 'tekst' => 'De controle kon niet worden gestart.'];
+    }
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_TIMEOUT        => 6,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => 0,
+        CURLOPT_USERAGENT      => 'DJM Portaal setup',
+    ]);
+    $inhoud = curl_exec($ch);
+    $code   = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $fout   = curl_error($ch);
+    curl_close($ch);
+
+    if ($inhoud === false || $code === 0) {
+        return [
+            'status' => 'onbekend',
+            'tekst'  => 'De server kon zichzelf niet bereiken op ' . $adres . ' (' . ($fout ?: 'geen antwoord')
+                . '). Controleer het dan zelf even in de browser.',
+        ];
+    }
+
+    $tekst = (string)$inhoud;
+    if ($code === 200 && (str_contains($tekst, 'DB_PASS') || str_contains($tekst, 'APP_KEY') || str_contains($tekst, 'DB_NAME'))) {
+        return ['status' => 'open', 'tekst' => 'Het bestand .env is publiek te downloaden via ' . $adres . '.'];
+    }
+    if ($code === 200) {
+        return [
+            'status' => 'onbekend',
+            'tekst'  => $adres . ' geeft een 200, maar niet de inhoud van .env. Waarschijnlijk vangt een'
+                . ' rewrite het verzoek op. Controleer het zelf even in de browser.',
+        ];
+    }
+
+    return ['status' => 'dicht', 'tekst' => 'De webserver weigert ' . $adres . ' (HTTP ' . $code . ').'];
+}
+
+// ─── Invoer van stap 2 ───────────────────────────────────────────────────────
+
+/**
+ * Haalt één veld uit $_POST.
+ *
+ * Regeleinden en nulbytes gaan er altijd uit: die kunnen in een .env-regel niet
+ * voorkomen en zijn de manier om er een extra regel in te smokkelen. Bij
+ * gewone velden gaan ook de overige stuurtekens eruit en wordt er getrimd; bij
+ * wachtwoorden niet, want daar kan een spatie aan het eind bij horen.
+ */
+function setup_invoer(string $veld, int $maxLengte = 255, bool $geheim = false): string
+{
+    $waarde = (string)($_POST[$veld] ?? '');
+    $waarde = str_replace(["\r", "\n", "\0"], '', $waarde);
+    if (!$geheim) {
+        $waarde = preg_replace('/[\x00-\x1F\x7F]/', '', $waarde) ?? $waarde;
+        $waarde = trim($waarde);
+    }
+    return mb_substr($waarde, 0, $maxLengte);
+}
+
+/**
+ * Controleert alles wat in stap 2 is ingevuld.
+ *
+ * Lege wachtwoordvelden betekenen "laat staan wat er al is"; daarom komt het
+ * bestaande .env er als tweede invoer bij.
+ *
+ * @param array<string, string> $bestaand
+ * @return array{waarden: array<string,string>, fouten: array<string,string>, waarschuwingen: string[]}
+ */
+function setup_env_valideren(array $bestaand): array
+{
+    $waarden        = [];
+    $fouten         = [];
+    $waarschuwingen = [];
+
+    // ── Applicatie ──
+    $waarden['APP_NAME'] = setup_invoer('APP_NAME', 150) ?: 'Deventer Jeugd Musical';
+
+    $appUrl = rtrim(setup_invoer('APP_URL', 255), '/');
+    if ($appUrl === '') {
+        $fouten['APP_URL'] = 'Vul het adres in waarop het portaal straks bereikbaar is.';
+    } elseif (!preg_match('~^https?://[A-Za-z0-9][A-Za-z0-9.\-]*(:\d{1,5})?(/[A-Za-z0-9._~\-]+)*$~', $appUrl)) {
+        $fouten['APP_URL'] = 'Dit is geen geldig adres. Begin met https:// en laat de slash aan het eind weg.';
+    } else {
+        $host = strtolower((string)(parse_url($appUrl, PHP_URL_HOST) ?? ''));
+        if (str_starts_with($appUrl, 'http://') && !in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+            $waarschuwingen[] = 'Het adres begint met http:// in plaats van https://. Inlogcodes, '
+                . 'wachtwoorden en downloadlinks gaan dan onversleuteld over de lijn.';
+        }
+        $huidigeHost = strtolower(veilige_host());
+        $poort       = parse_url($appUrl, PHP_URL_PORT);
+        $volledig    = $host . ($poort ? ':' . $poort : '');
+        if ($huidigeHost !== 'localhost' && $volledig !== '' && $volledig !== $huidigeHost) {
+            $waarschuwingen[] = 'U bekijkt deze pagina op ' . $huidigeHost . ', maar APP_URL wijst naar '
+                . $host . '. Dat mag, maar klopt het adres niet, dan kan straks niemand inloggen.';
+        }
+    }
+    $waarden['APP_URL'] = $appUrl;
+
+    $waarden['DEBUG'] = isset($_POST['DEBUG']) ? 'true' : 'false';
+    if ($waarden['DEBUG'] === 'true') {
+        $waarschuwingen[] = 'DEBUG staat aan. Foutmeldingen komen dan op het scherm, inclusief paden '
+            . 'en soms databasegegevens. Zet dit uit zodra het portaal in gebruik is.';
+    }
+
+    // ── Database ──
+    $waarden['DB_SOCKET'] = setup_invoer('DB_SOCKET', 190);
+    if ($waarden['DB_SOCKET'] !== '' && !str_starts_with($waarden['DB_SOCKET'], '/')) {
+        $fouten['DB_SOCKET'] = 'Een socketpad begint met een slash, bijvoorbeeld /var/run/mysqld/mysqld.sock.';
+    }
+
+    $host = setup_invoer('DB_HOST', 190);
+    $poort = setup_invoer('DB_PORT', 5);
+    // Een veelgemaakte vergissing: host en poort samen in één veld.
+    if (preg_match('/^(.+):(\d{1,5})$/', $host, $m)) {
+        $host  = $m[1];
+        $poort = $poort === '' ? $m[2] : $poort;
+    }
+    if ($waarden['DB_SOCKET'] === '') {
+        if ($host === '') {
+            $fouten['DB_HOST'] = 'Vul de databaseserver in, meestal localhost.';
+        } elseif (!preg_match('/^[A-Za-z0-9.\-]+$/', $host) && @inet_pton($host) === false) {
+            $fouten['DB_HOST'] = 'Dit is geen geldige servernaam of IP-adres.';
+        }
+    }
+    if ($poort !== '' && (!ctype_digit($poort) || (int)$poort < 1 || (int)$poort > 65535)) {
+        $fouten['DB_PORT'] = 'Een poortnummer is een getal van 1 tot en met 65535.';
+    }
+    $waarden['DB_HOST'] = $host;
+    $waarden['DB_PORT'] = $poort;
+
+    $waarden['DB_NAME'] = setup_invoer('DB_NAME', 64);
+    if ($waarden['DB_NAME'] === '') {
+        $fouten['DB_NAME'] = 'Vul de naam van de database in.';
+    } elseif (!preg_match('/^[A-Za-z0-9_]+$/', $waarden['DB_NAME'])) {
+        $fouten['DB_NAME'] = 'Gebruik alleen letters, cijfers en liggende streepjes.';
+    }
+
+    $waarden['DB_USER'] = setup_invoer('DB_USER', 80);
+    if ($waarden['DB_USER'] === '') {
+        $fouten['DB_USER'] = 'Vul de databasegebruiker in.';
+    }
+
+    // Leeg = ongewijzigd laten.
+    $wachtwoord = setup_invoer('DB_PASS', 255, true);
+    $waarden['DB_PASS'] = $wachtwoord !== '' ? $wachtwoord : (string)($bestaand['DB_PASS'] ?? '');
+    if ($waarden['DB_PASS'] === '') {
+        $waarschuwingen[] = 'Het databasewachtwoord is leeg. Dat kan lokaal prima werken, maar op een '
+            . 'gedeelde server hoort er een wachtwoord op.';
+    }
+
+    $charset = setup_invoer('DB_CHARSET', 20) ?: 'utf8mb4';
+    $waarden['DB_CHARSET'] = in_array($charset, ['utf8mb4', 'utf8mb3', 'utf8'], true) ? $charset : 'utf8mb4';
+
+    // ── Beveiliging ──
+    $vernieuwen = isset($_POST['sleutels_vernieuwen']);
+    foreach (['APP_KEY', 'OTP_PEPPER'] as $sleutel) {
+        $huidig = (string)($bestaand[$sleutel] ?? '');
+        $bruikbaar = strlen($huidig) >= 32;
+        if ($vernieuwen || !$bruikbaar) {
+            $waarden[$sleutel] = bin2hex(random_bytes(32));
+            if ($huidig !== '') {
+                $waarschuwingen[] = $sleutel . ' is vervangen door een nieuwe sleutel.'
+                    . ($sleutel === 'APP_KEY'
+                        ? ' Lopende downloadlinks en onthoud-cookies zijn daarmee vervallen.'
+                        : ' Openstaande inlogcodes zijn daarmee vervallen.');
+            }
+        } else {
+            $waarden[$sleutel] = $huidig;
+        }
+    }
+
+    // ── Opslag ──
+    $opslag = rtrim(setup_invoer('OPSLAG_PAD', 255), '/');
+    if ($opslag !== '' && !str_starts_with($opslag, '/')) {
+        $fouten['OPSLAG_PAD'] = 'Geef een volledig pad op dat met een slash begint, of laat het veld leeg.';
+    }
+    $waarden['OPSLAG_PAD'] = $opslag;
+
+    $doelmap = $opslag !== '' ? $opslag : APP_ROOT . '/opslag';
+    if (!isset($fouten['OPSLAG_PAD'])) {
+        $resultaat = setup_map_klaarmaken($doelmap);
+        if (!$resultaat['ok']) {
+            $fouten['OPSLAG_PAD'] = $resultaat['fout'] . ' Voer op de server uit: mkdir -p '
+                . $doelmap . ' && chown ' . setup_webserver_gebruiker() . ' ' . $doelmap;
+        } elseif (str_starts_with($doelmap . '/', APP_ROOT . '/')) {
+            $waarschuwingen[] = 'De opslagmap staat binnen de webroot. Dat werkt, maar de videobestanden '
+                . 'zijn dan alleen door .htaccess afgeschermd. Veiliger is een map daarbuiten, '
+                . 'bijvoorbeeld /var/djm-opslag.';
+        }
+    }
+
+    // ── Uitlevering ──
+    $modus = strtolower(setup_invoer('DELIVERY_MODE', 20));
+    $waarden['DELIVERY_MODE'] = in_array($modus, ['auto', 'xaccel', 'xsendfile', 'php'], true) ? $modus : 'auto';
+
+    $prefix = setup_invoer('XACCEL_PREFIX', 100) ?: '/beveiligd/';
+    if (!str_starts_with($prefix, '/') || !str_ends_with($prefix, '/')) {
+        $fouten['XACCEL_PREFIX'] = 'Dit pad begint én eindigt met een slash, bijvoorbeeld /beveiligd/.';
+    }
+    $waarden['XACCEL_PREFIX'] = $prefix;
+
+    // ── Microsoft Graph en SMTP (mag allemaal leeg blijven) ──
+    $waarden['GRAPH_TENANT_ID'] = setup_invoer('GRAPH_TENANT_ID', 100);
+    $waarden['GRAPH_CLIENT_ID'] = setup_invoer('GRAPH_CLIENT_ID', 100);
+
+    $secret = setup_invoer('GRAPH_CLIENT_SECRET', 255, true);
+    $waarden['GRAPH_CLIENT_SECRET'] = $secret !== '' ? $secret : (string)($bestaand['GRAPH_CLIENT_SECRET'] ?? '');
+
+    $vanAdres = strtolower(setup_invoer('MAIL_VAN_ADRES', 190));
+    if ($vanAdres !== '' && !geldig_email($vanAdres)) {
+        $fouten['MAIL_VAN_ADRES'] = 'Dit is geen geldig e-mailadres.';
+    }
+    $waarden['MAIL_VAN_ADRES'] = $vanAdres;
+    $waarden['MAIL_VAN_NAAM']  = setup_invoer('MAIL_VAN_NAAM', 150);
+
+    $waarden['SMTP_HOST'] = setup_invoer('SMTP_HOST', 190);
+    $smtpPoort = setup_invoer('SMTP_POORT', 5);
+    if ($smtpPoort !== '' && (!ctype_digit($smtpPoort) || (int)$smtpPoort < 1 || (int)$smtpPoort > 65535)) {
+        $fouten['SMTP_POORT'] = 'Een poortnummer is een getal van 1 tot en met 65535.';
+    }
+    $waarden['SMTP_POORT'] = $smtpPoort;
+
+    $beveiliging = strtolower(setup_invoer('SMTP_BEVEILIGING', 10));
+    $waarden['SMTP_BEVEILIGING'] = in_array($beveiliging, ['tls', 'ssl', 'geen'], true) ? $beveiliging : 'tls';
+    $waarden['SMTP_GEBRUIKER']   = setup_invoer('SMTP_GEBRUIKER', 190);
+
+    $smtpWachtwoord = setup_invoer('SMTP_WACHTWOORD', 255, true);
+    $waarden['SMTP_WACHTWOORD'] = $smtpWachtwoord !== '' ? $smtpWachtwoord : (string)($bestaand['SMTP_WACHTWOORD'] ?? '');
+
+    return ['waarden' => $waarden, 'fouten' => $fouten, 'waarschuwingen' => $waarschuwingen];
+}
+
+/** Naam van de gebruiker waaronder PHP draait, voor de chown-tips. */
+function setup_webserver_gebruiker(): string
+{
+    if (function_exists('posix_getpwuid') && function_exists('posix_geteuid')) {
+        $info = @posix_getpwuid(posix_geteuid());
+        if (is_array($info) && !empty($info['name'])) {
+            return (string)$info['name'];
+        }
+    }
+    return get_current_user() ?: 'www-data';
+}
+
+// ─── Formuliervelden ─────────────────────────────────────────────────────────
+
+/**
+ * Eén invoerveld. $opties: type, uitleg, plaatshouder, maxlength, fout,
+ * verplicht, autocomplete, breedte (Bootstrap-kolommen).
+ */
+function setup_veld(string $naam, string $label, string $waarde, array $opties = []): void
+{
+    $type   = $opties['type'] ?? 'text';
+    $fout   = (string)($opties['fout'] ?? '');
+    $id     = 'veld_' . strtolower($naam);
+    ?>
+    <div class="col-md-<?= (int)($opties['breedte'] ?? 12) ?>">
+        <label class="form-label" for="<?= h($id) ?>"><?= h($label) ?></label>
+        <input class="form-control <?= $fout !== '' ? 'is-invalid' : '' ?>"
+               type="<?= h($type) ?>" id="<?= h($id) ?>" name="<?= h($naam) ?>"
+               value="<?= h($waarde) ?>"
+               maxlength="<?= (int)($opties['maxlength'] ?? 255) ?>"
+               <?php if (!empty($opties['plaatshouder'])): ?>placeholder="<?= h((string)$opties['plaatshouder']) ?>"<?php endif; ?>
+               <?php if (!empty($opties['verplicht'])): ?>required<?php endif; ?>
+               autocomplete="<?= h((string)($opties['autocomplete'] ?? 'off')) ?>">
+        <?php if ($fout !== ''): ?>
+            <div class="invalid-feedback d-block"><?= h($fout) ?></div>
+        <?php endif; ?>
+        <?php if (!empty($opties['uitleg'])): ?>
+            <div class="form-text"><?= $opties['uitleg'] ?></div>
+        <?php endif; ?>
+    </div>
+    <?php
+}
+
+/** Eén keuzelijst. $keuzes is waarde => label. */
+function setup_keuze(string $naam, string $label, string $waarde, array $keuzes, array $opties = []): void
+{
+    $id = 'veld_' . strtolower($naam);
+    ?>
+    <div class="col-md-<?= (int)($opties['breedte'] ?? 12) ?>">
+        <label class="form-label" for="<?= h($id) ?>"><?= h($label) ?></label>
+        <select class="form-select" id="<?= h($id) ?>" name="<?= h($naam) ?>">
+            <?php foreach ($keuzes as $optie => $tekst): ?>
+                <option value="<?= h((string)$optie) ?>" <?= (string)$optie === $waarde ? 'selected' : '' ?>>
+                    <?= h((string)$tekst) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <?php if (!empty($opties['uitleg'])): ?>
+            <div class="form-text"><?= $opties['uitleg'] ?></div>
+        <?php endif; ?>
+    </div>
+    <?php
+}
+
+/** Eén vinkje. */
+function setup_vinkje(string $naam, string $label, bool $aan, string $uitleg = ''): void
+{
+    $id = 'veld_' . strtolower($naam);
+    ?>
+    <div class="col-12">
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="<?= h($id) ?>" name="<?= h($naam) ?>"
+                   value="1" <?= $aan ? 'checked' : '' ?>>
+            <label class="form-check-label" for="<?= h($id) ?>"><?= h($label) ?></label>
+            <?php if ($uitleg !== ''): ?>
+                <div class="form-text"><?= $uitleg ?></div>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php
+}
+
 // ─── Opmaak ──────────────────────────────────────────────────────────────────
 
 function setup_kop(string $titel, int $huidigeStap = 0): void
 {
-    $stappen = [1 => 'Controle', 2 => 'Database', 3 => 'Beheerder', 4 => 'Klaar'];
+    $stappen = [1 => 'Controle', 2 => 'Instellen', 3 => 'Database', 4 => 'Beheerder', 5 => 'Klaar'];
     ?>
 <!doctype html>
 <html lang="nl">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= h($titel) ?> — installatie DJM Portaal</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-    <style>
-        body { background: #f5f6f8; }
-        .setup-kaart { max-width: 780px; margin: 2.5rem auto; }
-        .setup-lijst li { margin-bottom: .35rem; }
-        code, pre { font-size: .875rem; }
-        pre { background: #f1f3f5; padding: .75rem 1rem; border-radius: .375rem; overflow-x: auto; }
-    </style>
+    <?php djm_head($titel . ' — installatie DJM Portaal'); ?>
 </head>
-<body>
+<body class="djm-setup">
 <div class="container setup-kaart">
     <h1 class="h3 mb-1">DJM Portaal — installatie</h1>
     <p class="text-muted">Versie <?= h(APP_VERSION) ?></p>
@@ -264,13 +887,96 @@ setup_vereis_csrf();
 
 $stap   = (int)($_GET['stap'] ?? 1);
 $actie  = (string)($_POST['actie'] ?? '');
-$stap   = ($stap >= 1 && $stap <= 4) ? $stap : 1;
+$stap   = ($stap >= 1 && $stap <= 5) ? $stap : 1;
 
-// Stap 2 — db.sql uitvoeren.
+// Stap 2 — .env invullen en wegschrijven.
+$envBestaand       = setup_env_bestaand();
+$envWaarden        = [];
+$envFouten         = [];
+$envWaarschuwingen = [];
+$envSchrijffout    = '';
+$envHandmatig      = '';
+
+if ($actie === 'env_opslaan' || $actie === 'env_testen') {
+    $stap              = 2;
+    $controle          = setup_env_valideren($envBestaand);
+    $envWaarden        = $controle['waarden'];
+    $envFouten         = $controle['fouten'];
+    $envWaarschuwingen = $controle['waarschuwingen'];
+
+    if (!$envFouten && $actie === 'env_opslaan') {
+        // Sleutels die iemand zelf aan .env heeft toegevoegd blijven staan.
+        $overige   = array_diff_key($envBestaand, array_flip(setup_env_sleutels()));
+        $inhoud    = setup_env_samenstellen($envWaarden, $overige);
+        $resultaat = setup_env_schrijven($inhoud, $envWaarden);
+
+        if ($resultaat['ok']) {
+            $tekst = 'De instellingen staan in .env.';
+            if ($resultaat['backup'] !== '') {
+                $tekst .= ' De vorige versie is bewaard als ' . $resultaat['backup'] . '.';
+            }
+            $_SESSION['setup_melding'] = [
+                'soort'  => 'success',
+                'tekst'  => $tekst,
+                'punten' => $envWaarschuwingen,
+            ];
+            // Alleen doorlopen als de database ook echt antwoordt. Zo niet, dan
+            // terug naar dit formulier — dat leest .env opnieuw in en laat de
+            // foutmelding zien bij de gegevens die het probleem veroorzaken.
+            $verbinding = setup_db_verbinden($envWaarden);
+            header('Location: ' . setup_stap_url($verbinding['ok'] ? 3 : 2));
+            exit;
+        }
+
+        $envSchrijffout = $resultaat['fout'];
+        $envHandmatig   = $inhoud;
+    }
+}
+
+// Stap 2 — de database alsnog aanmaken, met de gegevens die nu in .env staan.
+if ($actie === 'database_aanmaken') {
+    $stap      = 2;
+    $resultaat = setup_db_database_aanmaken([
+        'DB_HOST'    => DB_HOST,
+        'DB_PORT'    => DB_PORT,
+        'DB_SOCKET'  => DB_SOCKET,
+        'DB_NAME'    => DB_NAME,
+        'DB_USER'    => DB_USER,
+        'DB_PASS'    => DB_PASS,
+        'DB_CHARSET' => DB_CHARSET,
+    ]);
+    $_SESSION['setup_melding'] = $resultaat['ok']
+        ? ['soort' => 'success', 'tekst' => 'De database ' . DB_NAME . ' is aangemaakt.', 'punten' => []]
+        : ['soort' => 'danger', 'tekst' => 'De database kon niet worden aangemaakt: ' . $resultaat['fout'], 'punten' => []];
+    header('Location: ' . setup_stap_url($resultaat['ok'] ? 3 : 2));
+    exit;
+}
+
+// Controle of .env van buitenaf te downloaden is; kan vanaf stap 2 en stap 5.
+if ($actie === 'env_bereikbaarheid') {
+    $terug     = (int)($_POST['terug'] ?? 2);
+    $terug     = ($terug >= 1 && $terug <= 5) ? $terug : 2;
+    $resultaat = setup_env_bereikbaar();
+    $soort     = match ($resultaat['status']) {
+        'dicht' => 'success',
+        'open'  => 'danger',
+        default => 'warning',
+    };
+    if ($resultaat['status'] === 'open') {
+        $resultaat['tekst'] .= ' Repareer dit vóór u verdergaat: het databasewachtwoord, APP_KEY en'
+            . ' OTP_PEPPER liggen nu voor iedereen op straat. Onder Apache doet .htaccess dit;'
+            . ' onder nginx staat het blok in docs/nginx.voorbeeld.conf.';
+    }
+    $_SESSION['setup_melding'] = ['soort' => $soort, 'tekst' => $resultaat['tekst'], 'punten' => []];
+    header('Location: ' . setup_stap_url($terug));
+    exit;
+}
+
+// Stap 3 — db.sql uitvoeren.
 $installatieResultaten = [];
 $installatieFout       = '';
 if ($actie === 'schema_installeren') {
-    $stap = 2;
+    $stap = 3;
     $test = setup_db_test();
     if (!$test['ok']) {
         $installatieFout = 'Geen verbinding met de database: ' . $test['fout'];
@@ -297,19 +1003,19 @@ if ($actie === 'schema_installeren') {
     }
 }
 
-// Stap 3 — eerste beheerder aanmaken.
+// Stap 4 — eerste beheerder aanmaken.
 $beheerderFouten = [];
 $beheerderNaam   = trim((string)($_POST['naam'] ?? ''));
 $beheerderEmail  = normaliseer_email((string)($_POST['email'] ?? ''));
 
 if ($actie === 'beheerder_aanmaken') {
-    $stap        = 3;
+    $stap        = 4;
     $wachtwoord  = (string)($_POST['wachtwoord'] ?? '');
     $herhaling   = (string)($_POST['wachtwoord_herhaling'] ?? '');
     $aantal      = setup_aantal_beheerders();
 
     if ($aantal < 0) {
-        $beheerderFouten[] = 'De tabel beheerders bestaat nog niet. Voer eerst stap 2 uit.';
+        $beheerderFouten[] = 'De tabel beheerders bestaat nog niet. Voer eerst stap 3 uit.';
     } elseif ($aantal > 0 && !setup_ontgrendeld()) {
         $beheerderFouten[] = 'Er bestaat al een beheerder. Maak het bestand '
             . SETUP_ONTGRENDEL_BESTAND . ' aan om er nog een toe te voegen.';
@@ -342,7 +1048,7 @@ if ($actie === 'beheerder_aanmaken') {
                     ':hash'  => password_hash($wachtwoord, PASSWORD_DEFAULT),
                     ':rol'   => 'eigenaar',
                 ]);
-            header('Location: ' . setup_stap_url(4));
+            header('Location: ' . setup_stap_url(5));
             exit;
         } catch (Throwable $e) {
             $beheerderFouten[] = 'Opslaan mislukt: ' . $e->getMessage();
@@ -352,28 +1058,48 @@ if ($actie === 'beheerder_aanmaken') {
 
 // ─── Weergave ────────────────────────────────────────────────────────────────
 
+$melding = $_SESSION['setup_melding'] ?? null;
+unset($_SESSION['setup_melding']);
+
 setup_kop('Stap ' . $stap, $stap);
+
+if (is_array($melding)) {
+    ?>
+    <div class="alert alert-<?= h((string)($melding['soort'] ?? 'info')) ?>">
+        <?= h((string)($melding['tekst'] ?? '')) ?>
+        <?php if (!empty($melding['punten'])): ?>
+            <ul class="mb-0 mt-2 small">
+                <?php foreach ((array)$melding['punten'] as $punt): ?>
+                    <li><?= h((string)$punt) ?></li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </div>
+    <?php
+}
 
 switch ($stap) {
 
     // ═══ Stap 1 — controle ═══════════════════════════════════════════════════
     case 1:
-        $envAanwezig  = is_file(APP_ROOT . '/.env');
-        $logsPad      = APP_ROOT . '/logs';
-        $opslag       = opslag_pad();
-        $extensies    = ['pdo_mysql', 'curl', 'mbstring', 'openssl', 'json'];
-        $phpOk        = PHP_VERSION_ID >= 80100;
-        $alleExtOk    = true;
+        $logsPad   = APP_ROOT . '/logs';
+        $projectOk = is_writable(APP_ROOT);
+        $extensies = ['pdo_mysql', 'curl', 'mbstring', 'openssl', 'json'];
+        $phpOk     = PHP_VERSION_ID >= 80100;
+        $alleExtOk = true;
         foreach ($extensies as $ext) {
             if (!extension_loaded($ext)) {
                 $alleExtOk = false;
             }
         }
         $logsOk   = setup_map_schrijfbaar($logsPad);
-        $opslagOk = setup_map_schrijfbaar($opslag);
-        $allesOk  = $phpOk && $alleExtOk && $logsOk && $opslagOk && $envAanwezig;
+        $gebruiker = setup_webserver_gebruiker();
+        $allesOk  = $phpOk && $alleExtOk && $logsOk;
         ?>
         <h2 class="h5 mb-3">Stap 1 — controle van de omgeving</h2>
+
+        <p>Eerst kijkt de wizard of de server alles heeft wat het portaal nodig heeft.
+            De opslagmap en <code>.env</code> komen in de volgende stap aan bod.</p>
 
         <ul class="list-unstyled setup-lijst">
             <?php
@@ -396,61 +1122,31 @@ switch ($stap) {
                 $logsOk,
                 'Map logs/ is schrijfbaar (' . $logsPad . ')',
                 'Maak de map aan en geef de webserver schrijfrechten:<br>'
-                    . '<code>mkdir -p ' . h($logsPad) . ' &amp;&amp; chown www-data:www-data ' . h($logsPad) . '</code>'
-            );
-
-            setup_punt(
-                $opslagOk,
-                'Opslagmap is schrijfbaar (' . $opslag . ')',
-                'Maak de map aan en geef de webserver rechten:<br>'
-                    . '<code>mkdir -p ' . h($opslag) . ' &amp;&amp; chown www-data:www-data ' . h($opslag) . '</code><br>'
-                    . 'Wijs de map bij voorkeur buiten de webroot aan via <code>OPSLAG_PAD</code> in <code>.env</code>.'
-            );
-
-            setup_punt(
-                $envAanwezig,
-                'Bestand .env aanwezig',
-                'Kopieer het voorbeeldbestand en vul het in:<br><code>cp .env.example .env</code>'
+                    . '<code>mkdir -p ' . h($logsPad) . ' &amp;&amp; chown ' . h($gebruiker) . ' ' . h($logsPad) . '</code>'
             );
             ?>
         </ul>
 
-        <?php if (!$envAanwezig): ?>
-            <div class="alert alert-warning mt-4">
-                <h3 class="h6">Er is nog geen .env</h3>
-                <p class="mb-2">Kopieer <code>.env.example</code> naar <code>.env</code> en vul in elk geval
-                    de databasegegevens in. Gebruik onderstaande, zojuist gegenereerde sleutels:</p>
-                <pre>APP_KEY=<?= h(bin2hex(random_bytes(32))) ?>
+        <p class="small text-body-secondary mb-0">
+            PHP draait hier als <code><?= h($gebruiker) ?></code>. Gebruik die naam in de
+            <code>chown</code>-opdrachten hierboven.
+        </p>
 
-OTP_PEPPER=<?= h(bin2hex(random_bytes(32))) ?></pre>
-                <p class="small mb-0">Bewaar deze waarden goed. Als <code>OTP_PEPPER</code> later verandert,
-                    worden alle openstaande inlogcodes ongeldig.</p>
+        <?php if (!$projectOk): ?>
+            <div class="alert alert-warning mt-4 mb-0">
+                <h3 class="h6">De projectmap is niet beschrijfbaar</h3>
+                <p class="mb-2">De wizard kan <code>.env</code> dan niet zelf wegschrijven. Dat hoeft
+                    geen probleem te zijn — in de volgende stap krijgt u de inhoud te zien om zelf
+                    te plaatsen. Wilt u het de wizard laten doen, voer dan uit:</p>
+                <pre class="mb-0">chown <?= h($gebruiker) ?> <?= h(APP_ROOT) ?></pre>
             </div>
-        <?php else: ?>
-            <?php if (env('APP_KEY') === '' || env('OTP_PEPPER') === ''): ?>
-                <div class="alert alert-warning mt-4">
-                    <h3 class="h6">APP_KEY en/of OTP_PEPPER is leeg</h3>
-                    <p class="mb-2">
-                        Het portaal werkt ook zonder, maar valt dan terug op sleutels die worden afgeleid
-                        van de databasegegevens. Dat is merkbaar minder sterk: wie de databasegegevens
-                        kent, kan downloadlinks ondertekenen en codehashes narekenen. Vul daarom deze
-                        regels in <code>.env</code>:
-                    </p>
-                    <pre>APP_KEY=<?= h(bin2hex(random_bytes(32))) ?>
-
-OTP_PEPPER=<?= h(bin2hex(random_bytes(32))) ?></pre>
-                    <p class="small mb-0">Herlaad deze pagina na het opslaan.</p>
-                </div>
-            <?php else: ?>
-                <p class="text-success mb-0"><strong>&#10003;</strong> APP_KEY en OTP_PEPPER zijn ingevuld.</p>
-            <?php endif; ?>
         <?php endif; ?>
 
         <hr class="my-4">
         <div class="d-flex gap-2">
             <a class="btn btn-outline-secondary" href="<?= h(setup_stap_url(1)) ?>">Opnieuw controleren</a>
             <a class="btn btn-primary <?= $allesOk ? '' : 'disabled' ?>" href="<?= h(setup_stap_url(2)) ?>">
-                Verder naar de database
+                Verder naar de instellingen
             </a>
         </div>
         <?php if (!$allesOk): ?>
@@ -461,11 +1157,11 @@ OTP_PEPPER=<?= h(bin2hex(random_bytes(32))) ?></pre>
         <?php
         break;
 
-    // ═══ Stap 2 — database ═══════════════════════════════════════════════════
-    case 2:
+    // ═══ Stap 3 — database ═══════════════════════════════════════════════════
+    case 3:
         $test = setup_db_test();
         ?>
-        <h2 class="h5 mb-3">Stap 2 — database inrichten</h2>
+        <h2 class="h5 mb-3">Stap 3 — database inrichten</h2>
 
         <table class="table table-sm">
             <tbody>
@@ -513,15 +1209,15 @@ GRANT ALL PRIVILEGES ON <?= h(DB_NAME) ?>.* TO '<?= h(DB_USER) ?>'@'localhost';<
         <hr class="my-4">
         <div class="d-flex flex-wrap gap-2">
             <?php if ($test['ok']): ?>
-                <form method="post" action="<?= h(setup_stap_url(2)) ?>" class="d-inline">
+                <form method="post" action="<?= h(setup_stap_url(3)) ?>" class="d-inline">
                     <?= setup_csrf_field() ?>
                     <input type="hidden" name="actie" value="schema_installeren">
                     <button class="btn btn-primary" type="submit">Database inrichten</button>
                 </form>
             <?php endif; ?>
-            <a class="btn btn-outline-secondary" href="<?= h(setup_stap_url(1)) ?>">Terug</a>
+            <a class="btn btn-outline-secondary" href="<?= h(setup_stap_url(2)) ?>">Terug</a>
             <?php if (tabel_bestaat('beheerders')): ?>
-                <a class="btn btn-success" href="<?= h(setup_stap_url(3)) ?>">Verder naar de beheerder</a>
+                <a class="btn btn-success" href="<?= h(setup_stap_url(4)) ?>">Verder naar de beheerder</a>
             <?php endif; ?>
         </div>
         <p class="small text-body-secondary mt-3 mb-0">
@@ -532,16 +1228,16 @@ GRANT ALL PRIVILEGES ON <?= h(DB_NAME) ?>.* TO '<?= h(DB_USER) ?>'@'localhost';<
         <?php
         break;
 
-    // ═══ Stap 3 — eerste beheerder ═══════════════════════════════════════════
-    case 3:
+    // ═══ Stap 4 — eerste beheerder ═══════════════════════════════════════════
+    case 4:
         $aantal = setup_aantal_beheerders();
         ?>
-        <h2 class="h5 mb-3">Stap 3 — eerste beheerder</h2>
+        <h2 class="h5 mb-3">Stap 4 — eerste beheerder</h2>
 
         <?php if ($aantal < 0): ?>
             <div class="alert alert-danger">
                 De tabel <code>beheerders</code> bestaat nog niet.
-                <a href="<?= h(setup_stap_url(2)) ?>">Voer eerst stap 2 uit.</a>
+                <a href="<?= h(setup_stap_url(3)) ?>">Voer eerst stap 3 uit.</a>
             </div>
         <?php else: ?>
             <?php if ($aantal > 0 && !setup_ontgrendeld()): ?>
@@ -558,7 +1254,7 @@ GRANT ALL PRIVILEGES ON <?= h(DB_NAME) ?>.* TO '<?= h(DB_USER) ?>'@'localhost';<
                 <p>Deze beheerder krijgt de rol <strong>eigenaar</strong> en kan later via
                     Beheer → Beheerders extra beheerders toevoegen.</p>
 
-                <form method="post" action="<?= h(setup_stap_url(3)) ?>" autocomplete="off">
+                <form method="post" action="<?= h(setup_stap_url(4)) ?>" autocomplete="off">
                     <?= setup_csrf_field() ?>
                     <input type="hidden" name="actie" value="beheerder_aanmaken">
 
@@ -585,18 +1281,18 @@ GRANT ALL PRIVILEGES ON <?= h(DB_NAME) ?>.* TO '<?= h(DB_USER) ?>'@'localhost';<
                     </div>
 
                     <button class="btn btn-primary" type="submit">Beheerder aanmaken</button>
-                    <a class="btn btn-outline-secondary" href="<?= h(setup_stap_url(2)) ?>">Terug</a>
+                    <a class="btn btn-outline-secondary" href="<?= h(setup_stap_url(3)) ?>">Terug</a>
                 </form>
             <?php endif; ?>
         <?php endif; ?>
         <?php
         break;
 
-    // ═══ Stap 4 — klaar ══════════════════════════════════════════════════════
-    case 4:
+    // ═══ Stap 5 — klaar ══════════════════════════════════════════════════════
+    case 5:
     default:
         ?>
-        <h2 class="h5 mb-3">Stap 4 — de installatie is klaar</h2>
+        <h2 class="h5 mb-3">Stap 5 — de installatie is klaar</h2>
 
         <p>Het portaal is ingericht. Log in op het beheerdersgedeelte en vul daar als eerste
             de Microsoft Graph-gegevens in, zodat er inlogcodes verstuurd kunnen worden.</p>

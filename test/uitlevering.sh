@@ -2,6 +2,8 @@
 # Test de drie uitleveringsroutes op de webservers waar ze voor bedoeld zijn:
 #   PHP-streaming (ingebouwde server), X-Accel-Redirect (nginx), X-Sendfile (Apache).
 # Controleert per route: volledige download, hervatten met Range, en 416.
+# Draait daarna per route ook de zelftest die in Beheer > Instellingen achter de
+# knop "Uitproberen" zit, zodat die dezelfde routes dekt als deze test zelf.
 set -u
 cd "$(dirname "$0")"
 GOED=0; FOUT=0
@@ -102,8 +104,41 @@ route() {
     rm -f "$jar"
 }
 
+# Draait de zelftest uit het beheer op één route. Die legt zelf een testbestand
+# klaar, haalt het over HTTP op en ruimt het weer op; wij controleren alleen of
+# hij de juiste route herkent en alle stappen haalt.
+zelftest() {
+    local naam="$1" dienst="$2" script="$3" basis="$4" verwacht="$5" htaccess="$6"
+    echo ""
+    echo "── zelftest uit het beheer: $naam ─────────────────────"
+    local uit; uit=$(docker compose exec -T "$dienst" php "$script" "$basis" 2>&1)
+
+    bevat "route herkend als $verwacht" "gemeld door de server: $verwacht" "$uit"
+
+    local stap
+    for stap in "Volledige download" "Hervatten (HTTP Range)" "Onmogelijk bereik afwijzen"; do
+        if printf '%s' "$uit" | grep -q "^OK   $stap"; then
+            printf '  ✓ %s\n' "$stap"; GOED=$((GOED+1))
+        else
+            printf '  ✗ %s\n' "$stap"; FOUT=$((FOUT+1))
+            printf '%s\n' "$uit" | sed 's/^/      /'
+        fi
+    done
+
+    # De ingebouwde PHP-server kent geen .htaccess, dus daar ís de opslagmap
+    # publiek. De zelftest meldt dat terecht; hier telt het niet als fout.
+    if [ "$htaccess" = "nee" ]; then
+        printf '  – ingebouwde PHP-server kent geen .htaccess; afschermingsstap niet van toepassing\n'
+    elif printf '%s' "$uit" | grep -qE "^(OK|OVER) +Niet rechtstreeks bereikbaar"; then
+        printf '  ✓ Niet rechtstreeks bereikbaar\n'; GOED=$((GOED+1))
+    else
+        printf '  ✗ Niet rechtstreeks bereikbaar\n'; FOUT=$((FOUT+1))
+        printf '%s\n' "$uit" | sed 's/^/      /'
+    fi
+}
+
 echo "Testomgeving starten..."
-docker compose up -d db mail web nginx apache >/dev/null 2>&1
+docker compose up -d db mail web nginx apache fpm >/dev/null 2>&1
 for i in $(seq 1 60); do
     [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8123/index.php 2>/dev/null)" != "000" ] && break
     sleep 1
@@ -113,6 +148,10 @@ docker compose exec -T web php /app/test/mailinstellingen.php >/dev/null 2>&1
 route "PHP-streaming (ingebouwde server)" "http://localhost:8123" "php"
 route "nginx met X-Accel-Redirect"        "http://localhost:8126" "xaccel"
 route "Apache met X-Sendfile"             "http://localhost:8127" "xsendfile"
+
+zelftest "PHP-streaming" web    /app/test/zelftest_cli.php          http://localhost:8080 php       nee
+zelftest "nginx"         fpm    /app/test/zelftest_cli.php          http://nginx:8080     xaccel    ja
+zelftest "Apache"        apache /var/www/html/test/zelftest_cli.php http://localhost      xsendfile ja
 
 echo ""
 echo "────────────────────────────────────────────────────────────"

@@ -444,7 +444,7 @@ admin_start('Bestanden', $subtitel);
         <form method="get" class="row g-2 align-items-end">
             <div class="col-sm-6 col-lg-4">
                 <label class="form-label" for="jaargang">Jaargang</label>
-                <select class="form-select" id="jaargang" name="jaargang" onchange="this.form.submit()">
+                <select class="form-select" id="jaargang" name="jaargang" data-auto-verzenden>
                     <?php foreach ($jaargangen as $jg): ?>
                         <option value="<?= (int)$jg['id'] ?>" <?= (int)$jg['id'] === $jaargangId ? 'selected' : '' ?>>
                             <?= h((string)$jg['jaar']) ?> — <?= h((string)$jg['titel']) ?>
@@ -551,7 +551,7 @@ admin_start('Bestanden', $subtitel);
                                     </form>
 
                                     <form method="post" class="d-inline"
-                                        onsubmit="return confirm('SHA-256 berekenen voor dit bestand?\n\nBij grote videobestanden kan dit lang duren; de pagina blijft ondertussen laden.');">
+                                        <?= bevestig_attribuut("SHA-256 berekenen voor dit bestand?\n\nBij grote videobestanden kan dit lang duren; de pagina blijft ondertussen laden.") ?>>
                                         <?= csrf_field() ?>
                                         <input type="hidden" name="actie" value="hash">
                                         <input type="hidden" name="jaargang" value="<?= $jaargangId ?>">
@@ -563,7 +563,7 @@ admin_start('Bestanden', $subtitel);
                                     </form>
 
                                     <form method="post" class="d-inline"
-                                        onsubmit="return confirm('Dit bestand ontkoppelen van de jaargang?\n\nAlleen de koppeling in de database verdwijnt.\nHet bestand zelf blijft in de opslagmap staan.');">
+                                        <?= bevestig_attribuut("Dit bestand ontkoppelen van de jaargang?\n\nAlleen de koppeling in de database verdwijnt.\nHet bestand zelf blijft in de opslagmap staan.") ?>>
                                         <?= csrf_field() ?>
                                         <input type="hidden" name="actie" value="ontkoppelen">
                                         <input type="hidden" name="jaargang" value="<?= $jaargangId ?>">

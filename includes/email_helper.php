@@ -17,6 +17,8 @@
 if (!function_exists('db')) {
     require_once dirname(__DIR__) . '/config.php';
 }
+// Voor branding_kleur(): de merkkleur in de mails is dezelfde als op de site.
+require_once __DIR__ . '/opmaak.php';
 
 // ─── Configuratie ────────────────────────────────────────────────────────────
 
@@ -77,6 +79,30 @@ function mail_geconfigureerd(): bool
     return ($cfg['smtp_host'] ?? '') !== '';
 }
 
+// ─── Veilige headerwaarden ───────────────────────────────────────────────────
+
+/**
+ * Haalt alles uit een tekst wat een e-mailheader of een SMTP-commando kan
+ * breken: regeleindes en nulbytes.
+ *
+ * Een adres of naam met een regeleinde erin laat de ontvanger van die tekst een
+ * extra header of zelfs een extra SMTP-commando zien ("header injection"). De
+ * adressen in dit portaal zijn allemaal gecontroleerd met geldig_email(), maar
+ * deze functie is de laatste zeef vlak voor het protocol zelf — zodat één
+ * vergeten controle elders nooit meteen een lek is.
+ */
+function mail_kopregel_veilig(string $waarde): string
+{
+    return trim(str_replace(["\r", "\n", "\0"], '', $waarde));
+}
+
+/** Adres dat veilig in MAIL FROM/RCPT TO en in een header mag; anders ''. */
+function mail_adres_veilig(string $adres): string
+{
+    $adres = mail_kopregel_veilig($adres);
+    return geldig_email($adres) ? $adres : '';
+}
+
 // ─── Versturen ───────────────────────────────────────────────────────────────
 
 /**
@@ -95,6 +121,16 @@ function verstuur_mail(
 ): bool {
     $fouten = [];
     $cfg    = mail_config();
+
+    $naar      = mail_adres_veilig($naar);
+    $naarNaam  = mail_kopregel_veilig($naarNaam);
+    $onderwerp = mail_kopregel_veilig($onderwerp);
+
+    if ($naar === '') {
+        $fouten[] = 'Het ontvangeradres is geen geldig e-mailadres; er is niets verstuurd.';
+        mail_loggen('(ongeldig adres)', $onderwerp, $soort, 'mislukt', (string)$cfg['methode'], $fouten[0]);
+        return false;
+    }
 
     if (!mail_geconfigureerd()) {
         $fouten[] = 'E-mail is nog niet ingesteld. Vul in Beheer > Instellingen de Graph-gegevens en het afzenderadres in.';
@@ -167,10 +203,7 @@ function mail_tekst_normaliseren(string $tekst): string
 /** Bouwt een nette HTML-mail rond platte tekst. */
 function mail_html_omhulsel(string $titel, string $platteTekst, string $extraHtml = ''): string
 {
-    $kleur = instelling('branding_kleur', '#0d6efd');
-    if (!preg_match('/^#[0-9A-Fa-f]{6}$/', $kleur)) {
-        $kleur = '#0d6efd';
-    }
+    $kleur = branding_kleur();
     $logo  = trim(instelling('branding_logo_url', ''));
     $naam  = portaal_naam();
 
@@ -186,7 +219,8 @@ function mail_html_omhulsel(string $titel, string $platteTekst, string $extraHtm
 
     $logoHtml = $logo !== ''
         ? '<img src="' . h($logo) . '" alt="' . h($naam) . '" style="max-height:48px;max-width:220px;">'
-        : '<span style="color:#ffffff;font-size:20px;font-weight:600;">' . h($naam) . '</span>';
+        : '<span style="color:' . h(branding_tekstkleur($kleur))
+            . ';font-size:20px;font-weight:600;">' . h($naam) . '</span>';
 
     return '<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8">'
         . '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -266,8 +300,9 @@ function verstuur_uitnodiging_mail(string $email, string $naam, int $jaar, array
 
     $knop = '<div style="margin:8px 0 20px;text-align:center;">'
         . '<a href="' . h(app_base_url()) . '" style="display:inline-block;padding:12px 26px;'
-        . 'background:' . h(preg_match('/^#[0-9A-Fa-f]{6}$/', instelling('branding_kleur', '#0d6efd')) ? instelling('branding_kleur', '#0d6efd') : '#0d6efd')
-        . ';color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Naar het portaal</a></div>';
+        . 'background:' . h(branding_kleur())
+        . ';color:' . h(branding_tekstkleur()) . ';text-decoration:none;'
+        . 'border-radius:8px;font-weight:600;">Naar het portaal</a></div>';
 
     $html = mail_html_omhulsel($onderwerp, $tekst, $knop);
 
@@ -311,6 +346,25 @@ class SimpleMailer
     {
         if (empty($this->host)) {
             $this->errors[] = 'Geen SMTP host ingesteld.';
+            return false;
+        }
+
+        // Laatste zeef vóór het SMTP-protocol: een adres met een regeleinde
+        // erin zou hieronder een extra commando of een extra header worden.
+        $to      = mail_adres_veilig($to);
+        $cc      = $cc !== '' ? mail_adres_veilig($cc) : '';
+        $bcc     = $bcc !== '' ? mail_adres_veilig($bcc) : '';
+        $toName  = mail_kopregel_veilig($toName);
+        $subject = mail_kopregel_veilig($subject);
+        $this->fromAddr = mail_adres_veilig($this->fromAddr);
+        $this->fromName = mail_kopregel_veilig($this->fromName);
+
+        if ($to === '') {
+            $this->errors[] = 'Het ontvangeradres is geen geldig e-mailadres.';
+            return false;
+        }
+        if ($this->fromAddr === '') {
+            $this->errors[] = 'Het afzenderadres is geen geldig e-mailadres.';
             return false;
         }
 
@@ -480,7 +534,10 @@ class SimpleMailer
 
         foreach ($attachments as $attachment) {
             $filename = preg_replace('/[^A-Za-z0-9._-]+/', '-', (string)($attachment['filename'] ?? 'bijlage.pdf'));
-            $mime = (string)($attachment['mime'] ?? 'application/octet-stream');
+            $mime = preg_replace('#[^A-Za-z0-9!#$&^_.+/-]+#', '', (string)($attachment['mime'] ?? 'application/octet-stream'));
+            if ($mime === '') {
+                $mime = 'application/octet-stream';
+            }
             $content = (string)($attachment['content'] ?? '');
             $body .= "--$boundary\r\n";
             $body .= "Content-Type: $mime; name=\"$filename\"\r\n";

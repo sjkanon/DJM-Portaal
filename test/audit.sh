@@ -28,12 +28,20 @@ echo "── Named parameters: hooguit één keer per query ──────�
 python3 test/audit_params.py || PROBLEMEN=$((PROBLEMEN+1))
 
 echo ""
-echo "── CSRF: elk bestand met een POST-formulier ────────────────"
+echo "── CSRF: formulieren én de verwerking ervan ────────────────"
 VOOR=$PROBLEMEN
 for f in $BESTANDEN; do
-    grep -qE 'method="post"|method=.post.' "$f" || continue
-    if ! grep -q "csrf_field()" "$f"; then melden "$f: formulier zonder csrf_field()"; fi
-    if ! grep -qE "vereis_csrf\(\)|verify_csrf\(" "$f"; then melden "$f: geen CSRF-controle bij verwerking"; fi
+    # Elk POST-formulier stuurt een token mee.
+    if grep -qE 'method="post"|method=.post.' "$f" && ! grep -q "csrf_field()" "$f"; then
+        melden "$f: formulier zonder csrf_field()"
+    fi
+    # En elk bestand dat een POST verwerkt, controleert dat token. Het formulier
+    # en de verwerking hoeven niet in hetzelfde bestand te staan (het uitlogknopje
+    # staat in de layout, de controle in logout.php).
+    if grep -qE '\$_POST\[|\$_FILES\[' "$f" \
+        && ! grep -qE "vereis_csrf\(\)|verify_csrf\(" "$f"; then
+        melden "$f: leest \$_POST maar controleert geen CSRF-token"
+    fi
 done
 [ "$PROBLEMEN" -eq "$VOOR" ] && echo "  ✓ alle formulieren zijn CSRF-beveiligd"
 
@@ -66,6 +74,28 @@ VOOR=$PROBLEMEN
 TREFFERS=$(grep -rnE "(client_secret|wachtwoord|password|api_key)\s*=\s*[\"'][A-Za-z0-9+/_~.-]{16,}[\"']" $BESTANDEN 2>/dev/null | grep -v "example")
 [ -n "$TREFFERS" ] && { melden "mogelijk hardgecodeerd geheim"; printf '%s\n' "$TREFFERS" | head -5 | sed 's/^/      /'; }
 [ "$PROBLEMEN" -eq "$VOOR" ] && echo "  ✓ geen hardgecodeerde geheimen"
+
+echo ""
+echo "── Opmaak: geen externe bronnen, alle assets aanwezig ──────"
+VOOR=$PROBLEMEN
+# Het portaal moet het zonder internet doen. Een <script>, <link> of @import
+# naar een ander domein zou betekenen dat de site stukgaat zodra dat domein
+# onbereikbaar is — en dat de Content-Security-Policy weer opgerekt moet worden.
+TREFFERS=$(grep -rnE '(src|href)="https?://|@import[^;]*https?://' $BESTANDEN assets/*.css 2>/dev/null)
+[ -n "$TREFFERS" ] && { melden "externe bron in de opmaak"; printf '%s\n' "$TREFFERS" | sed 's/^/      /'; }
+
+# Elk bestand dat via djm_asset() of url() als script/stijl wordt ingeladen,
+# moet ook echt bestaan. Anders staat de site na een deploy zonder opmaak en
+# ziet niemand dat aan de PHP-syntaxcontrole.
+for PAD in $(grep -rhoE "djm_asset\('[^']+'\)" $BESTANDEN | sed "s/djm_asset('//;s/')//" | sort -u); do
+    [ -f "$PAD" ] || melden "verwezen bestand ontbreekt: $PAD"
+done
+# En de lettertypes waar bootstrap-icons.css naar wijst.
+for FONT in $(grep -oE 'url\("[^"]+\.woff2?[^"]*"\)' assets/vendor/bootstrap-icons.css 2>/dev/null \
+        | sed 's/url("//;s/".*//;s/?.*//'); do
+    [ -f "assets/vendor/$FONT" ] || melden "lettertype ontbreekt: assets/vendor/$FONT"
+done
+[ "$PROBLEMEN" -eq "$VOOR" ] && echo "  ✓ alle opmaak komt uit deze installatie en is aanwezig"
 
 echo ""
 echo "── Bestandspaden: alleen via opslag_absoluut_pad() ─────────"

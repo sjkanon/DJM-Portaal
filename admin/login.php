@@ -16,6 +16,19 @@ vereis_installatie();
 const ADMIN_LOGIN_MAX_POGINGEN   = 10;
 const ADMIN_LOGIN_VENSTER_MINUTEN = 15;
 
+/**
+ * Hash van een wachtwoord dat niemand heeft, om tegen te controleren als het
+ * e-mailadres niet bestaat. Zo kost een mislukte poging op een onbekend adres
+ * evenveel tijd als op een bestaand adres; zonder dit verraadt de responstijd
+ * welke adressen beheerder zijn.
+ *
+ * De kosten (`$2y$10$`) horen gelijk te zijn aan die van PASSWORD_DEFAULT, want
+ * daarmee zijn de echte hashes gemaakt. Wijzigt PHP die standaard, vervang deze
+ * waarde dan door de uitvoer van:
+ *     php -r 'echo password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);'
+ */
+const ADMIN_LOGIN_DUMMY_HASH = '$2y$10$/YnHO/yUCv420CzbsUR70ubt0vXUtW3NO1VgmnNSqAzzapf5B5/5u';
+
 /** Huidige tellerstand voor deze sleutel; 0 als het venster verlopen is. */
 function admin_limiet_teller(string $sleutel, int $vensterMinuten): int
 {
@@ -125,6 +138,17 @@ try {
 $limietSleutel = 'admin:' . client_ip();
 $teVaak        = admin_limiet_teller($limietSleutel, ADMIN_LOGIN_VENSTER_MINUTEN) >= ADMIN_LOGIN_MAX_POGINGEN;
 
+/**
+ * Sleutel voor de rem per account. De rem per IP-adres houdt één aanvaller
+ * tegen, maar niet iemand die vanaf veel adressen tegelijk op hetzelfde
+ * beheerdersaccount blijft gokken. Deze tweede teller sluit dat gat.
+ */
+function admin_account_sleutel(string $email): string
+{
+    // Alleen een hash in de tabel: daar hoeft geen e-mailadres in te staan.
+    return 'adminacc:' . substr(hash_hmac('sha256', $email, app_key()), 0, 40);
+}
+
 $terugParameter = (string)($_POST['terug'] ?? $_GET['terug'] ?? '');
 $fout           = '';
 $email          = '';
@@ -136,9 +160,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $databaseOk && $aantalBeheerders > 
     $email      = normaliseer_email((string)($_POST['email'] ?? ''));
     $wachtwoord = (string)($_POST['wachtwoord'] ?? '');
 
-    if ($teVaak) {
-        $fout = 'Er is te vaak achter elkaar geprobeerd in te loggen vanaf dit IP-adres. '
-            . 'Wacht ' . ADMIN_LOGIN_VENSTER_MINUTEN . ' minuten en probeer het opnieuw.';
+    $accountSleutel = $email !== '' ? admin_account_sleutel($email) : '';
+    $accountTeVaak  = $accountSleutel !== ''
+        && admin_limiet_teller($accountSleutel, ADMIN_LOGIN_VENSTER_MINUTEN) >= ADMIN_LOGIN_MAX_POGINGEN;
+
+    if ($teVaak || $accountTeVaak) {
+        $fout = $teVaak
+            ? 'Er is te vaak achter elkaar geprobeerd in te loggen vanaf dit IP-adres. '
+                . 'Wacht ' . ADMIN_LOGIN_VENSTER_MINUTEN . ' minuten en probeer het opnieuw.'
+            : 'Er is te vaak achter elkaar geprobeerd op dit account in te loggen. '
+                . 'Wacht ' . ADMIN_LOGIN_VENSTER_MINUTEN . ' minuten en probeer het opnieuw.';
         log_login('admin_fout', $email !== '' ? $email : null, false, 'geblokkeerd door ratelimiet');
     } elseif ($email === '' || $wachtwoord === '') {
         $fout = 'Vul uw e-mailadres en wachtwoord in.';
@@ -153,12 +184,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $databaseOk && $aantalBeheerders > 
         }
 
         $hash = (string)($rij['wachtwoord_hash'] ?? '');
-        $ok   = $rij !== null && (int)$rij['actief'] === 1 && $hash !== ''
-            && password_verify($wachtwoord, $hash);
+        if ($hash === '') {
+            // Onbekend account: tóch een hash controleren, zodat het antwoord
+            // net zo lang op zich laat wachten als bij een bestaand account.
+            // Zonder dit verraadt de responstijd welke adressen beheerder zijn.
+            $hash = ADMIN_LOGIN_DUMMY_HASH;
+        }
+        $wachtwoordKlopt = password_verify($wachtwoord, $hash);
+        $ok = $rij !== null && (int)$rij['actief'] === 1
+            && (string)($rij['wachtwoord_hash'] ?? '') !== '' && $wachtwoordKlopt;
 
         if (!$ok) {
             // Altijd dezelfde neutrale melding: geen user enumeration.
             admin_limiet_ophogen($limietSleutel, ADMIN_LOGIN_VENSTER_MINUTEN);
+            admin_limiet_ophogen($accountSleutel, ADMIN_LOGIN_VENSTER_MINUTEN);
             $fout = 'Onjuiste inloggegevens.';
             log_login('admin_fout', $email, false);
         } else {
@@ -172,6 +211,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $databaseOk && $aantalBeheerders > 
             }
 
             admin_limiet_wissen($limietSleutel);
+            admin_limiet_wissen($accountSleutel);
             beheerder_inloggen($rij);
             log_login('admin_ok', $email, true);
 

@@ -621,7 +621,7 @@ admin_start(
                                     </td>
                                     <td class="text-end">
                                         <form method="post" class="d-inline"
-                                            onsubmit="return confirm('Dit bestand uitschakelen? De downloadknop verdwijnt meteen uit het portaal.');">
+                                            <?= bevestig_attribuut('Dit bestand uitschakelen? De downloadknop verdwijnt meteen uit het portaal.') ?>>
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="actie" value="uitschakelen">
                                             <input type="hidden" name="id" value="<?= (int)$rij['id'] ?>">
@@ -739,7 +739,7 @@ admin_start(
                                         <div class="d-flex flex-column align-items-end gap-1">
                                             <?php if ($status === 'afwijkend'): ?>
                                                 <form method="post"
-                                                    onsubmit="return confirm('De grootte in de database vervangen door de werkelijke bestandsgrootte?');">
+                                                    <?= bevestig_attribuut('De grootte in de database vervangen door de werkelijke bestandsgrootte?') ?>>
                                                     <?= csrf_field() ?>
                                                     <input type="hidden" name="actie" value="grootte_bijwerken">
                                                     <input type="hidden" name="id" value="<?= (int)$rij['id'] ?>">
@@ -751,7 +751,7 @@ admin_start(
 
                                             <?php if ($rij['probleem'] && $isActief): ?>
                                                 <form method="post"
-                                                    onsubmit="return confirm('Dit bestand uitschakelen? De downloadknop verdwijnt meteen uit het portaal.');">
+                                                    <?= bevestig_attribuut('Dit bestand uitschakelen? De downloadknop verdwijnt meteen uit het portaal.') ?>>
                                                     <?= csrf_field() ?>
                                                     <input type="hidden" name="actie" value="uitschakelen">
                                                     <input type="hidden" name="id" value="<?= (int)$rij['id'] ?>">
@@ -773,7 +773,7 @@ admin_start(
                                             <?php endif; ?>
 
                                             <form method="post"
-                                                onsubmit="return confirm('SHA-256 berekenen? Bij een grote videoregistratie kan dit enkele minuten duren; laat het venster open staan.');">
+                                                <?= bevestig_attribuut('SHA-256 berekenen? Bij een grote videoregistratie kan dit enkele minuten duren; laat het venster open staan.') ?>>
                                                 <?= csrf_field() ?>
                                                 <input type="hidden" name="actie" value="hash">
                                                 <input type="hidden" name="id" value="<?= (int)$rij['id'] ?>">
@@ -785,7 +785,7 @@ admin_start(
                                             </form>
 
                                             <form method="post"
-                                                onsubmit="return confirm('Alleen de databaseregel verwijderen? Een eventueel bestand op schijf blijft gewoon staan.');">
+                                                <?= bevestig_attribuut('Alleen de databaseregel verwijderen? Een eventueel bestand op schijf blijft gewoon staan.') ?>>
                                                 <?= csrf_field() ?>
                                                 <input type="hidden" name="actie" value="verwijderen">
                                                 <input type="hidden" name="id" value="<?= (int)$rij['id'] ?>">

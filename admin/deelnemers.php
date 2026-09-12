@@ -525,7 +525,7 @@ admin_start('Deelnemers', $totaalAlles . ' persoon/personen in het portaal');
         </div>
         <div class="col-sm-6 col-lg-4">
             <label class="form-label small text-muted mb-1" for="filterveld">Filter</label>
-            <select class="form-select" id="filterveld" name="filter" onchange="this.form.submit()">
+            <select class="form-select" id="filterveld" name="filter" data-auto-verzenden>
                 <option value="">Alle deelnemers</option>
                 <option value="geblokkeerd" <?= $filter === 'geblokkeerd' ? 'selected' : '' ?>>Alleen geblokkeerd</option>
                 <option value="zonder_toegang" <?= $filter === 'zonder_toegang' ? 'selected' : '' ?>>Zonder toegang tot enige jaargang</option>

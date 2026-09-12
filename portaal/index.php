@@ -25,9 +25,14 @@ pagina_start('Uw video\'s');
         <i class="bi bi-person-circle me-1"></i>
         Ingelogd als <span class="fw-semibold"><?= h((string)$deelnemer['email']) ?></span>
     </div>
-    <a href="<?= h(url('logout.php')) ?>" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-box-arrow-right me-1"></i>Uitloggen
-    </a>
+    <!-- Uitloggen wijzigt de sessie en gaat daarom via POST met een CSRF-token;
+         zie de toelichting boven in logout.php. -->
+    <form method="post" action="<?= h(url('logout.php')) ?>" class="m-0">
+        <?= csrf_field() ?>
+        <button type="submit" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-box-arrow-right me-1"></i>Uitloggen
+        </button>
+    </form>
 </div>
 
 <?php if (!$jaargangen): ?>
@@ -78,7 +83,7 @@ pagina_start('Uw video\'s');
                                     <?= h(formatteer_bytes((int)$bestand['bytes'])) ?>
                                 </div>
                             </div>
-                            <a class="btn btn-djm"
+                            <a class="btn btn-djm djm-actie"
                                href="<?= h(download_link((int)$bestand['id'], $deelnemerId)) ?>">
                                 <i class="bi bi-download me-1"></i>Downloaden
                             </a>

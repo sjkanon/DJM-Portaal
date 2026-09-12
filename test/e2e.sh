@@ -131,7 +131,13 @@ fi
 
 echo ""
 echo "── Uitloggen ───────────────────────────────────────────────"
+# Een GET mag niets doen: uitloggen vraagt om POST met een geldig CSRF-token.
 haal -o /dev/null -L "$BASIS/logout.php"
+toets "GET logt niet uit" "200" "$(status "$BASIS/portaal/index.php")"
+
+PORTAAL=$(haal "$BASIS/portaal/index.php")
+UIT_TOKEN=$(csrf "$PORTAAL")
+haal -o /dev/null -L -X POST -d "csrf_token=$UIT_TOKEN" "$BASIS/logout.php"
 toets "portaal weer afgeschermd" "302" "$(status "$BASIS/portaal/index.php")"
 
 echo ""

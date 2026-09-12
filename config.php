@@ -8,26 +8,124 @@
  */
 
 // ─── Omgevingsvariabelen laden ───────────────────────────────────────────────
-function loadEnv(string $filePath): void
+
+/**
+ * Leest een .env-bestand uit tot een array sleutel => waarde.
+ *
+ * Een regel is `SLEUTEL=waarde`, eventueel met `export ` ervoor. Staat de
+ * waarde tussen aanhalingstekens, dan worden die eraf gehaald; dat is de enige
+ * manier om spaties aan het begin of einde te bewaren. Tussen dúbbele
+ * aanhalingstekens gelden de gebruikelijke ontsnappingen \" \\ \n \r \t,
+ * zodat ook een wachtwoord met een aanhalingsteken erin heelhuids aankomt.
+ * Tussen enkele aanhalingstekens blijft alles staan zoals het er staat.
+ *
+ * Een `#` middenin een waarde begint hier bewust géén commentaar: dat zou een
+ * bestaand wachtwoord stilzwijgend kunnen afkappen. Wie een `#` in een waarde
+ * nodig heeft, hoeft dus niets te doen; wie er commentaar achter wil, zet de
+ * waarde tussen aanhalingstekens en het commentaar erachter.
+ *
+ * De functie raakt $_ENV niet aan. Zo kan setup.php een bestaand .env inlezen
+ * zonder de draaiende configuratie te beïnvloeden.
+ *
+ * @return array<string, string>
+ */
+function env_parse(string $filePath): array
 {
-    if (!is_file($filePath)) {
-        return;
+    if (!is_file($filePath) || !is_readable($filePath)) {
+        return [];
     }
-    foreach (file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
-        $line = trim($line);
-        if ($line === '' || $line[0] === '#' || !str_contains($line, '=')) {
+    $regels = @file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if ($regels === false) {
+        return [];
+    }
+
+    $waarden = [];
+    foreach ($regels as $nummer => $regel) {
+        if ($nummer === 0) {
+            $regel = preg_replace('/^\xEF\xBB\xBF/', '', $regel) ?? $regel;   // byte order mark
+        }
+        $regel = trim($regel);
+        if ($regel === '' || $regel[0] === '#' || !str_contains($regel, '=')) {
             continue;
         }
-        [$key, $value] = explode('=', $line, 2);
-        $key   = trim($key);
-        $value = trim($value);
-        if (strlen($value) >= 2 && ($value[0] === '"' || $value[0] === "'") && $value[0] === substr($value, -1)) {
-            $value = substr($value, 1, -1);
+        [$sleutel, $waarde] = explode('=', $regel, 2);
+        $sleutel = trim($sleutel);
+        if (str_starts_with($sleutel, 'export ')) {
+            $sleutel = trim(substr($sleutel, 7));
         }
-        if ($key !== '' && !isset($_ENV[$key])) {
-            $_ENV[$key] = $value;
-            putenv("$key=$value");
+        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $sleutel)) {
+            continue;
         }
+        $waarden[$sleutel] = env_waarde_ontleden(trim($waarde));
+    }
+    return $waarden;
+}
+
+/** Haalt aanhalingstekens en ontsnappingen van één .env-waarde af. */
+function env_waarde_ontleden(string $waarde): string
+{
+    if ($waarde === '') {
+        return '';
+    }
+    $teken = $waarde[0];
+    if ($teken !== '"' && $teken !== "'") {
+        return $waarde;
+    }
+
+    $lengte = strlen($waarde);
+    $binnen = '';
+    for ($i = 1; $i < $lengte; $i++) {
+        $huidig = $waarde[$i];
+        if ($teken === '"' && $huidig === '\\' && $i + 1 < $lengte) {
+            $volgend = $waarde[$i + 1];
+            $binnen .= match ($volgend) {
+                'n'     => "\n",
+                'r'     => "\r",
+                't'     => "\t",
+                '"'     => '"',
+                '\\'    => '\\',
+                default => '\\' . $volgend,
+            };
+            $i++;
+            continue;
+        }
+        if ($huidig === $teken) {
+            return $binnen;         // alles ná het slotteken is commentaar
+        }
+        $binnen .= $huidig;
+    }
+
+    // Geen slotteken gevonden: dan was het aanhalingsteken kennelijk geen quote.
+    return $waarde;
+}
+
+/**
+ * Zet een waarde om naar een regel die env_parse() weer precies zo teruggeeft.
+ *
+ * Alles gaat tussen dubbele aanhalingstekens: dat is altijd goed, ook bij een
+ * lege waarde, een spatie aan het eind of een wachtwoord vol leestekens.
+ */
+function env_regel(string $sleutel, string $waarde): string
+{
+    $ontsnapt = strtr($waarde, [
+        '\\'   => '\\\\',
+        '"'    => '\\"',
+        "\n"   => '\\n',
+        "\r"   => '\\r',
+        "\t"   => '\\t',
+    ]);
+    return $sleutel . '="' . $ontsnapt . '"';
+}
+
+function loadEnv(string $filePath): void
+{
+    foreach (env_parse($filePath) as $sleutel => $waarde) {
+        // Een echte omgevingsvariabele (Docker, systemd, SetEnv) wint van .env.
+        if (isset($_ENV[$sleutel])) {
+            continue;
+        }
+        $_ENV[$sleutel] = $waarde;
+        putenv("$sleutel=$waarde");
     }
 }
 loadEnv(__DIR__ . '/.env');
@@ -44,6 +142,8 @@ define('APP_VERSION', trim((string)@file_get_contents(__DIR__ . '/VERSION') ?: '
 define('APP_ROOT',    __DIR__);
 
 define('DB_HOST',    env('DB_HOST', 'localhost'));
+define('DB_PORT',    env('DB_PORT'));
+define('DB_SOCKET',  env('DB_SOCKET'));
 define('DB_NAME',    env('DB_NAME', 'djm_portaal'));
 define('DB_USER',    env('DB_USER', 'djm_portaal'));
 define('DB_PASS',    env('DB_PASS'));
@@ -76,11 +176,30 @@ function app_log(string $bericht, array $context = []): void
 }
 
 // ─── Sessiebeveiliging ───────────────────────────────────────────────────────
-$httpsActief = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
-    || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+/**
+ * Komt de bezoeker via HTTPS binnen?
+ *
+ * Eén plek voor deze vraag: de sessiecookie, het onthoud-cookie, HSTS en
+ * app_base_url() moeten hier niet uit elkaar kunnen lopen. Achter een
+ * TLS-afsluitende proxy (nginx, HAProxy, Cloudflare) staat $_SERVER['HTTPS']
+ * niet, maar stuurt de proxy X-Forwarded-Proto. Die header kan een bezoeker
+ * verzinnen, maar alleen in zijn eigen nadeel: hij zet cookies dan strenger.
+ */
+function https_actief(): bool
+{
+    if (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off') {
+        return true;
+    }
+    $doorgestuurd = strtolower(trim((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')));
+    // Een proxyketen kan er meerdere op een rij zetten: "https, http".
+    if ($doorgestuurd !== '' && explode(',', $doorgestuurd)[0] === 'https') {
+        return true;
+    }
+    return ((int)($_SERVER['SERVER_PORT'] ?? 0)) === 443;
+}
 
 ini_set('session.cookie_httponly', '1');
-ini_set('session.cookie_secure', $httpsActief ? '1' : '0');
+ini_set('session.cookie_secure', https_actief() ? '1' : '0');
 ini_set('session.cookie_samesite', 'Lax');
 ini_set('session.use_only_cookies', '1');
 ini_set('session.use_strict_mode', '1');
@@ -130,27 +249,82 @@ function stuur_security_headers(): void
     header('X-Frame-Options: DENY');
     header('Referrer-Policy: strict-origin-when-cross-origin');
     header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
+    // Alles wat de pagina's nodig hebben — ook Bootstrap — staat in assets/ van
+    // deze installatie. De policy laat daarom geen enkele externe bron toe, op
+    // afbeeldingen na: een logo mag elders gehost zijn (instelling Logo-URL).
+    //
+    // script-src staat bewust GEEN 'unsafe-inline' toe: alle JavaScript staat in
+    // losse bestanden (admin/assets/admin.js). Zou er ooit toch een stukje tekst
+    // van een bezoeker als HTML op een pagina belanden, dan voert de browser het
+    // daarin gesmokkelde script niet uit. Voor style-src kan dat niet: het blok
+    // met de merkkleur in de layout en de style="…"-attributen in het beheer
+    // zijn inline.
     header(
         "Content-Security-Policy: default-src 'self'; "
         . "img-src 'self' data: https:; "
-        . "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-        . "font-src 'self' https://cdn.jsdelivr.net; "
-        . "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        . "style-src 'self' 'unsafe-inline'; "
+        . "font-src 'self'; "
+        . "script-src 'self'; "
+        . "object-src 'none'; "
         . "form-action 'self'; frame-ancestors 'none'; base-uri 'self'"
     );
-    $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
-        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
-    if ($https) {
+    // Pagina's tonen persoonsgegevens (e-mailadressen, logboeken). Ze mogen niet
+    // in een gedeelde cache of in het schijfcachegeheugen van een geleende
+    // computer achterblijven, waar ze na het uitloggen nog op te vragen zijn.
+    header('Cache-Control: no-store, private');
+    if (https_actief()) {
         header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
     }
 }
 
 // ─── Database ────────────────────────────────────────────────────────────────
+
+/**
+ * Bouwt een PDO-DSN op uit losse onderdelen.
+ *
+ * Eén plek voor deze samenstelling, zodat db() en de verbindingstest in
+ * setup.php niet uit elkaar kunnen lopen. Is er een socket opgegeven, dan gaat
+ * die voor: MySQL negeert host en poort dan toch. Een lege `dbname` levert een
+ * DSN op waarmee je verbindt zónder database te kiezen — dat is precies wat je
+ * nodig hebt om te controleren of de database wel bestaat.
+ *
+ * @param array{host?: string, port?: string, socket?: string, dbname?: string, charset?: string} $gegevens
+ */
+function mysql_dsn(array $gegevens): string
+{
+    $socket  = trim((string)($gegevens['socket'] ?? ''));
+    $charset = trim((string)($gegevens['charset'] ?? '')) ?: 'utf8mb4';
+    $dbnaam  = trim((string)($gegevens['dbname'] ?? ''));
+
+    $delen = [];
+    if ($socket !== '') {
+        $delen[] = 'unix_socket=' . $socket;
+    } else {
+        $delen[] = 'host=' . (trim((string)($gegevens['host'] ?? '')) ?: 'localhost');
+        $poort   = trim((string)($gegevens['port'] ?? ''));
+        if ($poort !== '') {
+            $delen[] = 'port=' . $poort;
+        }
+    }
+    if ($dbnaam !== '') {
+        $delen[] = 'dbname=' . $dbnaam;
+    }
+    $delen[] = 'charset=' . $charset;
+
+    return 'mysql:' . implode(';', $delen);
+}
+
 function db(): PDO
 {
     static $pdo = null;
     if ($pdo === null) {
-        $dsn = sprintf('mysql:host=%s;dbname=%s;charset=%s', DB_HOST, DB_NAME, DB_CHARSET);
+        $dsn = mysql_dsn([
+            'host'    => DB_HOST,
+            'port'    => DB_PORT,
+            'socket'  => DB_SOCKET,
+            'dbname'  => DB_NAME,
+            'charset' => DB_CHARSET,
+        ]);
         $pdo = new PDO($dsn, DB_USER, DB_PASS, [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -256,6 +430,25 @@ function formatteer_datum(?string $datum, bool $metTijd = true): string
 }
 
 // ─── URL's ───────────────────────────────────────────────────────────────────
+/**
+ * De Host-header, maar alleen als die er als een hostnaam uitziet.
+ *
+ * De bezoeker bepaalt deze header zelf. Zonder APP_URL in .env komt hij in
+ * elke link terecht die dit portaal maakt — ook in de uitnodigingsmail. Iemand
+ * die een verzoek met een eigen Host-header stuurt, zou zo een mail met een
+ * link naar zijn eigen server kunnen laten versturen. Daarom accepteren we
+ * alleen letters, cijfers, punt, streepje en een poortnummer, en anders
+ * 'localhost'. Vul APP_URL in en deze vraag speelt helemaal niet meer.
+ */
+function veilige_host(): string
+{
+    $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+    if ($host === '' || strlen($host) > 253) {
+        return 'localhost';
+    }
+    return preg_match('/^[A-Za-z0-9.\-]+(:\d{1,5})?$/', $host) ? $host : 'localhost';
+}
+
 /** Absolute basis-URL van de applicatie, zonder afsluitende slash. */
 function app_base_url(): string
 {
@@ -263,9 +456,8 @@ function app_base_url(): string
     if ($uitEnv !== '') {
         return $uitEnv;
     }
-    $scheme = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
-        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $scheme = https_actief() ? 'https' : 'http';
+    $host   = veilige_host();
 
     // Pad naar de projectroot afleiden uit het draaiende script.
     $scriptDir = str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/index.php')));
@@ -294,8 +486,8 @@ function app_url_afwijking(): string
         return '';
     }
 
-    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
-    if ($host === '') {
+    $host = strtolower(veilige_host());
+    if ($host === '' || $host === 'localhost') {
         return '';
     }
 

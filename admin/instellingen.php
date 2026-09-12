@@ -3,13 +3,15 @@
 /**
  * Beheer > Instellingen — portaal, e-mail, inloggen, mailsjablonen.
  *
- * Bevat ook de twee testknoppen: een testmail versturen en de
- * Graph-configuratie controleren met GraphMailer::diagnoseConfiguration().
+ * Bevat ook de drie testknoppen: een testmail versturen, de Graph-configuratie
+ * controleren met GraphMailer::diagnoseConfiguration(), en de uitleveringslaag
+ * echt uitproberen met zelftest_uitvoeren().
  */
 
 require_once dirname(__DIR__) . '/config.php';
 require_once __DIR__ . '/includes/layout.php';
 require_once dirname(__DIR__) . '/includes/email_helper.php';
+require_once dirname(__DIR__) . '/includes/uitlevering_helper.php';
 
 vereis_installatie();
 $beheerder = vereis_beheerder();
@@ -359,6 +361,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // ─── Uitlevering van downloads echt uitproberen ────────────────────────
+    if ($actie === 'zelftest') {
+        // De server doet in deze test vier HTTP-verzoeken aan zichzelf; de
+        // standaardlimiet van 30 seconden is daar krap voor.
+        @set_time_limit(180);
+        $_SESSION['instellingen_test'] = [
+            'soort'     => 'zelftest',
+            'resultaat' => zelftest_uitvoeren(),
+        ];
+        header('Location: ' . url('admin/instellingen.php') . '#testen');
+        exit;
+    }
+
     header('Location: ' . url('admin/instellingen.php'));
     exit;
 }
@@ -693,7 +708,7 @@ admin_start('Instellingen', 'Portaal, e-mail, inloggen en mailsjablonen');
     <h2 class="h6 text-uppercase text-muted mb-3"><i class="bi bi-clipboard-check me-1"></i>Testen</h2>
 
     <div class="row g-4">
-        <div class="col-lg-6">
+        <div class="col-lg-4">
             <form method="post" class="border rounded p-3 h-100">
                 <?= csrf_field() ?>
                 <input type="hidden" name="actie" value="testmail">
@@ -711,7 +726,7 @@ admin_start('Instellingen', 'Portaal, e-mail, inloggen en mailsjablonen');
                 </div>
             </form>
         </div>
-        <div class="col-lg-6">
+        <div class="col-lg-4">
             <form method="post" class="border rounded p-3 h-100">
                 <?= csrf_field() ?>
                 <input type="hidden" name="actie" value="diagnose">
@@ -722,6 +737,21 @@ admin_start('Instellingen', 'Portaal, e-mail, inloggen en mailsjablonen');
                 </p>
                 <button class="btn btn-outline-primary" type="submit">
                     <i class="bi bi-activity me-1"></i>Controleren
+                </button>
+            </form>
+        </div>
+        <div class="col-lg-4">
+            <form method="post" class="border rounded p-3 h-100">
+                <?= csrf_field() ?>
+                <input type="hidden" name="actie" value="zelftest">
+                <label class="form-label">Uitlevering van downloads uitproberen</label>
+                <p class="form-text mt-0">
+                    Zet kort een testbestand in de opslagmap en haalt het op via dezelfde route
+                    als een echte video: volledig, hervat, en een onmogelijk bereik. Ruimt
+                    zichzelf daarna op.
+                </p>
+                <button class="btn btn-outline-primary" type="submit">
+                    <i class="bi bi-hdd-network me-1"></i>Uitproberen
                 </button>
             </form>
         </div>
@@ -843,7 +873,130 @@ admin_start('Instellingen', 'Portaal, e-mail, inloggen en mailsjablonen');
             <?php endif; ?>
         </div>
     <?php endif; ?>
+
+    <?php if (is_array($testResultaat) && ($testResultaat['soort'] ?? '') === 'zelftest'): ?>
+        <?php $zelf = (array)($testResultaat['resultaat'] ?? []); ?>
+        <div class="mt-4">
+            <div class="alert alert-<?= !empty($zelf['gelukt']) ? 'success' : 'danger' ?>">
+                <?php if (!empty($zelf['gelukt'])): ?>
+                    <i class="bi bi-check-circle me-1"></i>
+                    <strong>De uitlevering werkt.</strong>
+                    Een echte video volgt precies deze route.
+                <?php else: ?>
+                    <i class="bi bi-x-circle me-1"></i>
+                    <strong>De uitlevering werkt nog niet volledig.</strong>
+                    Zolang dit niet klopt, lopen downloads bij deelnemers mis — vaak pas zichtbaar
+                    bij een groot bestand. De configuratie hieronder hoort erbij.
+                <?php endif; ?>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-sm tabel-compact align-middle">
+                    <tbody>
+                        <tr>
+                            <th style="width:240px;">Gebruikte methode</th>
+                            <td>
+                                <code class="pad"><?= h((string)($zelf['methode'] ?? '')) ?></code>
+                                <?php if (($zelf['gemeld'] ?? '') !== ''): ?>
+                                    <span class="small text-muted ms-1">Zoals het antwoord zelf meldde.</span>
+                                <?php elseif (empty($zelf['antwoord'])): ?>
+                                    <span class="small text-muted ms-1">
+                                        Uit eigen detectie; er kwam geen antwoord om het aan af te lezen.
+                                    </span>
+                                <?php else: ?>
+                                    <span class="small text-muted ms-1">
+                                        Uit eigen detectie; het antwoord zelf verried de route niet.
+                                        Er zit dan waarschijnlijk een proxy of cache tussen die zowel
+                                        de eigen header als de bestandsnaam herschrijft.
+                                    </span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Getest adres</th>
+                            <td><code class="pad"><?= h((string)($zelf['basis'] ?? '')) ?>/zelftest.php</code></td>
+                        </tr>
+                        <?php foreach ((array)($zelf['stappen'] ?? []) as $stapRij): ?>
+                            <tr>
+                                <th><?= h((string)$stapRij['naam']) ?></th>
+                                <td>
+                                    <?php if ($stapRij['gelukt'] === true): ?>
+                                        <span class="badge text-bg-success">goed</span>
+                                    <?php elseif ($stapRij['gelukt'] === false): ?>
+                                        <span class="badge text-bg-danger">mislukt</span>
+                                    <?php else: ?>
+                                        <span class="badge text-bg-secondary">overgeslagen</span>
+                                    <?php endif; ?>
+                                    <div class="small text-muted"><?= h((string)$stapRij['detail']) ?></div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <?php if (!empty($zelf['onveilig'])): ?>
+                <div class="alert alert-warning mb-0">
+                    <i class="bi bi-shield-exclamation me-1"></i>
+                    Het TLS-certificaat van <code><?= h((string)($zelf['basis'] ?? '')) ?></code> kon niet
+                    worden gecontroleerd; de test is daarna zonder certificaatcontrole gedraaid. De
+                    uitlevering is dus wel getest, maar browsers zullen het portaal onveilig noemen
+                    totdat het certificaat klopt.
+                </div>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
 </div>
+
+<!-- ─── Serverconfiguratie ───────────────────────────────────────────────── -->
+<?php
+$configMethode = download_methode();
+$configBlokken = [
+    'xaccel'    => uitlevering_serverconfig('xaccel'),
+    'xsendfile' => uitlevering_serverconfig('xsendfile'),
+    'php'       => uitlevering_serverconfig('php'),
+];
+?>
+<div class="kaart p-4 mb-4" id="serverconfig">
+    <h2 class="h6 text-uppercase text-muted mb-3"><i class="bi bi-file-earmark-code me-1"></i>Serverconfiguratie</h2>
+    <p class="small text-muted">
+        Het blok hieronder hoort bij de uitleveringsmethode en heeft de paden van déze installatie
+        al ingevuld — opslagmap en prefix hoeft u dus niet zelf over te nemen. Deze installatie
+        gebruikt nu <strong><?= h($configMethode) ?></strong>; dat tabblad staat open.
+        De volledige voorbeeldconfiguraties staan in <code>docs/</code>.
+    </p>
+
+    <ul class="nav nav-pills mb-3" role="tablist">
+        <?php foreach ($configBlokken as $sleutel => $blok): ?>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link <?= $sleutel === $configMethode ? 'active' : '' ?>"
+                    data-bs-toggle="pill" data-bs-target="#cfg-<?= h($sleutel) ?>" type="button" role="tab">
+                    <?= h($blok['titel']) ?>
+                </button>
+            </li>
+        <?php endforeach; ?>
+    </ul>
+
+    <div class="tab-content">
+        <?php foreach ($configBlokken as $sleutel => $blok): ?>
+            <div class="tab-pane fade <?= $sleutel === $configMethode ? 'show active' : '' ?>"
+                id="cfg-<?= h($sleutel) ?>" role="tabpanel">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                    <div class="small text-muted"><?= h($blok['waar']) ?></div>
+                    <button class="btn btn-sm btn-outline-secondary" type="button"
+                        data-kopieer="cfg-tekst-<?= h($sleutel) ?>">
+                        <i class="bi bi-clipboard me-1"></i>Kopiëren
+                    </button>
+                </div>
+                <pre class="border rounded bg-light p-3 mb-2 small" id="cfg-tekst-<?= h($sleutel) ?>"><?= h($blok['tekst']) ?></pre>
+                <p class="small text-muted mb-0"><?= h($blok['uitleg']) ?></p>
+            </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+
+<!-- De kopieerknoppen hierboven worden afgehandeld in admin/assets/admin.js;
+     de Content-Security-Policy staat geen scriptblok in de pagina zelf toe. -->
 
 <!-- ─── Technische status ────────────────────────────────────────────────── -->
 <?php
