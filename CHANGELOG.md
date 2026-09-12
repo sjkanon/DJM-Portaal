@@ -29,6 +29,16 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
   zodra de beheerder het bestand opende.
 - **Het beheerdersinloggen heeft nu ook een rem per account,** naast die per IP-adres,
   en een mislukte poging op een onbekend adres duurt even lang als op een bestaand adres.
+- **Reverse proxy's worden nu expliciet vertrouwd in plaats van impliciet genegeerd.**
+  Nieuw: `TRUSTED_PROXIES` in `.env` (IP-adres of CIDR-bereik, komma's ertussen). Staat er een
+  proxy in die lijst, dan leest het portaal het echte bezoekersadres uit `X-Forwarded-For`,
+  van rechts naar links en met de eigen proxy's overgeslagen; `X-Forwarded-Proto` telt dan ook
+  alleen nog van die proxy's. Staat er niets, dan blijft alleen `REMOTE_ADDR` gelden — een
+  verzonnen `X-Forwarded-For` verandert dus niets, en is dus ook geen manier om de limiet op
+  het aanvragen van inlogcodes te omzeilen. Zonder deze instelling zag het portaal achter een
+  proxy van álle bezoekers hetzelfde adres, waardoor de limiet van tien codes per uur de hele
+  vereniging tegelijk buitensloot. Het beheeroverzicht waarschuwt nu als er doorstuurheaders
+  binnenkomen terwijl de lijst leeg is, en `setup.php` vraagt het veld uit en controleert het.
 - **`opslag/.htaccess` en `logs/.htaccess` zitten weer in git.** Ze stonden in de
   documentatie beschreven, maar `.gitignore` hield ze buiten de repository: na een verse
   checkout stonden ze niet op de server. Ook `includes/` en `docs/` hebben er nu een.
@@ -39,14 +49,101 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
 - **`docs/apache.voorbeeld.conf` levert SVG's nu ook met een strikte policy uit,**
   net als de `.htaccess` en de nginx-configuratie al deden.
 
+### Installatie
+- **`setup.php` vult `.env` nu zelf in.** Tot nu toe controleerde de wizard alleen óf het
+  bestand er was; wie installeerde moest er met SSH of FTP bij om de databasegegevens en
+  de sleutels in te vullen — precies de stap waar een niet-technische beheerder op
+  vastloopt. Er is een stap bij gekomen die het webadres, de databasegegevens, de
+  opslagmap en de manier van uitleveren uitvraagt en het bestand wegschrijft. De wizard
+  telt daarmee vijf stappen: controle, instellen, database, beheerder, klaar.
+  - Elk veld wordt gecontroleerd; zit er een fout in, dan wordt er niets weggeschreven.
+  - `APP_KEY` en `OTP_PEPPER` worden gegenereerd. Bestaan ze al, dan blijven ze staan,
+    tenzij er uitdrukkelijk om nieuwe wordt gevraagd — met de waarschuwing erbij wat
+    daardoor ongeldig wordt.
+  - De opslagmap wordt zo nodig aangemaakt en met een echte schrijfpoging getest;
+    `is_writable()` zegt onder SELinux of een ACL nog wel eens ten onrechte ja.
+  - De databaseverbinding wordt getest. Kloppen de inloggegevens maar bestaat de database
+    nog niet, dan biedt de wizard aan hem aan te maken.
+  - Het bestand wordt weggeschreven via een tijdelijk bestand met rechten `600` en een
+    `rename()`, zodat een half geschreven `.env` niet kan bestaan, en daarna teruggelezen
+    ter controle. Van de vorige versie komt eerst een reservekopie.
+  - Bestaande wachtwoorden en sleutels worden nooit teruggetoond in het formulier: leeg
+    laten betekent ongewijzigd.
+  - Kan de webserver niet in de projectmap schrijven, dan toont de wizard de volledige
+    inhoud om zelf te plaatsen, inclusief de juiste `chown`- en `chmod`-opdracht met de
+    gebruiker waaronder PHP daadwerkelijk draait.
+- **De wizard kan zelf nakijken of `.env` van buitenaf te downloaden is.** De slotpagina
+  haalt `https://…/.env` op en zegt wat eruit kwam. Dat is de controle die het makkelijkst
+  wordt overgeslagen en het meeste kost als hij misgaat.
+- **De slotpagina met de nazorglijst was onbereikbaar.** Het slot op `setup.php` valt op
+  het moment dat de eerste beheerder wordt aangemaakt — dus precies vóórdat de lijst
+  ("verwijder `setup.php`", "scherm `.env` af", "zet de cron klaar") in beeld kwam. Wie de
+  beheerder zojuist in dezelfde sessie heeft aangemaakt, ziet hem nu wel.
+- **`.env` mag nu waarden met leestekens bevatten.** De inlezer haalde alleen
+  aanhalingstekens weg; een databasewachtwoord met een `"` erin kwam verminkt aan. Binnen
+  dubbele aanhalingstekens gelden nu `\"`, `\\`, `\n`, `\r` en `\t`, en er kan ook
+  `export ` voor een regel staan. Bestaande `.env`-bestanden blijven werken.
+- **Een echte omgevingsvariabele wint van `.env`,** ook als `variables_order` in `php.ini`
+  `$_ENV` niet vult. Voorheen kon een `.env` de instellingen van Docker of systemd
+  overrulen.
+- **`DB_PORT` en `DB_SOCKET` toegevoegd.** Een database op een andere poort of achter een
+  Unix-socket was niet in te stellen; wie `localhost:3307` in `DB_HOST` zette, kreeg een
+  onbegrijpelijke fout. Host en poort in één veld worden nu ook gewoon gesplitst.
+- **Databaseverbindingen hebben een tijdslimiet** (tien seconden, vijf tijdens de
+  installatie). Een verkeerd serveradres liet elke pagina anders hangen tot het
+  besturingssysteem het opgaf.
+
+### Opmaak
+- **Bootstrap en Bootstrap Icons worden meegeleverd** in `assets/vendor/` in plaats van
+  geladen vanaf het jsDelivr-CDN. Het portaal heeft daardoor geen uitgaande
+  internetverbinding meer nodig om er goed uit te zien, en de
+  Content-Security-Policy laat geen enkele externe bron meer toe (`style-src`,
+  `font-src` en `script-src` staan nu op `'self'`). Zie `assets/vendor/HERKOMST.md`
+  voor de herkomst, de controlegetallen en hoe je bijwerkt.
+- **De navigatiebalk van het beheer paste niet tussen 992 en 1200 pixels breed:** de
+  hele pagina schoof daar 134 pixels horizontaal weg en "Portaal" en de
+  beheerdersnaam vielen buiten beeld. De balk klapt nu pas uit vanaf 1200 pixels, het
+  label blijft naast zijn icoon staan (dat scheelt ook 26 pixels hoogte op elk scherm)
+  en een lange portaalnaam of beheerdersnaam wordt afgekapt in plaats van dat hij de
+  balk oprekt.
+- **Een lichte merkkleur levert geen onleesbare tekst meer op.** Tot nu toe stond er
+  altijd witte tekst op de merkkleur; bij geel of lichtgroen was dat niet te lezen.
+  De tekstkleur wordt nu per kleur uitgerekend (WCAG-luminantie) en geldt voor de
+  kopbalk van het portaal, de knoppen, de navigatiebalk van het beheer én de mails.
+- **Het favicon volgt de merkkleur** in plaats van altijd het standaardblauw te tonen.
+- Alle opmaak staat nu in één `assets/djm.css` in plaats van in vier bijna identieke
+  `<style>`-blokken, en het `<head>` van portaal, beheer en installatie komt uit
+  `includes/opmaak.php`. Achter elke stijl- en script-URL staat `?v=<VERSION>`, zodat
+  browsers na een update vanzelf de nieuwe versie ophalen.
+- Brede tabellen in het beheer laten op telefoon en tablet een schuifbalk zien, zodat
+  zichtbaar is dat er nog kolommen naast staan.
+- De downloadknop in het portaal staat op een telefoon over de volle breedte.
+- `setup.php` gebruikt hetzelfde `<head>` en dezelfde stijl als de rest.
+
 ### Testen
+- De statische controle weigert externe bronnen in de opmaak en controleert dat elk
+  stijl-, script- en lettertypebestand waarnaar verwezen wordt ook echt bestaat — een
+  ontbrekend bestand zou anders pas na het uitrollen opvallen.
+- `test/schermafdrukken.js` meldt een verzoek dat werd afgebroken doordat de browser
+  al doorklikte niet langer als fout.
 - Nieuw: `test/beveiliging.sh` en `test/beveiliging.php` meten de securityheaders, de
   afgeschermde paden op alle drie de webservers, het uitloggedrag en de
   beveiligingshelpers (mailheaders, bestandspaden, downloadhandtekeningen,
-  Host-header, CSV-export). Ze draaien mee in `test/alles.sh`.
+  Host-header, CSV-export, CIDR-bereiken). Ze draaien mee in `test/alles.sh`.
+- Nieuw: `test/proxy_test.php` draait de hele proxymatrix door (eigen proces, want de
+  proxylijst wordt per proces één keer ingelezen), en `test/beveiliging.sh` controleert
+  end-to-end dat een verzonnen `X-Forwarded-For` niet in het logboek belandt.
 - De statische controle kijkt nu naar ieder bestand dat `$_POST` of `$_FILES` leest in
   plaats van naar ieder bestand met een formulier erin, zodat een formulier en de
   verwerking ervan in verschillende bestanden mogen staan.
+- `test/installatie.sh` draait tegen een nieuwe container `vers`, die met opzet géén
+  omgevingsvariabelen meekrijgt. De wizard moet `.env` daar dus echt zelf schrijven, net
+  als bij een klant op een lege server. De test controleert onder meer dat een
+  databasewachtwoord met een `#` en een `"` erin de rit overleeft, dat een leeg
+  wachtwoordveld het bestaande wachtwoord laat staan, dat er een reservekopie met rechten
+  `600` komt, dat de sleutels niet ongevraagd worden vervangen, dat het wachtwoord niet in
+  het formulier wordt teruggetoond en dat `.env` na installatie niet meer te overschrijven
+  is.
 
 ## 1.0.0 — 9 september 2026
 

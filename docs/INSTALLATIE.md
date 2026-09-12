@@ -11,8 +11,8 @@ Doorloop de hoofdstukken op volgorde.
 | 1 | [Vereisten](#1-vereisten) |
 | 2 | [Bestanden uploaden](#2-bestanden-uploaden) |
 | 3 | [Database aanmaken](#3-database-aanmaken) |
-| 4 | [.env invullen](#4-env-invullen) |
-| 5 | [setup.php draaien](#5-setupphp-draaien) |
+| 4 | [setup.php draaien](#4-setupphp-draaien) |
+| 5 | [.env in detail](#5-env-in-detail) |
 | 6 | [Opslagmap inrichten](#6-opslagmap-inrichten) |
 | 7 | [Webserver configureren](#7-webserver-configureren) |
 | 8 | [E-mail via Microsoft Graph](#8-e-mail-via-microsoft-graph) |
@@ -35,7 +35,9 @@ Doorloop de hoofdstukken op volgorde.
 | E-mail | Een Microsoft 365-tenant met een postbus om vanaf te versturen |
 
 Er zijn geen Composer-pakketten nodig; het project heeft geen externe PHP-afhankelijkheden.
-Bootstrap wordt via een CDN geladen.
+Bootstrap en Bootstrap Icons staan in `assets/vendor/` en worden meegekopieerd: het portaal
+laadt niets van een CDN en heeft dus geen uitgaande internetverbinding nodig voor zijn opmaak.
+Zorg er bij het uitrollen alleen voor dat de map `assets/` compleet meegaat.
 
 Controleer de PHP-versie en de extensies:
 
@@ -108,8 +110,12 @@ Op shared hosting maakt u de database en de gebruiker aan via het hostingpaneel 
 Plesk, cPanel). Noteer de gebruikersnaam, het wachtwoord en de exacte databasenaam — die
 krijgt daar vaak een voorvoegsel, bijvoorbeeld `klant123_djm`.
 
-De tabellen zelf hoeft u niet aan te maken: dat doet `setup.php` in stap 5. Wilt u het toch
-handmatig doen:
+Ook dit hoofdstuk mag u overslaan: `setup.php` biedt in stap 2 aan de database zelf aan te
+maken, zolang de opgegeven databasegebruiker daar rechten voor heeft. Op shared hosting is dat
+meestal niet zo — maak hem dan aan via het hostingpaneel.
+
+De tabellen hoeft u in geen geval zelf aan te maken: dat doet `setup.php` in stap 3. Wilt u het
+toch handmatig doen:
 
 ```bash
 mysql -u djm_portaal -p djm_portaal < db.sql
@@ -117,19 +123,84 @@ mysql -u djm_portaal -p djm_portaal < db.sql
 
 ---
 
-## 4. `.env` invullen
+## 4. `setup.php` draaien
 
-Kopieer het voorbeeldbestand:
+Open in de browser:
+
+```
+https://portaal.example.nl/setup.php
+```
+
+De wizard bestaat uit vijf stappen en vult onderweg zelf `.env` in. U hoeft dus niets met de
+hand te bewerken; hoofdstuk 5 legt alleen uit wat er in dat bestand terechtkomt.
+
+1. **Controle** — PHP-versie, extensies en schrijfrechten op `logs/`. Elk punt krijgt een
+   vinkje of een kruisje met uitleg. Los de kruisjes op en klik op "Opnieuw controleren".
+   De pagina noemt ook de gebruiker waaronder PHP draait, zodat u die in de
+   `chown`-opdrachten kunt gebruiken.
+2. **Instellen** — hier vult u het webadres, de databasegegevens, de opslagmap en de manier
+   van uitleveren in. De wizard:
+   - controleert elk veld en slaat niets op zolang er een fout in zit;
+   - maakt de opslagmap zo nodig aan en test met een echte schrijfpoging of het werkt;
+   - genereert `APP_KEY` en `OTP_PEPPER` voor u;
+   - test de databaseverbinding, en biedt aan de database aan te maken als de
+     inloggegevens kloppen maar de database nog niet bestaat;
+   - schrijft `.env` weg met rechten `600`, na eerst een reservekopie van de vorige versie
+     te hebben gemaakt.
+
+   Met **Alleen testen** controleert u alles zonder iets weg te schrijven. Bestaat er al een
+   `.env`, dan worden wachtwoorden en sleutels niet teruggetoond: laat u zo'n veld leeg, dan
+   blijft de bestaande waarde staan.
+
+   Kan de webserver niet in de projectmap schrijven, dan is dat geen blokkade: de wizard toont
+   de volledige inhoud van `.env` zodat u die zelf op de server kunt plaatsen.
+3. **Database** — `db.sql` wordt statement voor statement uitgevoerd en u ziet per tabel of het
+   lukte, plus het aantal tabellen in de database (dat moeten er twaalf zijn). Deze stap is
+   veilig te herhalen: het schema gebruikt overal `CREATE TABLE IF NOT EXISTS`.
+4. **Beheerder** — maak de eerste beheerder aan (naam, e-mailadres, wachtwoord van minimaal
+   12 tekens). Die krijgt de rol *eigenaar*.
+5. **Klaar** — de nazorglijst, met een knop waarmee de wizard zelf nakijkt of `.env` van
+   buitenaf te downloaden is.
+
+### Beveiliging van setup.php
+
+Zodra er één actieve beheerder in de database staat, weigert `setup.php` nog iets te doen.
+Alleen wie de beheerder zojuist in dezelfde sessie heeft aangemaakt, kan de slotpagina nog
+openen. Wilt u de wizard later toch nog eens draaien, maak dan eerst een leeg bestand aan in de
+projectmap:
+
+```bash
+touch /var/www/djm-portaal/setup.toegestaan
+```
+
+Verwijder dat bestand meteen weer na gebruik. Nog beter: verwijder `setup.php` helemaal
+(hoofdstuk 10).
+
+---
+
+## 5. `.env` in detail
+
+`setup.php` schrijft dit bestand voor u. Dit hoofdstuk is bedoeld om achteraf een waarde bij te
+stellen, of om `.env` toch met de hand aan te maken:
 
 ```bash
 cd /var/www/djm-portaal
 cp .env.example .env
-chmod 640 .env
-sudo chown root:www-data .env
+chmod 600 .env
 ```
 
 `.env` bevat het databasewachtwoord en de geheime sleutels. Het bestand staat niet in git en
 mag nooit via de browser te downloaden zijn (zie hoofdstuk 7 en 10).
+
+Een waarde mag tussen dubbele aanhalingstekens staan; dat is de enige manier om een spatie aan
+het begin of einde te bewaren. Binnen die aanhalingstekens gelden `\"`, `\\`, `\n`, `\r` en
+`\t`. Een wachtwoord met een `#` of een aanhalingsteken erin hoort dus zo:
+
+```
+DB_PASS="wachtwoord#met\"tekens"
+```
+
+Een echte omgevingsvariabele (uit Docker, systemd of `SetEnv`) wint altijd van `.env`.
 
 ### De variabelen
 
@@ -150,7 +221,9 @@ mag nooit via de browser te downloaden zijn (zie hoofdstuk 7 en 10).
 > regel dan leeg: het portaal leidt het adres dan zelf af uit het verzoek.
 | `DEBUG` | `false` op productie. `true` toont PHP-foutmeldingen in de browser. |
 | `DB_HOST` | Meestal `localhost`, soms `127.0.0.1` of een aparte databaseserver. |
-| `DB_NAME` | Naam van de database uit stap 3. |
+| `DB_PORT` | Leeg laten betekent de standaardpoort (3306). |
+| `DB_SOCKET` | Pad naar de Unix-socket, als de database daarover bereikbaar is. Heeft voorrang op `DB_HOST` en `DB_PORT`. |
+| `DB_NAME` | Naam van de database uit hoofdstuk 3. |
 | `DB_USER` / `DB_PASS` | De databasegebruiker en zijn wachtwoord. |
 | `DB_CHARSET` | Laat op `utf8mb4` staan. |
 | `OTP_PEPPER` | Geheime sleutel waarmee inlogcodes worden gehasht. Codes worden nooit als platte tekst opgeslagen. |
@@ -190,7 +263,8 @@ APP_KEY=8f2c...64 tekens...
 OTP_PEPPER=1a9e...64 tekens...
 ```
 
-`setup.php` toont in stap 1 ook twee kant-en-klare sleutels die u kunt overnemen.
+Makkelijker: laat `setup.php` ze genereren. Dat gebeurt automatisch zodra de sleutels leeg
+zijn of te kort om bruikbaar te zijn.
 
 > **Belangrijk:** bewaar deze waarden. Verandert `OTP_PEPPER` later, dan zijn alle openstaande
 > inlogcodes ongeldig (niet erg — deelnemers vragen gewoon een nieuwe aan). Verandert `APP_KEY`,
@@ -202,42 +276,6 @@ OTP_PEPPER=1a9e...64 tekens...
 
 ---
 
-## 5. `setup.php` draaien
-
-Open in de browser:
-
-```
-https://portaal.example.nl/setup.php
-```
-
-De wizard bestaat uit vier stappen.
-
-1. **Controle** — PHP-versie, extensies, schrijfrechten en de aanwezigheid van `.env`.
-   Elk punt krijgt een vinkje of een kruisje met uitleg. Los de kruisjes op en klik op
-   "Opnieuw controleren".
-2. **Database** — de wizard test de verbinding met de gegevens uit `.env`. Werkt die, klik dan
-   op **Database inrichten**. `db.sql` wordt statement voor statement uitgevoerd en u ziet per
-   tabel of het lukte, plus het aantal tabellen in de database (dat moeten er twaalf zijn). Deze
-   stap is veilig te herhalen: het schema gebruikt overal `CREATE TABLE IF NOT EXISTS`.
-3. **Beheerder** — maak de eerste beheerder aan (naam, e-mailadres, wachtwoord van minimaal
-   12 tekens). Die krijgt de rol *eigenaar*.
-4. **Klaar** — links naar het beheerdersgedeelte en het portaal.
-
-### Beveiliging van setup.php
-
-Zodra er één actieve beheerder in de database staat, weigert `setup.php` nog iets te doen.
-Wilt u de wizard later toch nog eens draaien, maak dan eerst een leeg bestand aan in de
-projectmap:
-
-```bash
-touch /var/www/djm-portaal/setup.toegestaan
-```
-
-Verwijder dat bestand meteen weer na gebruik. Nog beter: verwijder `setup.php` helemaal
-(hoofdstuk 10).
-
----
-
 ## 6. Opslagmap inrichten
 
 Hier komen de videobestanden te staan. De belangrijkste regel: **de bestanden mogen niet
@@ -245,6 +283,11 @@ rechtstreeks via een URL te downloaden zijn.** Alles loopt via `download.php`, d
 controleert of de ingelogde deelnemer recht heeft op dat jaar.
 
 Zet de map daarom bij voorkeur **buiten de webroot**.
+
+Geeft u het pad op in stap 2 van `setup.php`, dan maakt de wizard de map zelf aan en test hij
+met een echte schrijfpoging of de webserver erin kan. Ligt de map binnen de webroot, dan krijgt
+u daar een waarschuwing over. De opdrachten hieronder zijn voor wie het liever zelf doet, of
+wie PHP niet genoeg rechten wil geven om mappen aan te maken.
 
 ### Op een VPS (aanbevolen)
 
@@ -432,7 +475,10 @@ Loop deze lijst af zodra het portaal draait.
 
 2. **Verwijder `setup.toegestaan`** als u dat had aangemaakt.
 
-3. **Controleer dat `.env` niet publiek is** — zie hoofdstuk 7.
+3. **Controleer dat `.env` niet publiek is.** De slotpagina van `setup.php` heeft daar een knop
+   voor; die haalt het bestand via HTTP op en zegt wat eruit kwam. Doet u het zelf, open dan
+   `https://portaal.example.nl/.env` in de browser — u hoort een 403 of 404 te krijgen, geen
+   tekst. Zie verder hoofdstuk 7.
 
 4. **Controleer dat de video's niet publiek zijn.** Probeer een bestand rechtstreeks te
    openen via de URL; dat moet mislukken.

@@ -47,6 +47,10 @@ require_once '/app/includes/toegang_helper.php';
 
 $pdo->exec("DELETE FROM jaargangen");
 $pdo->exec("DELETE FROM deelnemers");
+// Ook de tellers van de rate limiting: zonder dit loopt de derde testrun binnen
+// een kwartier tegen de limiet van drie inlogcodes per adres aan, en lijkt het
+// alsof het versturen stuk is.
+$pdo->exec("DELETE FROM aanvraag_limiet");
 
 $pdo->prepare('INSERT INTO jaargangen (jaar, titel, slug, omschrijving, gepubliceerd)
                VALUES (2026, :t, :s, :o, 1)')

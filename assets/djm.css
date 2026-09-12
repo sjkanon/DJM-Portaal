@@ -49,15 +49,44 @@ body {
     box-shadow: none;
 }
 
-/* Knoppen die op een telefoon de hoofdactie van een blok zijn: daar volledige
-   breedte, vanaf tablet gewoon zo breed als hun tekst. */
-.djm-actie {
+/* Op een telefoon volledige breedte, vanaf tablet zo breed als de inhoud.
+   `.djm-actie` voor de hoofdknop van een blok, `.djm-knoppenbalk` voor een rij
+   knoppen naast een kop. */
+.djm-actie,
+.djm-knoppenbalk {
     width: 100%;
 }
 
 @media (min-width: 576px) {
-    .djm-actie {
+
+    .djm-actie,
+    .djm-knoppenbalk {
         width: auto;
+    }
+}
+
+/* Op een smal scherm passen een keuzelijst en een knop niet naast elkaar in één
+   input-group: de knoptekst valt dan buiten zijn rand. Daar zetten we alles
+   onder elkaar, elk over de volle breedte. */
+@media (max-width: 575.98px) {
+
+    .djm-knoppenbalk>form,
+    .djm-knoppenbalk>.btn {
+        width: 100%;
+    }
+
+    .djm-knoppenbalk .input-group {
+        flex-direction: column;
+    }
+
+    .djm-knoppenbalk .input-group>.form-select,
+    .djm-knoppenbalk .input-group>.btn {
+        width: 100%;
+        border-radius: var(--bs-border-radius-sm) !important;
+    }
+
+    .djm-knoppenbalk .input-group>.btn {
+        margin-top: .5rem;
     }
 }
 
@@ -199,18 +228,20 @@ body {
 }
 
 /* De portaalnaam is vrij in te vullen. Een lange naam mag de navigatiebalk
-   niet zo breed maken dat de menu-items eruit vallen. */
+   niet zo breed maken dat de menu-items eruit vallen; hij wordt dan afgekapt.
+   Zolang het menu ingeklapt is, staat er alleen een hamburgerknop naast en mag
+   de naam vrijwel de hele balk gebruiken. */
 .navbar-djm .navbar-brand {
-    max-width: min(34vw, 300px);
+    max-width: calc(100vw - 5.5rem);
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-/* Tussen 1200 en 1400 pixels staat het menu uitgeklapt maar is de ruimte krap.
-   Minder tussenruimte, en de naam van de beheerder wordt ingeklapt tot alleen
-   het uitlogicoon — dat scheelt genoeg om de portaalnaam heel te laten. De naam
-   blijft wel in de HTML staan, zodat een schermlezer hem nog voorleest. */
-@media (min-width: 1200px) and (max-width: 1399.98px) {
+/* Zodra het menu uitklapt, staan er tien items naast de portaalnaam binnen een
+   container van maximaal 1320 pixels. Met de standaardmaten van Bootstrap past
+   dat niet: de naam wordt dan op élk breed scherm afgekapt. Iets minder
+   tussenruimte en een fractie kleinere letter lossen dat op. */
+@media (min-width: 1200px) {
     .navbar-djm .navbar-nav .nav-link {
         padding-left: .4rem;
         padding-right: .4rem;
@@ -221,7 +252,12 @@ body {
         font-size: 1rem;
         max-width: 300px;
     }
+}
 
+/* Tussen 1200 en 1400 pixels is het nog krapper. Daar wordt de naam van de
+   beheerder ingeklapt tot alleen het uitlogicoon; hij blijft wel in de HTML
+   staan, zodat een schermlezer hem nog voorleest. */
+@media (min-width: 1200px) and (max-width: 1399.98px) {
     .navbar-djm .djm-beheerdersnaam {
         position: absolute !important;
         width: 1px;
@@ -241,6 +277,12 @@ body {
     }
 }
 
+@media (min-width: 1400px) {
+    .navbar-djm .navbar-brand {
+        max-width: 420px;
+    }
+}
+
 .kaart {
     background: #fff;
     border: 1px solid #e5e7eb;
@@ -256,6 +298,58 @@ code.pad {
     font-size: .8rem;
     color: #6b7280;
     word-break: break-all;
+}
+
+/* Sprongnavigatie boven een lange formulierpagina. Gewone ankerlinks, geen
+   JavaScript: ook als er iets misgaat met een script blijft alles bereikbaar. */
+.djm-sectienav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-bottom: 1.5rem;
+}
+
+.djm-sectienav a {
+    display: inline-block;
+    padding: .25rem .7rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 999px;
+    background: #fff;
+    color: #4b5563;
+    font-size: .8125rem;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.djm-sectienav a:hover,
+.djm-sectienav a:focus-visible {
+    border-color: var(--djm);
+    color: var(--djm);
+}
+
+/* Zodat een aangesprongen kaart niet tegen de bovenrand van het scherm plakt. */
+.djm-sectie {
+    scroll-margin-top: 1rem;
+}
+
+/* Opslaanbalk die meeschuift zolang het formulier in beeld is. Op een pagina
+   van een paar duizend pixels hoeft niemand meer naar beneden te scrollen om
+   zijn wijzigingen te bewaren. */
+.djm-opslagbalk {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .75rem;
+    margin-bottom: 1.5rem;
+    padding: .75rem 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    /* Ondoorzichtig: de velden eronder mogen er niet doorheen schemeren. */
+    background: #fff;
+    box-shadow: 0 -6px 20px rgba(15, 23, 42, .08);
 }
 
 /* Brede tabellen schuiven horizontaal binnen hun kaart. Op een aanraakscherm

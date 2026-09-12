@@ -3,8 +3,9 @@
 Deventer Jeugd Musical. Beveiligd downloadportaal voor de videoregistratie per jaargang.
 Toegang via e-mailadres + eenmalige inlogcode (OTP) per e-mail, verstuurd via Microsoft Graph.
 
-**Stack:** PHP 8.1+, MySQL/MariaDB via PDO, geen Composer, Bootstrap 5 + Bootstrap Icons via
-jsDelivr-CDN. Nederlands in code, UI en commentaar. Vier spaties inspringen.
+**Stack:** PHP 8.1+, MySQL/MariaDB via PDO, geen Composer, Bootstrap 5 + Bootstrap Icons
+meegeleverd in `assets/vendor/` (geen CDN). Nederlands in code, UI en commentaar. Vier
+spaties inspringen.
 
 ---
 
@@ -13,7 +14,7 @@ jsDelivr-CDN. Nederlands in code, UI en commentaar. Vier spaties inspringen.
 ```
 config.php                  env, db(), instellingen, helpers, security headers
 db.sql                      volledig schema (leidend)
-setup.php                   installatie
+setup.php                   installatiewizard: omgeving, .env, database, beheerder
 index.php                   e-mailadres invoeren -> code aanvragen
 verifieer.php               code invoeren
 logout.php

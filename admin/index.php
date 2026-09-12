@@ -83,6 +83,15 @@ if (env('OTP_PEPPER') === '') {
     $sleutelsOntbreken[] = 'OTP_PEPPER';
 }
 
+// ─── Waarschuwing: staat er een proxy voor zonder dat we hem kennen? ─────────
+// Dan is REMOTE_ADDR het adres van de proxy en delen álle bezoekers dezelfde
+// teller: de limiet van tien inlogcodes per uur per IP sluit dan iedereen
+// tegelijk buiten zodra het druk wordt.
+$proxyKopAanwezig = ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '') !== ''
+    || ($_SERVER['HTTP_X_REAL_IP'] ?? '') !== ''
+    || ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? '') !== '';
+$proxyNietIngesteld = $proxyKopAanwezig && vertrouwde_proxies() === [];
+
 // ─── Laatste activiteit ──────────────────────────────────────────────────────
 $laatsteDownloads = overzicht_rijen(
     'SELECT gestart_op, email, bestandsnaam, afgerond
@@ -162,6 +171,21 @@ admin_start('Overzicht', 'Welkom terug, ' . (string)$beheerder['naam'] . '.');
         <a class="btn btn-sm btn-warning" href="<?= h(url('admin/instellingen.php')) ?>">
             <i class="bi bi-gear me-1"></i>Naar instellingen
         </a>
+    </div>
+<?php endif; ?>
+
+<?php if ($proxyNietIngesteld): ?>
+    <div class="alert alert-warning">
+        <strong><i class="bi bi-diagram-3 me-1"></i>Er staat een proxy voor dit portaal, maar die is niet ingesteld.</strong>
+        Dit verzoek kwam binnen met een doorstuurheader, terwijl <code>TRUSTED_PROXIES</code> in
+        <code>.env</code> leeg is. Het portaal ziet daardoor van élke bezoeker hetzelfde IP-adres
+        (<?= h(ip_leesbaar(client_ip_bin())) ?>), en de limiet van
+        <?= (int)instelling_int('otp_max_per_ip', 10) ?> inlogcodes per uur geldt dan voor iedereen samen.
+        <div class="small mt-2">
+            Zet in <code>.env</code> het adres of bereik van uw proxy, bijvoorbeeld
+            <code>TRUSTED_PROXIES=10.0.0.0/8</code>. Vul niets in als u zeker weet dat er géén proxy
+            voor staat: die header is dan door iedere bezoeker zelf te verzinnen.
+        </div>
     </div>
 <?php endif; ?>
 

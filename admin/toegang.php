@@ -1235,9 +1235,9 @@ admin_start(
                 <input type="hidden" name="status" value="<?= h($statusFilter) ?>">
 
                 <div class="row g-4">
-                    <div class="col-lg-8">
+                    <div class="col-lg-7">
                         <label class="form-label" for="adressen">Plakken</label>
-                        <textarea class="form-control font-monospace" id="adressen" name="adressen" rows="10"
+                        <textarea class="form-control font-monospace" id="adressen" name="adressen" rows="8"
                             placeholder="jan@example.nl&#10;Jan Jansen <jan@example.nl>&#10;piet@example.nl;Piet Pieters&#10;&quot;Jansen, Marie&quot; <marie@example.nl>&#10;an@example.nl, bo@example.nl"></textarea>
                         <div class="form-text">
                             Eén adres per regel, of meerdere gescheiden door komma's of puntkomma's.
@@ -1245,22 +1245,24 @@ admin_start(
                             worden overgeslagen.
                         </div>
                     </div>
-                    <div class="col-lg-4">
-                        <label class="form-label" for="csv">…of een CSV-bestand</label>
-                        <input class="form-control" type="file" id="csv" name="csv" accept=".csv,text/csv,text/plain">
-                        <div class="form-text">
-                            Kolommen <code>email</code> en optioneel <code>naam</code>, met of zonder kopregel,
-                            komma of puntkomma als scheidingsteken. Maximaal 5 MB.
-                            Is er een bestand gekozen, dan wordt het tekstvak genegeerd.
+                    <div class="col-lg-5">
+                        <div class="border rounded p-3 h-100 bg-body-tertiary">
+                            <label class="form-label" for="csv">…of een CSV-bestand</label>
+                            <input class="form-control" type="file" id="csv" name="csv" accept=".csv,text/csv,text/plain">
+                            <div class="form-text">
+                                Kolommen <code>email</code> en optioneel <code>naam</code>, met of zonder kopregel,
+                                komma of puntkomma als scheidingsteken. Maximaal 5 MB.
+                                Is er een bestand gekozen, dan wordt het tekstvak genegeerd.
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="mt-3">
-                    <button type="submit" class="btn btn-djm">
+                <div class="mt-3 d-flex flex-wrap align-items-center gap-2">
+                    <button type="submit" class="btn btn-djm djm-actie">
                         <i class="bi bi-eye me-1"></i>Voorbeeld tonen
                     </button>
-                    <span class="text-muted small ms-2">Er wordt nog niets opgeslagen.</span>
+                    <span class="text-muted small">Er wordt nog niets opgeslagen.</span>
                 </div>
             </form>
         </div>
@@ -1351,9 +1353,9 @@ admin_start(
                 Toegang tot <?= (int)$jaargang['jaar'] ?>
                 <span class="text-body-secondary">(<?= (int)$totaal ?>)</span>
             </h2>
-            <div class="d-flex flex-wrap gap-2">
+            <div class="d-flex flex-wrap gap-2 djm-knoppenbalk">
                 <?php if ($mailKlaar): ?>
-                    <form method="post" class="d-inline">
+                    <form method="post" class="m-0">
                         <?= csrf_field() ?>
                         <input type="hidden" name="actie" value="herinnering_voorbeeld">
                         <input type="hidden" name="jaargang" value="<?= (int)$gekozenId ?>">

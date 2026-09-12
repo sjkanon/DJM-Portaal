@@ -411,6 +411,18 @@ if ($huidigLogo === '' && $logoBestand !== null) {
 admin_start('Instellingen', 'Portaal, e-mail, inloggen en mailsjablonen');
 ?>
 
+<!-- Sprongnavigatie: deze pagina is een paar duizend pixels lang. Gewone
+     ankerlinks, zodat ze ook werken als er iets met JavaScript misgaat. -->
+<nav class="djm-sectienav" aria-label="Onderdelen van deze pagina">
+    <a href="#portaal"><i class="bi bi-house me-1"></i>Portaal</a>
+    <a href="#email"><i class="bi bi-envelope me-1"></i>E-mail</a>
+    <a href="#inloggen"><i class="bi bi-shield-lock me-1"></i>Inloggen</a>
+    <a href="#sjablonen"><i class="bi bi-file-text me-1"></i>Mailsjablonen</a>
+    <a href="#testen"><i class="bi bi-clipboard-check me-1"></i>Testen</a>
+    <a href="#serverconfig"><i class="bi bi-file-earmark-code me-1"></i>Serverconfiguratie</a>
+    <a href="#status"><i class="bi bi-cpu me-1"></i>Technische status</a>
+</nav>
+
 <!-- Eigen formulier voor de verwijderknop; die staat via form="…" in de kaart hieronder. -->
 <form method="post" id="logo-verwijderen" class="d-none">
     <?= csrf_field() ?>
@@ -422,7 +434,7 @@ admin_start('Instellingen', 'Portaal, e-mail, inloggen en mailsjablonen');
     <input type="hidden" name="actie" value="opslaan">
 
     <!-- ─── Portaal ──────────────────────────────────────────────────────── -->
-    <div class="kaart p-4 mb-4">
+    <div class="kaart p-4 mb-4 djm-sectie" id="portaal">
         <h2 class="h6 text-uppercase text-muted mb-3"><i class="bi bi-house me-1"></i>Portaal</h2>
 
         <div class="row g-3">
@@ -496,7 +508,7 @@ admin_start('Instellingen', 'Portaal, e-mail, inloggen en mailsjablonen');
     </div>
 
     <!-- ─── E-mail ───────────────────────────────────────────────────────── -->
-    <div class="kaart p-4 mb-4">
+    <div class="kaart p-4 mb-4 djm-sectie" id="email">
         <h2 class="h6 text-uppercase text-muted mb-3"><i class="bi bi-envelope me-1"></i>E-mail</h2>
 
         <div class="row g-3">
@@ -583,7 +595,7 @@ admin_start('Instellingen', 'Portaal, e-mail, inloggen en mailsjablonen');
     </div>
 
     <!-- ─── Inloggen ─────────────────────────────────────────────────────── -->
-    <div class="kaart p-4 mb-4">
+    <div class="kaart p-4 mb-4 djm-sectie" id="inloggen">
         <h2 class="h6 text-uppercase text-muted mb-3"><i class="bi bi-shield-lock me-1"></i>Inloggen</h2>
 
         <div class="row g-3">
@@ -655,7 +667,7 @@ admin_start('Instellingen', 'Portaal, e-mail, inloggen en mailsjablonen');
     </div>
 
     <!-- ─── Mailsjablonen ────────────────────────────────────────────────── -->
-    <div class="kaart p-4 mb-4">
+    <div class="kaart p-4 mb-4 djm-sectie" id="sjablonen">
         <h2 class="h6 text-uppercase text-muted mb-3"><i class="bi bi-file-text me-1"></i>Mailsjablonen</h2>
 
         <div class="alert alert-light border small mb-4">
@@ -698,13 +710,17 @@ admin_start('Instellingen', 'Portaal, e-mail, inloggen en mailsjablonen');
         </div>
     </div>
 
-    <div class="mb-4">
-        <button class="btn btn-djm btn-lg" type="submit"><i class="bi bi-save me-1"></i>Instellingen opslaan</button>
+    <!-- Blijft in beeld zolang het formulier in beeld is; zie .djm-opslagbalk. -->
+    <div class="djm-opslagbalk">
+        <button class="btn btn-djm" type="submit"><i class="bi bi-save me-1"></i>Instellingen opslaan</button>
+        <span class="text-muted small">
+            Bewaart Portaal, E-mail, Inloggen en Mailsjablonen. De blokken daaronder slaan niets op.
+        </span>
     </div>
 </form>
 
 <!-- ─── Testen ───────────────────────────────────────────────────────────── -->
-<div class="kaart p-4 mb-4" id="testen">
+<div class="kaart p-4 mb-4 djm-sectie" id="testen">
     <h2 class="h6 text-uppercase text-muted mb-3"><i class="bi bi-clipboard-check me-1"></i>Testen</h2>
 
     <div class="row g-4">
@@ -957,7 +973,7 @@ $configBlokken = [
     'php'       => uitlevering_serverconfig('php'),
 ];
 ?>
-<div class="kaart p-4 mb-4" id="serverconfig">
+<div class="kaart p-4 mb-4 djm-sectie" id="serverconfig">
     <h2 class="h6 text-uppercase text-muted mb-3"><i class="bi bi-file-earmark-code me-1"></i>Serverconfiguratie</h2>
     <p class="small text-muted">
         Het blok hieronder hoort bij de uitleveringsmethode en heeft de paden van déze installatie
@@ -1038,7 +1054,7 @@ $aantalJaargangen = inst_aantal('jaargangen');
 $aantalBestanden  = inst_aantal('jaargang_bestanden');
 $aantalDeelnemers = inst_aantal('deelnemers');
 ?>
-<div class="kaart p-4">
+<div class="kaart p-4 djm-sectie" id="status">
     <h2 class="h6 text-uppercase text-muted mb-3"><i class="bi bi-cpu me-1"></i>Technische status</h2>
     <div class="table-responsive">
         <table class="table table-sm tabel-compact align-middle mb-0">

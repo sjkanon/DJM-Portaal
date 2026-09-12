@@ -7,7 +7,11 @@ logs/*
 opslag/*
 !opslag/.gitkeep
 !opslag/.htaccess
+# .env zelf, plus de reservekopieën die setup.php maakt voordat het bestand
+# wordt overschreven, en het tijdelijke bestand waarmee dat gebeurt.
 .env
+.env.backup-*
+.env.tmp-*
 config.local.php
 .DS_Store
 

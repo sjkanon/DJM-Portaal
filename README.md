@@ -49,7 +49,7 @@ koppelen, e-mailadressen importeren.
 ```
 config.php                   .env-loader, db(), instellingen, helpers, securityheaders
 db.sql                       volledig databaseschema (leidend)
-setup.php                    installatiewizard — verwijderen na installatie
+setup.php                    installatiewizard: omgeving, .env, database, beheerder
 index.php                    e-mailadres invoeren, code aanvragen
 verifieer.php                code invoeren
 logout.php
@@ -68,10 +68,13 @@ includes/
 ├── toegang_helper.php       wie mag welke jaargang en welk bestand
 ├── download_helper.php      X-Accel-Redirect / X-Sendfile / PHP-stream
 ├── uitlevering_helper.php   serverconfiguratie tonen en de uitlevering uitproberen
-└── layout.php               gedeelde opmaak voor het portaal
+├── layout.php               gedeelde opmaak voor het portaal
+└── opmaak.php               merkkleur, logo, favicon en het <head>-blok van alle pagina's
 
 admin/                       beheerinterface
 admin/assets/admin.js        het enige JavaScript van het beheer (de CSP staat inline niet toe)
+assets/djm.css               eigen opmaak voor portaal, beheer en installatie
+assets/vendor/               Bootstrap en Bootstrap Icons, meegeleverd (zie HERKOMST.md)
 opslag/                      videobestanden — .htaccess weigert alles
 logs/                        applicatie- en foutlogboek
 docs/                        documentatie en voorbeeldconfiguraties
@@ -97,7 +100,8 @@ Verder in `docs/`: [ARCHITECTUUR.md](docs/ARCHITECTUUR.md) met de afspraken in d
 
 - **PHP 8.1 of hoger**, zonder Composer of externe PHP-pakketten
 - **MySQL 5.7+ / MariaDB 10.3+** via PDO, uitsluitend prepared statements
-- **Bootstrap 5** en **Bootstrap Icons** via het jsDelivr-CDN
+- **Bootstrap 5** en **Bootstrap Icons**, meegeleverd in `assets/vendor/` — geen CDN, dus de
+  opmaak blijft staan zonder internetverbinding en de CSP hoeft geen externe bron toe te laten
 - **Microsoft Graph API** (app-only, client credentials) voor e-mail, met SMTP als terugvaloptie
 - **Uitlevering** via `X-Accel-Redirect` (nginx), `X-Sendfile` (Apache met `mod_xsendfile`) of
   streaming door PHP zelf — instelbaar met `DELIVERY_MODE` in `.env`
@@ -120,7 +124,8 @@ Dat draait achtereenvolgens:
 
 - syntaxcontrole en een statische controle op SQL-interpolatie, dubbel gebruikte
   query-parameters, CSRF, uitvoer-escaping en autorisatie;
-- een verse installatie via `setup.php`;
+- een verse installatie via `setup.php`, in een container zonder omgevingsvariabelen, zodat
+  de wizard `.env` echt zelf moet schrijven;
 - de kernlogica en de inlogcodes (eenmalig gebruik, pogingenlimiet, throttling,
   binding aan de browser, timinggedrag);
 - de beveiliging: securityheaders, afgeschermde paden per webserver, uitloggen dat
@@ -162,7 +167,11 @@ Afsluiten met `docker compose -f test/docker-compose.yml down`.
 - **Geen user enumeration.** De startpagina toont altijd dezelfde melding, of het adres nu
   bekend is of niet.
 - **Rate limiting** op zowel het aanvragen als het verifiëren van codes, per e-mailadres én per
-  IP-adres.
+  IP-adres. Staat er een reverse proxy of load balancer vóór het portaal, zet die dan in
+  `TRUSTED_PROXIES` in `.env` — pas dan telt het echte bezoekersadres mee in plaats van het
+  adres van de proxy. Zonder die regel wordt `X-Forwarded-For` genegeerd, want die header is
+  door iedere bezoeker zelf te verzinnen. Het beheeroverzicht waarschuwt als het portaal
+  doorstuurheaders binnenkrijgt terwijl er niets is ingesteld.
 - **Bestandspaden komen nooit uit gebruikersinvoer.** Een download loopt van id naar database
   naar een pad dat gecontroleerd binnen de opslagmap moet vallen. De videobestanden staan bij
   voorkeur buiten de webroot en zijn niet met een directe URL te benaderen.
@@ -176,8 +185,9 @@ Afsluiten met `docker compose -f test/docker-compose.yml down`.
 - **Logging** van alle inlog-, mail- en downloadgebeurtenissen met IP en tijdstip, met een
   instelbare bewaartermijn die `cron_opschonen.php` dagelijks afdwingt.
 - **`.env` bevat de geheimen** (databasewachtwoord, `APP_KEY`, `OTP_PEPPER`) en staat niet in
-  git. Controleer na installatie dat het bestand niet via de browser te downloaden is, en
-  verwijder `setup.php`.
+  git. `setup.php` schrijft het bestand met rechten `600`, bewaart eerst een reservekopie van
+  de vorige versie, en kan op de slotpagina zelf nakijken of `.env` van buitenaf te downloaden
+  is. Verwijder `setup.php` daarna.
 - **Afscherming in lagen.** De webserverconfiguratie is de eerste laag; `opslag/`, `logs/`,
   `includes/` en `docs/` hebben daarnaast elk een eigen `.htaccess`. Let bij nginx op de
   volgorde van de `location`-blokken: de eerste passende regex wint, dus de deny-blokken

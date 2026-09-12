@@ -29,12 +29,17 @@ for i in $(seq 1 60); do
     [ "$(curl -s -o /dev/null -w '%{http_code}' "$BASIS/index.php" 2>/dev/null)" != "000" ] && break
     sleep 1
 done
-curl -s -X DELETE http://localhost:8125/api/v1/messages >/dev/null 2>&1
 echo "  webserver bereikbaar op $BASIS"
 
 # Database vullen en de mail naar Mailpit laten wijzen.
 docker compose exec -T web php /app/test/smoke.php >/dev/null 2>&1
 docker compose exec -T web php /app/test/mailinstellingen.php >/dev/null 2>&1
+
+# Pas hierna de postbus legen. Een mail die een vorige test net had verstuurd,
+# komt soms een fractie later binnen; leegden we eerder, dan telde die hieronder
+# mee en leek het alsof er naar een onbekend adres was gemaild.
+sleep 1
+curl -s -X DELETE http://localhost:8125/api/v1/messages >/dev/null 2>&1
 
 echo ""
 echo "── Publieke pagina's ───────────────────────────────────────"

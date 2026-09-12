@@ -49,6 +49,27 @@ services:
       - "8123:8080"
     command: php -S 0.0.0.0:8080 -t /app
 
+  # ── Verse installatie: bewust zónder omgevingsvariabelen ──────────────────
+  # De andere containers krijgen DB_HOST en de rest mee als echte
+  # omgevingsvariabele, en die winnen van .env. Hier staat niets ingesteld, dus
+  # moet setup.php het .env-bestand zelf schrijven — precies zoals bij een
+  # klant op een lege server.
+  vers:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ..:/app
+    working_dir: /app
+    environment:
+      PHP_CLI_SERVER_WORKERS: "4"
+    ports:
+      - "8128:8080"
+    command: php -S 0.0.0.0:8080 -t /app
+
   # ── nginx + PHP-FPM: de X-Accel-Redirect-route ────────────────────────────
   fpm:
     build:

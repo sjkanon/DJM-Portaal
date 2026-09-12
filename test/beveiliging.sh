@@ -88,6 +88,29 @@ else
 fi
 
 echo ""
+echo "── Een vervalste X-Forwarded-For verandert niets ───────────"
+# In deze testomgeving staat TRUSTED_PROXIES niet ingesteld. Een bezoeker die
+# zelf een doorstuurheader meestuurt, mag dan géén ander IP-adres in het logboek
+# krijgen; anders is de rate limiting op inlogcodes met één header te omzeilen.
+docker compose exec -T db mariadb -u root -pdjmtest djm_portaal \
+    -e "DELETE FROM login_log; DELETE FROM aanvraag_limiet;" >/dev/null 2>&1
+K=$(mktemp)
+FORM=$(curl -s -c "$K" -b "$K" http://localhost:8123/index.php)
+TOKEN=$(printf '%s' "$FORM" | grep -o 'name="csrf_token" value="[^"]*"' | head -1 | cut -d'"' -f4)
+curl -s -o /dev/null -c "$K" -b "$K" -H "X-Forwarded-For: 198.51.100.77" \
+    -d "csrf_token=$TOKEN" -d "email=ouder@example.nl" http://localhost:8123/index.php
+rm -f "$K"
+GELOGD=$(docker compose exec -T db mariadb -u root -pdjmtest djm_portaal -N \
+    -e "SELECT INET6_NTOA(ip) FROM login_log ORDER BY id DESC LIMIT 1;" 2>/dev/null | tr -d '\r')
+if [ "$GELOGD" = "198.51.100.77" ]; then
+    printf '  ✗ het verzonnen adres staat in het logboek (%s)\n' "$GELOGD"; FOUT=$((FOUT+1))
+elif [ -z "$GELOGD" ]; then
+    printf '  ✗ geen logregel gevonden om te controleren\n'; FOUT=$((FOUT+1))
+else
+    printf '  ✓ logboek noteert het echte adres (%s), niet het verzonnen adres\n' "$GELOGD"; GOED=$((GOED+1))
+fi
+
+echo ""
 echo "── Uitloggen kan niet met een GET ──────────────────────────"
 toets "GET op logout.php stuurt door"       "302" "$(status http://localhost:8123/logout.php)"
 toets "GET op admin/logout.php stuurt door" "302" "$(status http://localhost:8123/admin/logout.php)"
@@ -121,6 +144,12 @@ done
 echo ""
 echo "── Eenheidstests op de beveiligingshelpers ─────────────────"
 docker compose exec -T web php /app/test/beveiliging.php || FOUT=$((FOUT+1))
+
+echo ""
+echo "── Achter een reverse proxy ────────────────────────────────"
+# Eigen proces: de proxylijst wordt per proces één keer ingelezen.
+docker compose exec -T -e TRUSTED_PROXIES="10.0.0.0/8,172.16.0.0/12" \
+    web php /app/test/proxy_test.php || FOUT=$((FOUT+1))
 
 echo ""
 echo "────────────────────────────────────────────────────────────"
