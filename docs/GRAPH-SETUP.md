@@ -185,11 +185,15 @@ controle achteraf; ruim de map periodiek op.
    - **Afzenderadres:** `noreply@jouwdomein.nl`
    - **Afzendernaam:** bijvoorbeeld `Deventer Jeugd Musical`
 3. Sla op.
-4. Klik op **Graph-configuratie controleren**. Deze knop haalt een token op en controleert
-   drie dingen:
+4. Klik op **Graph-configuratie controleren**. Deze knop haalt een token op en controleert:
    - of het ophalen van het token lukt (tenant, client-ID en secret kloppen);
    - of het token daadwerkelijk de rol `Mail.Send` bevat;
-   - of de opgegeven postbus bereikbaar is.
+   - of de opgegeven postbus bestaat.
+
+   Die laatste regel meldt vrijwel altijd **niet te controleren**, en dat hoort zo. De check
+   zoekt de postbus op in de directory, en daarvoor heeft de app leesrechten nodig die u in
+   hoofdstuk 3 bewust niet hebt gegeven. Het zegt niets over het verzenden; de testmail in de
+   volgende stap is de controle die telt.
 5. Klik op **Testmail versturen** en vul uw eigen adres in.
 6. Controleer het resultaat in **Beheer → Logboek → Mail**. Daar staat per bericht de status en,
    bij een mislukking, de foutmelding van Microsoft.
@@ -250,6 +254,7 @@ consistent afzenderadres komt. De standaard mailteksten in het portaal zijn hier
 | **HTTP 404** — `ResourceNotFound` / `Resource could not be discovered` | Het opgegeven afzenderadres bestaat niet in deze tenant, of het is een alias in plaats van het primaire adres. | Controleer het adres op typefouten en gebruik het primaire SMTP-adres van de postbus. |
 | **HTTP 429** | Te veel verzoeken in korte tijd. | Wacht en probeer het opnieuw. Bij een grote import van uitnodigingen: verstuur in kleinere groepen. |
 | **cURL-fout: `Could not resolve host`** of een timeout | De server kan `login.microsoftonline.com` of `graph.microsoft.com` niet bereiken. | Controleer de DNS en of uitgaand verkeer op poort 443 is toegestaan. Op sommige shared hosting is uitgaand verkeer geblokkeerd; vraag de hostingpartij deze twee hosts vrij te geven. |
+| **De diagnose meldt bij Mailbox-status `niet te controleren`** | De app mag de directory niet uitlezen — ze heeft alleen `Mail.Send`, precies zoals hoofdstuk 3 voorschrijft. | Dit is geen fout en hoeft niet opgelost te worden. Een Application Access Policy speelt hier niet: die geldt voor postbussen, niet voor het opzoeken van gebruikers. Controleer met de testmail of verzenden werkt. |
 | **De diagnose meldt `has_mail_send: false`** | Het token bevat de rol `Mail.Send` niet. | De machtiging is niet als toepassingsmachtiging toegevoegd, of er is geen beheerderstoestemming verleend. Zie hoofdstuk 3. |
 
 Alle verzendpogingen — geslaagd en mislukt — staan met foutmelding in **Beheer → Logboek → Mail**.

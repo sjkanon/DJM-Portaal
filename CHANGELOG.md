@@ -75,6 +75,20 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
 - **`docs/apache.voorbeeld.conf` levert SVG's nu ook met een strikte policy uit,**
   net als de `.htaccess` en de nginx-configuratie al deden.
 
+### E-mail
+
+- **De Graph-diagnose meldt niet langer ten onrechte een mailboxprobleem.** De check doet
+  `GET /users/{adres}`, en dat is een directory-aanroep: die vereist leesrechten die de app
+  bewust niet heeft — de handleiding schrijft `Mail.Send` en verder niets voor. Het gevolg was
+  een rode **HTTP 403** met de hint "mogelijk policy/rechtenprobleem" bij een installatie die
+  helemaal in orde was, en die hint wees naar de Application Access Policy terwijl die hier
+  niets mee te maken heeft: een policy geldt voor postbussen, niet voor het opzoeken van
+  gebruikers. De diagnose leest nu de foutcode uit het antwoord en onderscheidt
+  `Authorization_RequestDenied` (geen directory-rechten, geen fout) van een echte weigering. In
+  het eerste geval staat er **niet te controleren** met de uitleg dat de testmail de controle is
+  die telt. Ook de 403-hints bij het werkelijk verzenden noemen de policy niet meer als het om
+  een directory-weigering gaat.
+
 ### Installatie
 - **`setup.php` vult `.env` nu zelf in.** Tot nu toe controleerde de wizard alleen óf het
   bestand er was; wie installeerde moest er met SSH of FTP bij om de databasegegevens en
