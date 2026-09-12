@@ -421,6 +421,16 @@ function zelftest_directe_toegang(string $basisUrl, string $methode, callable $s
     if ($opslag !== false && str_starts_with($opslag, APP_ROOT . DIRECTORY_SEPARATOR)) {
         $binnen = trim(str_replace('\\', '/', substr($opslag, strlen(APP_ROOT))), '/');
         $urls['de opslagmap'] = $basisUrl . '/' . $binnen . '/' . $relatief;
+
+        // Per videoformaat apart proberen. Een webserver die statische
+        // bestanden op extensie afhandelt — de standaardinstelling van Plesk,
+        // waar nginx vóór Apache staat — laat .bin met rust maar levert .mp4
+        // gewoon uit, buiten .htaccess om. Zonder deze lus zou de test dat
+        // missen en ten onrechte "niet bereikbaar" melden.
+        foreach (ZELFTEST_PROBEER_EXTENSIES as $extensie) {
+            $urls['de opslagmap (.' . $extensie . ')'] = $basisUrl . '/' . $binnen . '/'
+                . ZELFTEST_MAP . '/' . zelftest_proefnaam($extensie);
+        }
     }
 
     if ($urls === []) {
@@ -447,12 +457,19 @@ function zelftest_directe_toegang(string $basisUrl, string $methode, callable $s
 
     if ($problemen !== []) {
         $stap('Niet rechtstreeks bereikbaar', false, implode(' — ', $problemen)
-            . ' Iedereen met de juiste URL kan de video\'s zo ophalen, zonder in te loggen.');
+            . ' Iedereen met de juiste URL kan de video\'s zo ophalen, zonder in te loggen.'
+            . ' Levert alleen een bepaalde extensie uit, dan handelt er een webserver'
+            . ' statische bestanden af buiten PHP en .htaccess om (op Plesk: nginx vóór'
+            . ' Apache). Zet de opslagmap dan buiten de webroot, of sluit de map af in de'
+            . ' nginx-instellingen van het domein.');
         return;
     }
 
-    $stap('Niet rechtstreeks bereikbaar', true,
-        'Geweigerd via ' . implode(' en ', $gecontroleerd) . '.');
+    $stap('Niet rechtstreeks bereikbaar', true, sprintf(
+        'Alle %d geprobeerde adressen werden geweigerd, ook per videoformaat (%s).',
+        count($gecontroleerd),
+        implode(', ', ZELFTEST_PROBEER_EXTENSIES)
+    ));
 }
 
 /** Maakt van een cURL-fout een melding waar de beheerder iets mee kan. */
