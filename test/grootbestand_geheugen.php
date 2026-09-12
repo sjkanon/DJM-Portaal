@@ -4,6 +4,14 @@
  * download_uitleveren_php(): in blokken van 8 KB vanaf een offset voorbij 4 GB.
  * Print het piekgeheugengebruik in MB.
  */
+
+// Deze testscripts horen uitsluitend op de commandoregel te draaien. Ze wijzigen
+// of wissen gegevens; wordt de map test/ per ongeluk meegeüpload naar een
+// server, dan mag een bezoeker ze nooit via de browser kunnen starten.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
 $pad = '/app/opslag/2028/musical-2028.mp4';
 if (!is_file($pad)) {
     echo "0\n";

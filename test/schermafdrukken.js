@@ -37,7 +37,13 @@ function bewaak(pagina, meldingen) {
     pagina.on('console', m => {
         if (m.type() === 'error') meldingen.push(`console: ${m.text()}`);
     });
-    pagina.on('requestfailed', r => meldingen.push(`verzoek mislukt: ${r.url()}`));
+    pagina.on('requestfailed', r => {
+        // Een verzoek dat nog liep toen we al naar de volgende pagina gingen,
+        // meldt Chromium als ERR_ABORTED. Dat is geen fout op de site.
+        const reden = (r.failure() || {}).errorText || '';
+        if (reden.includes('ERR_ABORTED')) return;
+        meldingen.push(`verzoek mislukt: ${r.url()} (${reden})`);
+    });
     pagina.on('response', r => {
         if (r.status() >= 400) meldingen.push(`HTTP ${r.status()}: ${r.url()}`);
     });

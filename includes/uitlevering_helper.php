@@ -26,6 +26,19 @@ const ZELFTEST_MAP = 'zelftest';
 /** Naam van het testbestand. Geen video-extensie: het is geen jaargangbestand. */
 const ZELFTEST_BESTAND = 'uitlevering-zelftest.bin';
 
+/**
+ * Extensies waarmee de test óók probeert of de opslagmap rechtstreeks
+ * bereikbaar is.
+ *
+ * Dit is geen overbodige herhaling. Op panelen als Plesk staat nginx vóór
+ * Apache en levert nginx statische bestanden zélf uit, gekozen op extensie —
+ * en dan komt het verzoek nooit bij Apache aan, dus doet .htaccess niets meer.
+ * In die lijst staan juist wél mp4 en zip. Zou de test alleen het .bin-bestand
+ * proberen, dan meldde hij "niet bereikbaar" terwijl de echte video's voor
+ * iedereen te downloaden zijn.
+ */
+const ZELFTEST_PROBEER_EXTENSIES = ['mp4', 'mkv', 'mov', 'm4v', 'webm', 'avi', 'zip'];
+
 /** Grootte van het testbestand: groot genoeg voor een bereikaanvraag, klein genoeg om niets te merken. */
 const ZELFTEST_BYTES = 65536;
 
@@ -138,7 +151,20 @@ function zelftest_bestand_aanmaken(string &$fout): ?string
         return null;
     }
 
+    // Een paar bytes per videoformaat, om straks per extensie te kunnen kijken
+    // of de webserver ze rechtstreeks uitlevert. Mislukt er een, dan is dat
+    // geen reden de hele test af te breken: de check slaat die extensie over.
+    foreach (ZELFTEST_PROBEER_EXTENSIES as $extensie) {
+        @file_put_contents($map . '/' . zelftest_proefnaam($extensie), 'djm-zelftest');
+    }
+
     return $pad;
+}
+
+/** Naam van het proefbestand voor één extensie. */
+function zelftest_proefnaam(string $extensie): string
+{
+    return 'uitlevering-zelftest-proef.' . $extensie;
 }
 
 /** Ruimt het testbestand en zijn map weer op. */
@@ -146,6 +172,9 @@ function zelftest_opruimen(): void
 {
     $map = opslag_pad() . '/' . ZELFTEST_MAP;
     @unlink($map . '/' . ZELFTEST_BESTAND);
+    foreach (ZELFTEST_PROBEER_EXTENSIES as $extensie) {
+        @unlink($map . '/' . zelftest_proefnaam($extensie));
+    }
     @rmdir($map);
 }
 
@@ -392,6 +421,16 @@ function zelftest_directe_toegang(string $basisUrl, string $methode, callable $s
     if ($opslag !== false && str_starts_with($opslag, APP_ROOT . DIRECTORY_SEPARATOR)) {
         $binnen = trim(str_replace('\\', '/', substr($opslag, strlen(APP_ROOT))), '/');
         $urls['de opslagmap'] = $basisUrl . '/' . $binnen . '/' . $relatief;
+
+        // Per videoformaat apart proberen. Een webserver die statische
+        // bestanden op extensie afhandelt — de standaardinstelling van Plesk,
+        // waar nginx vóór Apache staat — laat .bin met rust maar levert .mp4
+        // gewoon uit, buiten .htaccess om. Zonder deze lus zou de test dat
+        // missen en ten onrechte "niet bereikbaar" melden.
+        foreach (ZELFTEST_PROBEER_EXTENSIES as $extensie) {
+            $urls['de opslagmap (.' . $extensie . ')'] = $basisUrl . '/' . $binnen . '/'
+                . ZELFTEST_MAP . '/' . zelftest_proefnaam($extensie);
+        }
     }
 
     if ($urls === []) {
@@ -412,18 +451,33 @@ function zelftest_directe_toegang(string $basisUrl, string $methode, callable $s
         }
         $gecontroleerd[] = $omschrijving . ' (HTTP ' . $antwoord['status'] . ')';
         if ($antwoord['status'] === 200) {
-            $problemen[] = $omschrijving . ' levert het bestand gewoon uit: ' . $url;
+            $problemen[] = $omschrijving;
         }
     }
 
     if ($problemen !== []) {
-        $stap('Niet rechtstreeks bereikbaar', false, implode(' — ', $problemen)
-            . ' Iedereen met de juiste URL kan de video\'s zo ophalen, zonder in te loggen.');
+        $stap(
+            'Niet rechtstreeks bereikbaar',
+            false,
+            'De opslagmap is van buitenaf te benaderen: ' . implode(' · ', $problemen)
+            . '. Iedereen met de juiste URL kan de video\'s zo ophalen, zonder in te loggen.'
+            . ' Lukt dat alleen bij bepaalde extensies, dan handelt er een webserver de'
+            . ' statische bestanden af buiten PHP en .htaccess om — dat is de'
+            . ' standaardinstelling van Plesk, waar nginx vóór Apache staat. Zet de'
+            . ' opslagmap dan buiten de webroot (OPSLAG_PAD in .env), of sluit de map af'
+            . ' in de nginx-instellingen van het domein.'
+        );
         return;
     }
 
-    $stap('Niet rechtstreeks bereikbaar', true,
-        'Geweigerd via ' . implode(' en ', $gecontroleerd) . '.');
+    $perFormaat = count($gecontroleerd) > 1
+        ? ' Ook per videoformaat geprobeerd (' . implode(', ', ZELFTEST_PROBEER_EXTENSIES) . ').'
+        : '';
+    $stap('Niet rechtstreeks bereikbaar', true, sprintf(
+        '%d adres(sen) geprobeerd, allemaal geweigerd.%s',
+        count($gecontroleerd),
+        $perFormaat
+    ));
 }
 
 /** Maakt van een cURL-fout een melding waar de beheerder iets mee kan. */

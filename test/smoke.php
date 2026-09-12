@@ -4,6 +4,14 @@
  * Draaien via test/draaien.sh — niet bedoeld voor productie.
  */
 
+
+// Deze testscripts horen uitsluitend op de commandoregel te draaien. Ze wijzigen
+// of wissen gegevens; wordt de map test/ per ongeluk meegeüpload naar een
+// server, dan mag een bezoeker ze nooit via de browser kunnen starten.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
 $_SERVER['SCRIPT_NAME'] = '/index.php';
 $_SERVER['HTTP_HOST']   = 'localhost';
 $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
@@ -47,6 +55,10 @@ require_once '/app/includes/toegang_helper.php';
 
 $pdo->exec("DELETE FROM jaargangen");
 $pdo->exec("DELETE FROM deelnemers");
+// Ook de tellers van de rate limiting: zonder dit loopt de derde testrun binnen
+// een kwartier tegen de limiet van drie inlogcodes per adres aan, en lijkt het
+// alsof het versturen stuk is.
+$pdo->exec("DELETE FROM aanvraag_limiet");
 
 $pdo->prepare('INSERT INTO jaargangen (jaar, titel, slug, omschrijving, gepubliceerd)
                VALUES (2026, :t, :s, :o, 1)')

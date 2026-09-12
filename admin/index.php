@@ -83,6 +83,26 @@ if (env('OTP_PEPPER') === '') {
     $sleutelsOntbreken[] = 'OTP_PEPPER';
 }
 
+// ─── Waarschuwing: staat er een proxy voor zonder dat we hem kennen? ─────────
+// Dan is REMOTE_ADDR het adres van de proxy en delen álle bezoekers dezelfde
+// teller: de limiet van tien inlogcodes per uur per IP sluit dan iedereen
+// tegelijk buiten zodra het druk wordt.
+$proxyKopAanwezig = ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '') !== ''
+    || ($_SERVER['HTTP_X_REAL_IP'] ?? '') !== ''
+    || ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? '') !== '';
+
+// Alleen alarm slaan als het adres dat we zien óók naar een proxy ruikt: een
+// loopback- of privéadres. Panelen als Plesk zetten X-Forwarded-For wél, maar
+// corrigeren REMOTE_ADDR zelf al met mod_remoteip — dan is er niets aan de hand
+// en zou een waarschuwing alleen maar verwarren.
+$eigenAdres  = client_ip();
+$adresLijktProxy = $eigenAdres !== '' && !filter_var(
+    $eigenAdres,
+    FILTER_VALIDATE_IP,
+    FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+);
+$proxyNietIngesteld = $proxyKopAanwezig && $adresLijktProxy && vertrouwde_proxies() === [];
+
 // ─── Laatste activiteit ──────────────────────────────────────────────────────
 $laatsteDownloads = overzicht_rijen(
     'SELECT gestart_op, email, bestandsnaam, afgerond
@@ -162,6 +182,23 @@ admin_start('Overzicht', 'Welkom terug, ' . (string)$beheerder['naam'] . '.');
         <a class="btn btn-sm btn-warning" href="<?= h(url('admin/instellingen.php')) ?>">
             <i class="bi bi-gear me-1"></i>Naar instellingen
         </a>
+    </div>
+<?php endif; ?>
+
+<?php if ($proxyNietIngesteld): ?>
+    <div class="alert alert-warning">
+        <strong><i class="bi bi-diagram-3 me-1"></i>Er staat een proxy voor dit portaal, maar die is niet ingesteld.</strong>
+        Dit verzoek kwam binnen met een doorstuurheader, en het adres dat het portaal ziet is
+        <code><?= h($eigenAdres) ?></code> — een intern adres, dus niet dat van een bezoeker.
+        Zolang <code>TRUSTED_PROXIES</code> in <code>.env</code> leeg is, ziet het portaal van
+        élke deelnemer dit ene adres, en geldt de limiet van
+        <?= (int)instelling_int('otp_max_per_ip', 10) ?> inlogcodes per uur voor iedereen samen.
+        <div class="small mt-2">
+            Zet in <code>.env</code> het adres of bereik van uw proxy. Staat het portaal op Plesk
+            (nginx vóór Apache), dan is dat meestal <code>TRUSTED_PROXIES=127.0.0.1,::1</code>.
+            Vul niets in als u zeker weet dat er géén proxy voor staat: die header is dan door
+            iedere bezoeker zelf te verzinnen.
+        </div>
     </div>
 <?php endif; ?>
 

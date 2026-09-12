@@ -6,15 +6,20 @@ plus de tijd die het uploaden van de video's kost.
 
 Doorloop de hoofdstukken op volgorde.
 
+> **Draait u op Plesk?** Lees dan sowieso [hoofdstuk 7b](#7b-plesk). Plesk zet standaard
+> nginx vóór Apache en levert video's zelf uit op extensie; met de standaardinstellingen
+> staan de registraties dan publiek op internet, terwijl het portaal er goed uitziet.
+
 | Stap | Onderwerp |
 |---|---|
 | 1 | [Vereisten](#1-vereisten) |
 | 2 | [Bestanden uploaden](#2-bestanden-uploaden) |
 | 3 | [Database aanmaken](#3-database-aanmaken) |
-| 4 | [.env invullen](#4-env-invullen) |
-| 5 | [setup.php draaien](#5-setupphp-draaien) |
+| 4 | [setup.php draaien](#4-setupphp-draaien) |
+| 5 | [.env in detail](#5-env-in-detail) |
 | 6 | [Opslagmap inrichten](#6-opslagmap-inrichten) |
 | 7 | [Webserver configureren](#7-webserver-configureren) |
+| 7b | [**Plesk**](#7b-plesk) — lees dit als u op Plesk draait |
 | 8 | [E-mail via Microsoft Graph](#8-e-mail-via-microsoft-graph) |
 | 9 | [Cron instellen](#9-cron-instellen) |
 | 10 | [Na installatie](#10-na-installatie) |
@@ -35,7 +40,9 @@ Doorloop de hoofdstukken op volgorde.
 | E-mail | Een Microsoft 365-tenant met een postbus om vanaf te versturen |
 
 Er zijn geen Composer-pakketten nodig; het project heeft geen externe PHP-afhankelijkheden.
-Bootstrap wordt via een CDN geladen.
+Bootstrap en Bootstrap Icons staan in `assets/vendor/` en worden meegekopieerd: het portaal
+laadt niets van een CDN en heeft dus geen uitgaande internetverbinding nodig voor zijn opmaak.
+Zorg er bij het uitrollen alleen voor dat de map `assets/` compleet meegaat.
 
 Controleer de PHP-versie en de extensies:
 
@@ -58,10 +65,14 @@ sudo systemctl restart php8.3-fpm
 Zet de projectmap op de server. Op een VPS is `/var/www/djm-portaal` een logische plek;
 op shared hosting is dat meestal `~/domains/portaal.example.nl/public_html`.
 
+Laat `test/` erbuiten: die map hoort bij de ontwikkeling en bevat scripts die gegevens
+wissen. Ze weigeren zelf een webverzoek en de meegeleverde configuratie sluit de map af,
+maar wat er niet staat, kan ook niet misgaan.
+
 Met rsync vanaf uw eigen computer:
 
 ```bash
-rsync -av --exclude '.git' --exclude '.env' --exclude 'opslag/' \
+rsync -av --exclude '.git' --exclude '.env' --exclude 'opslag/' --exclude 'test/' \
       ./ gebruiker@server:/var/www/djm-portaal/
 ```
 
@@ -70,7 +81,12 @@ Of met git op de server:
 ```bash
 cd /var/www
 git clone <repository-url> djm-portaal
+rm -rf djm-portaal/test
 ```
+
+> **Uploadt u via het bestandsbeheer van een hostingpaneel** (Plesk, DirectAdmin, cPanel),
+> dan gaat meestal de hele map mee. Verwijder `test/` daarna met de hand, en controleer dat
+> `https://uwdomein.nl/test/smoke.php` geen resultaat geeft.
 
 Zet daarna de rechten goed. De webserver (meestal `www-data`) moet in `logs/` kunnen
 schrijven, en in de opslagmap kunnen lezen:
@@ -108,8 +124,12 @@ Op shared hosting maakt u de database en de gebruiker aan via het hostingpaneel 
 Plesk, cPanel). Noteer de gebruikersnaam, het wachtwoord en de exacte databasenaam — die
 krijgt daar vaak een voorvoegsel, bijvoorbeeld `klant123_djm`.
 
-De tabellen zelf hoeft u niet aan te maken: dat doet `setup.php` in stap 5. Wilt u het toch
-handmatig doen:
+Ook dit hoofdstuk mag u overslaan: `setup.php` biedt in stap 2 aan de database zelf aan te
+maken, zolang de opgegeven databasegebruiker daar rechten voor heeft. Op shared hosting is dat
+meestal niet zo — maak hem dan aan via het hostingpaneel.
+
+De tabellen hoeft u in geen geval zelf aan te maken: dat doet `setup.php` in stap 3. Wilt u het
+toch handmatig doen:
 
 ```bash
 mysql -u djm_portaal -p djm_portaal < db.sql
@@ -117,19 +137,84 @@ mysql -u djm_portaal -p djm_portaal < db.sql
 
 ---
 
-## 4. `.env` invullen
+## 4. `setup.php` draaien
 
-Kopieer het voorbeeldbestand:
+Open in de browser:
+
+```
+https://portaal.example.nl/setup.php
+```
+
+De wizard bestaat uit vijf stappen en vult onderweg zelf `.env` in. U hoeft dus niets met de
+hand te bewerken; hoofdstuk 5 legt alleen uit wat er in dat bestand terechtkomt.
+
+1. **Controle** — PHP-versie, extensies en schrijfrechten op `logs/`. Elk punt krijgt een
+   vinkje of een kruisje met uitleg. Los de kruisjes op en klik op "Opnieuw controleren".
+   De pagina noemt ook de gebruiker waaronder PHP draait, zodat u die in de
+   `chown`-opdrachten kunt gebruiken.
+2. **Instellen** — hier vult u het webadres, de databasegegevens, de opslagmap en de manier
+   van uitleveren in. De wizard:
+   - controleert elk veld en slaat niets op zolang er een fout in zit;
+   - maakt de opslagmap zo nodig aan en test met een echte schrijfpoging of het werkt;
+   - genereert `APP_KEY` en `OTP_PEPPER` voor u;
+   - test de databaseverbinding, en biedt aan de database aan te maken als de
+     inloggegevens kloppen maar de database nog niet bestaat;
+   - schrijft `.env` weg met rechten `600`, na eerst een reservekopie van de vorige versie
+     te hebben gemaakt.
+
+   Met **Alleen testen** controleert u alles zonder iets weg te schrijven. Bestaat er al een
+   `.env`, dan worden wachtwoorden en sleutels niet teruggetoond: laat u zo'n veld leeg, dan
+   blijft de bestaande waarde staan.
+
+   Kan de webserver niet in de projectmap schrijven, dan is dat geen blokkade: de wizard toont
+   de volledige inhoud van `.env` zodat u die zelf op de server kunt plaatsen.
+3. **Database** — `db.sql` wordt statement voor statement uitgevoerd en u ziet per tabel of het
+   lukte, plus het aantal tabellen in de database (dat moeten er twaalf zijn). Deze stap is
+   veilig te herhalen: het schema gebruikt overal `CREATE TABLE IF NOT EXISTS`.
+4. **Beheerder** — maak de eerste beheerder aan (naam, e-mailadres, wachtwoord van minimaal
+   12 tekens). Die krijgt de rol *eigenaar*.
+5. **Klaar** — de nazorglijst, met een knop waarmee de wizard zelf nakijkt of `.env` van
+   buitenaf te downloaden is.
+
+### Beveiliging van setup.php
+
+Zodra er één actieve beheerder in de database staat, weigert `setup.php` nog iets te doen.
+Alleen wie de beheerder zojuist in dezelfde sessie heeft aangemaakt, kan de slotpagina nog
+openen. Wilt u de wizard later toch nog eens draaien, maak dan eerst een leeg bestand aan in de
+projectmap:
+
+```bash
+touch /var/www/djm-portaal/setup.toegestaan
+```
+
+Verwijder dat bestand meteen weer na gebruik. Nog beter: verwijder `setup.php` helemaal
+(hoofdstuk 10).
+
+---
+
+## 5. `.env` in detail
+
+`setup.php` schrijft dit bestand voor u. Dit hoofdstuk is bedoeld om achteraf een waarde bij te
+stellen, of om `.env` toch met de hand aan te maken:
 
 ```bash
 cd /var/www/djm-portaal
 cp .env.example .env
-chmod 640 .env
-sudo chown root:www-data .env
+chmod 600 .env
 ```
 
 `.env` bevat het databasewachtwoord en de geheime sleutels. Het bestand staat niet in git en
 mag nooit via de browser te downloaden zijn (zie hoofdstuk 7 en 10).
+
+Een waarde mag tussen dubbele aanhalingstekens staan; dat is de enige manier om een spatie aan
+het begin of einde te bewaren. Binnen die aanhalingstekens gelden `\"`, `\\`, `\n`, `\r` en
+`\t`. Een wachtwoord met een `#` of een aanhalingsteken erin hoort dus zo:
+
+```
+DB_PASS="wachtwoord#met\"tekens"
+```
+
+Een echte omgevingsvariabele (uit Docker, systemd of `SetEnv`) wint altijd van `.env`.
 
 ### De variabelen
 
@@ -150,11 +235,14 @@ mag nooit via de browser te downloaden zijn (zie hoofdstuk 7 en 10).
 > regel dan leeg: het portaal leidt het adres dan zelf af uit het verzoek.
 | `DEBUG` | `false` op productie. `true` toont PHP-foutmeldingen in de browser. |
 | `DB_HOST` | Meestal `localhost`, soms `127.0.0.1` of een aparte databaseserver. |
-| `DB_NAME` | Naam van de database uit stap 3. |
+| `DB_PORT` | Leeg laten betekent de standaardpoort (3306). |
+| `DB_SOCKET` | Pad naar de Unix-socket, als de database daarover bereikbaar is. Heeft voorrang op `DB_HOST` en `DB_PORT`. |
+| `DB_NAME` | Naam van de database uit hoofdstuk 3. |
 | `DB_USER` / `DB_PASS` | De databasegebruiker en zijn wachtwoord. |
 | `DB_CHARSET` | Laat op `utf8mb4` staan. |
 | `OTP_PEPPER` | Geheime sleutel waarmee inlogcodes worden gehasht. Codes worden nooit als platte tekst opgeslagen. |
 | `APP_KEY` | Geheime sleutel die downloadlinks en tokens ondertekent. |
+| `TRUSTED_PROXIES` | Alleen invullen als er een reverse proxy of load balancer vóór het portaal staat. Zie de toelichting hieronder. |
 | `OPSLAG_PAD` | Absoluut pad naar de map met de videobestanden. Zie hoofdstuk 6. Leeg = de map `opslag/` in het project. |
 | `DELIVERY_MODE` | `auto`, `xaccel`, `xsendfile` of `php`. Zie hoofdstuk 7. |
 | `XACCEL_PREFIX` | Alleen voor nginx: het interne pad uit het `internal` location-blok, standaard `/beveiligd/`. |
@@ -167,6 +255,40 @@ mag nooit via de browser te downloaden zijn (zie hoofdstuk 7 en 10).
 
 De Graph- en SMTP-gegevens kunt u ook later invullen via **Beheer → Instellingen**. Wat in
 `.env` staat, wordt gebruikt bij een verse installatie.
+
+### Staat er een proxy vóór het portaal?
+
+Draait het portaal achter nginx als reverse proxy, achter HAProxy, Traefik, een load
+balancer of Cloudflare, vul dan `TRUSTED_PROXIES` in met het adres of het bereik van die
+proxy:
+
+```ini
+TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12
+```
+
+Losse IP-adressen en CIDR-bereiken mogen door elkaar, gescheiden door komma's, en zowel
+IPv4 als IPv6.
+
+**Waarom dit uitmaakt.** Zonder deze regel ziet het portaal van elke bezoeker het
+IP-adres van de proxy, want dat is wat de webserver doorgeeft. Alle bezoekers delen dan
+dezelfde teller, en de limiet van tien inlogcodes per uur per IP-adres sluit op een drukke
+avond de hele vereniging tegelijk buiten. Met de regel erbij leest het portaal het echte
+bezoekersadres uit de `X-Forwarded-For`-header en telt iedereen weer apart.
+
+**Waarom dit niet standaard aanstaat.** `X-Forwarded-For` is een gewone header: iedere
+bezoeker kan er zelf een meesturen. Zou het portaal die altijd geloven, dan kon iemand bij
+elke aanvraag een ander adres opgeven en de limiet eindeloos omzeilen. Daarom wordt de
+header alléén aangenomen van adressen die u hier zelf opgeeft, en telt binnen die header
+alleen het deel dat uw eigen proxy heeft geschreven.
+
+> **Vul hier niets in als er geen proxy voor staat.** Een te ruim bereik — of het bereik
+> waar uw bezoekers zelf vandaan komen — geeft ze precies de mogelijkheid die deze
+> instelling juist moet afsluiten.
+
+Het beheeroverzicht waarschuwt zodra er doorstuurheaders binnenkomen terwijl
+`TRUSTED_PROXIES` leeg is, zodat u het niet per ongeluk overslaat. Controleren of het
+klopt kan in **Beheer → Logboek → Inloggen**: daar hoort bij uw eigen inlogpoging uw
+eigen IP-adres te staan, niet dat van de proxy.
 
 ### APP_KEY en OTP_PEPPER genereren
 
@@ -190,7 +312,8 @@ APP_KEY=8f2c...64 tekens...
 OTP_PEPPER=1a9e...64 tekens...
 ```
 
-`setup.php` toont in stap 1 ook twee kant-en-klare sleutels die u kunt overnemen.
+Makkelijker: laat `setup.php` ze genereren. Dat gebeurt automatisch zodra de sleutels leeg
+zijn of te kort om bruikbaar te zijn.
 
 > **Belangrijk:** bewaar deze waarden. Verandert `OTP_PEPPER` later, dan zijn alle openstaande
 > inlogcodes ongeldig (niet erg — deelnemers vragen gewoon een nieuwe aan). Verandert `APP_KEY`,
@@ -202,42 +325,6 @@ OTP_PEPPER=1a9e...64 tekens...
 
 ---
 
-## 5. `setup.php` draaien
-
-Open in de browser:
-
-```
-https://portaal.example.nl/setup.php
-```
-
-De wizard bestaat uit vier stappen.
-
-1. **Controle** — PHP-versie, extensies, schrijfrechten en de aanwezigheid van `.env`.
-   Elk punt krijgt een vinkje of een kruisje met uitleg. Los de kruisjes op en klik op
-   "Opnieuw controleren".
-2. **Database** — de wizard test de verbinding met de gegevens uit `.env`. Werkt die, klik dan
-   op **Database inrichten**. `db.sql` wordt statement voor statement uitgevoerd en u ziet per
-   tabel of het lukte, plus het aantal tabellen in de database (dat moeten er twaalf zijn). Deze
-   stap is veilig te herhalen: het schema gebruikt overal `CREATE TABLE IF NOT EXISTS`.
-3. **Beheerder** — maak de eerste beheerder aan (naam, e-mailadres, wachtwoord van minimaal
-   12 tekens). Die krijgt de rol *eigenaar*.
-4. **Klaar** — links naar het beheerdersgedeelte en het portaal.
-
-### Beveiliging van setup.php
-
-Zodra er één actieve beheerder in de database staat, weigert `setup.php` nog iets te doen.
-Wilt u de wizard later toch nog eens draaien, maak dan eerst een leeg bestand aan in de
-projectmap:
-
-```bash
-touch /var/www/djm-portaal/setup.toegestaan
-```
-
-Verwijder dat bestand meteen weer na gebruik. Nog beter: verwijder `setup.php` helemaal
-(hoofdstuk 10).
-
----
-
 ## 6. Opslagmap inrichten
 
 Hier komen de videobestanden te staan. De belangrijkste regel: **de bestanden mogen niet
@@ -245,6 +332,16 @@ rechtstreeks via een URL te downloaden zijn.** Alles loopt via `download.php`, d
 controleert of de ingelogde deelnemer recht heeft op dat jaar.
 
 Zet de map daarom bij voorkeur **buiten de webroot**.
+
+Op een hostingpaneel is dat geen voorkeur maar een noodzaak: staat de map binnen de webroot,
+dan is `.htaccess` de enige afscherming, en die wordt overgeslagen zodra er een webserver
+vóór Apache staat die statische bestanden zelf afhandelt. Zie [hoofdstuk 7b](#7b-plesk) voor
+Plesk; bij DirectAdmin en cPanel met een nginx-proxy geldt hetzelfde.
+
+Geeft u het pad op in stap 2 van `setup.php`, dan maakt de wizard de map zelf aan en test hij
+met een echte schrijfpoging of de webserver erin kan. Ligt de map binnen de webroot, dan krijgt
+u daar een waarschuwing over. De opdrachten hieronder zijn voor wie het liever zelf doet, of
+wie PHP niet genoeg rechten wil geven om mappen aan te maken.
 
 ### Op een VPS (aanbevolen)
 
@@ -309,6 +406,10 @@ sudo -u www-data test -r /var/djm-opslag/2026/musical-2026.mp4 && echo leesbaar
 
 ## 7. Webserver configureren
 
+> Gebruikt u een hostingpaneel in plaats van een eigen server? Dan beheert het paneel deze
+> bestanden en moet u de instellingen via het paneel doen. Voor Plesk staat dat in
+> [hoofdstuk 7b](#7b-plesk).
+
 Er liggen twee kant-en-klare voorbeelden in deze map:
 
 - **`docs/nginx.voorbeeld.conf`** — nginx met PHP-FPM
@@ -365,6 +466,175 @@ en beide geheime sleutels liggen dan op straat.
 
 - Apache: zorg dat `AllowOverride All` aanstaat, zodat de meegeleverde `.htaccess` werkt.
 - nginx: het blok `location ~ /\. { deny all; }` uit het voorbeeldbestand regelt dit.
+
+---
+
+## 7b. Plesk
+
+Draait het portaal op een Plesk-server, lees dan eerst dit hoofdstuk. Plesk zet standaard
+**nginx vóór Apache**, en dat verandert twee dingen die u anders pas merkt als het misgaat.
+
+### Het belangrijkste: nginx levert statische bestanden zelf uit
+
+In **Websites & Domeinen → uw domein → Apache- en nginx-instellingen** staat een optie in de
+trant van *"Statische bestanden rechtstreeks door nginx verwerken"*, met daaronder een lijst
+met extensies. Die optie staat standaard aan, en in die lijst staan onder meer `mp4`, `avi`,
+`mov` en `zip`.
+
+Wat dat betekent: een verzoek om `https://uwdomein.nl/opslag/2026/musical-2026.mp4` wordt
+dan door nginx zelf afgehandeld. Het komt **nooit bij Apache aan**, en dus doet de
+`.htaccess` in `opslag/` niets. De videoregistraties staan dan gewoon publiek op internet
+voor iedereen die het pad raadt — terwijl alles in het portaal er correct uitziet.
+
+> Dit is geen theoretisch risico. Het is de standaardinstelling van Plesk in combinatie met
+> de standaardlocatie van de opslagmap (`opslag/` binnen de projectmap).
+
+**De oplossing: zet de opslagmap naast de webroot in plaats van erin.**
+
+Op Plesk is `httpdocs` de webroot. Alles wat daar een niveau boven staat, is niet via een URL
+te bereiken — ongeacht welke webserver ervoor staat, en ongeacht welke instellingen er
+veranderen:
+
+```
+/var/www/vhosts/uwdomein.nl/
+├── httpdocs/          ← hier staat het portaal (de webroot)
+└── djm-opslag/        ← hier komen de video's (NIET bereikbaar via een URL)
+```
+
+Maak die map aan via **Bestanden** in Plesk of over SSH, en zet hem in `.env`:
+
+```ini
+OPSLAG_PAD=/var/www/vhosts/uwdomein.nl/djm-opslag
+```
+
+De map moet schrijfbaar zijn voor de systeemgebruiker van het abonnement (in Plesk meestal
+de FTP-gebruiker van het domein). Over SSH:
+
+```bash
+mkdir -p /var/www/vhosts/uwdomein.nl/djm-opslag
+chown uwgebruiker:psacln /var/www/vhosts/uwdomein.nl/djm-opslag
+chmod 750 /var/www/vhosts/uwdomein.nl/djm-opslag
+```
+
+Zet de video's daarna via SFTP in die map, met een submap per jaar (`2026/`, `2027/`).
+
+**Moet de map tóch binnen `httpdocs` blijven?** Sluit hem dan af in
+**Apache- en nginx-instellingen → Aanvullende nginx-richtlijnen**:
+
+```nginx
+location ^~ /opslag/ {
+    deny all;
+}
+location ^~ /logs/ {
+    deny all;
+}
+location ^~ /includes/ {
+    deny all;
+}
+location ~ /\. {
+    deny all;
+}
+```
+
+`^~` is hier belangrijk: daarmee wint dit blok van de regel die nginx gebruikt om statische
+bestanden op extensie af te handelen.
+
+### Controleer het, vertrouw het niet
+
+Ga na de installatie naar **Beheer → Instellingen → Uitlevering van downloads uitproberen**.
+Die knop zet kort een testbestand klaar en probeert het daarna op te halen — ook per
+videoformaat apart, juist omdat een webserver per extensie kan verschillen. Bij de regel
+*"Niet rechtstreeks bereikbaar"* hoort **OK** te staan. Staat er FOUT bij, dan zijn de video's
+op dit moment publiek en klopt bovenstaande nog niet.
+
+### Uitlevering van grote bestanden
+
+| PHP-handler in Plesk | Zet in `.env` |
+|---|---|
+| FPM-toepassing bediend door Apache (standaard) | `DELIVERY_MODE=php` |
+| FPM-toepassing bediend door nginx | `DELIVERY_MODE=php`, of `xaccel` mét de richtlijn hieronder |
+| Apache-module | `DELIVERY_MODE=php` |
+
+Laat `DELIVERY_MODE` op een Plesk-server niet op `auto` staan. De automatische herkenning
+kijkt naar wie PHP draait; wordt dat nginx, dan kiest hij `xaccel` — en zonder het
+`internal` location-blok krijgt de bezoeker dan een 404 in plaats van zijn video.
+
+`mod_xsendfile` zit niet standaard in Plesk; `xsendfile` is dus geen optie tenzij u die
+module zelf installeert.
+
+**Belangrijk bij `DELIVERY_MODE=php`:** nginx bewaart standaard eerst het hele antwoord van
+Apache voordat het naar de bezoeker gaat. Bij een video van enkele gigabytes loopt de
+schijf vol of valt de download stil. Zet dit in **Aanvullende nginx-richtlijnen**:
+
+```nginx
+location ~ ^/download\.php {
+    proxy_pass http://127.0.0.1:7080;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+}
+```
+
+> Controleer de poort: Plesk gebruikt meestal `7080` voor Apache over http en `7081` voor
+> https. U vindt de juiste waarde in de door Plesk gegenereerde nginx-configuratie van het
+> domein.
+
+Wilt u liever `xaccel` (nginx levert de video zelf uit, buiten PHP en Apache om), voeg dan
+óók dit toe en zet `DELIVERY_MODE=xaccel` met `XACCEL_PREFIX=/beveiligd/` in `.env`:
+
+```nginx
+location /beveiligd/ {
+    internal;
+    alias /var/www/vhosts/uwdomein.nl/djm-opslag/;
+    add_header Accept-Ranges bytes;
+}
+```
+
+Dit werkt ook als Apache de PHP-kant afhandelt: nginx ziet de `X-Accel-Redirect` in het
+antwoord van Apache en neemt de uitlevering over. Controleer het daarna met dezelfde
+knop **Uitlevering uitproberen** — die meldt welke route de bytes werkelijk heeft geleverd.
+
+### Het IP-adres van de bezoeker
+
+Omdat nginx vóór Apache staat, ziet PHP mogelijk `127.0.0.1` als adres van élke bezoeker.
+Dan delen alle deelnemers dezelfde teller en sluit de limiet op inlogcodes iedereen tegelijk
+buiten. Recente Plesk-versies lossen dit zelf op, maar controleer het:
+
+Open **Beheer → Logboek → Inloggen** na uw eigen inlogpoging. Staat daar uw eigen IP-adres,
+dan is er niets aan de hand. Staat er `127.0.0.1` (of waarschuwt het beheeroverzicht
+erover), zet dan in `.env`:
+
+```ini
+TRUSTED_PROXIES=127.0.0.1,::1
+```
+
+Zie hoofdstuk 5 voor de achtergrond.
+
+### PHP-instellingen
+
+Zet deze niet in `.htaccess` — dat werkt alleen met de Apache-module, niet met FPM. Gebruik
+**Websites & Domeinen → uw domein → PHP-instellingen**:
+
+| Instelling | Waarde |
+|---|---|
+| `max_execution_time` | `0` (of ruim, bijvoorbeeld `3600`) bij `DELIVERY_MODE=php` |
+| `memory_limit` | `256M` is ruim voldoende; het bestand wordt in blokken gelezen |
+| `post_max_size` / `upload_max_filesize` | Alleen van belang als u video's via de browser wilt uploaden. Voor grote bestanden is SFTP de betere route. |
+| `output_buffering` | `Off` |
+
+### Cron
+
+Gebruik de ingebouwde planner in plaats van `crontab -e`: **Websites & Domeinen → uw domein
+→ Geplande taken → Taak toevoegen**, type *"PHP-script uitvoeren"*, met als pad:
+
+```
+/httpdocs/cron_opschonen.php
+```
+
+Dagelijks, bijvoorbeeld om 04:00. Plesk gebruikt dan vanzelf de PHP-versie van het domein.
 
 ---
 
@@ -432,10 +702,16 @@ Loop deze lijst af zodra het portaal draait.
 
 2. **Verwijder `setup.toegestaan`** als u dat had aangemaakt.
 
-3. **Controleer dat `.env` niet publiek is** — zie hoofdstuk 7.
+3. **Controleer dat `.env` niet publiek is.** De slotpagina van `setup.php` heeft daar een knop
+   voor; die haalt het bestand via HTTP op en zegt wat eruit kwam. Doet u het zelf, open dan
+   `https://portaal.example.nl/.env` in de browser — u hoort een 403 of 404 te krijgen, geen
+   tekst. Zie verder hoofdstuk 7.
 
 4. **Controleer dat de video's niet publiek zijn.** Probeer een bestand rechtstreeks te
-   openen via de URL; dat moet mislukken.
+   openen via de URL; dat moet mislukken. Test met de échte extensie van uw video
+   (`.mp4`), niet met een willekeurig ander bestand: een webserver die statische bestanden
+   zelf afhandelt doet dat per extensie, en dan zegt een `.txt` niets over een `.mp4`.
+   De zelftest bij punt 9 doet dit voor alle videoformaten tegelijk.
 
 5. **Zet HTTPS verplicht.** De omleiding staat in beide voorbeeldconfiguraties.
 
@@ -454,8 +730,10 @@ Loop deze lijst af zodra het portaal draait.
    dan stopt de mail — en daarmee het inloggen. Zie `GRAPH-SETUP.md`.
 
 9. **Draai de uitleveringszelftest** onder **Beheer › Instellingen › Testen**, knop
-   **Uitproberen**. Alle stappen horen groen te zijn. Dit is de snelste controle dat de
-   serverconfiguratie uit hoofdstuk 7 ook echt doet wat de bedoeling is.
+   **Uitproberen**. Alle stappen horen groen te zijn — let vooral op *"Niet rechtstreeks
+   bereikbaar"*, want dat is de regel die zegt of uw video's afgeschermd zijn. Dit is de
+   snelste controle dat de serverconfiguratie uit hoofdstuk 7 (of 7b) ook echt doet wat de
+   bedoeling is.
 
 10. **Doe een volledige test met uw eigen e-mailadres**: code aanvragen, inloggen, downloaden.
 

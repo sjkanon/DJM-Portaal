@@ -7,6 +7,14 @@
  *     docker compose exec -T web php /app/test/beveiliging.php
  */
 
+
+// Deze testscripts horen uitsluitend op de commandoregel te draaien. Ze wijzigen
+// of wissen gegevens; wordt de map test/ per ongeluk meegeüpload naar een
+// server, dan mag een bezoeker ze nooit via de browser kunnen starten.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/email_helper.php';
 require_once dirname(__DIR__) . '/includes/download_helper.php';
@@ -73,6 +81,32 @@ $_SERVER['HTTP_HOST'] = 'kwaadaardig.nl/pad';
 toets('host met een pad wordt geweigerd', 'localhost', veilige_host());
 $_SERVER['HTTP_HOST'] = "evil.nl\r\nX: 1";
 toets('host met een regeleinde wordt geweigerd', 'localhost', veilige_host());
+
+// ─── Vertrouwde proxy's ──────────────────────────────────────────────────────
+echo "  Vertrouwde proxy's\n";
+
+// Bereikcontroles: de kern van "welke proxy mag ik geloven".
+toets('IPv4 binnen /8', true, ip_in_bereik('10.1.2.3', '10.0.0.0/8'));
+toets('IPv4 buiten /8', false, ip_in_bereik('11.1.2.3', '10.0.0.0/8'));
+toets('IPv4 binnen /24', true, ip_in_bereik('192.168.1.7', '192.168.1.0/24'));
+toets('IPv4 buiten /24', false, ip_in_bereik('192.168.2.7', '192.168.1.0/24'));
+toets('los adres gelijk', true, ip_in_bereik('10.1.2.3', '10.1.2.3'));
+toets('los adres ongelijk', false, ip_in_bereik('10.1.2.4', '10.1.2.3'));
+toets('IPv6 binnen /32', true, ip_in_bereik('2001:db8::5', '2001:db8::/32'));
+toets('IPv6 buiten /32', false, ip_in_bereik('2001:db9::5', '2001:db8::/32'));
+toets('IPv4 valt nooit in een IPv6-bereik', false, ip_in_bereik('10.1.2.3', '2001:db8::/32'));
+toets('onzin als bereik telt niet mee', false, ip_in_bereik('10.1.2.3', 'geen bereik'));
+toets('te groot prefix telt niet mee', false, ip_in_bereik('10.1.2.3', '10.0.0.0/33'));
+
+// Zonder TRUSTED_PROXIES (de stand in deze testcontainer) mag X-Forwarded-For
+// niets veranderen: iedereen kan die header zelf meesturen.
+$_SERVER['REMOTE_ADDR']          = '203.0.113.9';
+$_SERVER['HTTP_X_FORWARDED_FOR'] = '1.2.3.4';
+toets('zonder TRUSTED_PROXIES telt alleen REMOTE_ADDR', '203.0.113.9', client_ip());
+unset($_SERVER['HTTP_X_FORWARDED_FOR']);
+
+// De volledige matrix mét een proxylijst staat in test/proxy_test.php; die moet
+// in een eigen proces draaien omdat vertrouwde_proxies() de lijst cachet.
 
 // ─── CSV-export ──────────────────────────────────────────────────────────────
 echo "  CSV-export\n";

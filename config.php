@@ -121,7 +121,9 @@ function loadEnv(string $filePath): void
 {
     foreach (env_parse($filePath) as $sleutel => $waarde) {
         // Een echte omgevingsvariabele (Docker, systemd, SetEnv) wint van .env.
-        if (isset($_ENV[$sleutel])) {
+        // Ook getenv() nakijken: of de omgeving in $_ENV terechtkomt hangt af
+        // van variables_order in php.ini, en daar willen we niet van afhangen.
+        if (isset($_ENV[$sleutel]) || getenv($sleutel) !== false) {
             continue;
         }
         $_ENV[$sleutel] = $waarde;
@@ -182,19 +184,32 @@ function app_log(string $bericht, array $context = []): void
  * Eén plek voor deze vraag: de sessiecookie, het onthoud-cookie, HSTS en
  * app_base_url() moeten hier niet uit elkaar kunnen lopen. Achter een
  * TLS-afsluitende proxy (nginx, HAProxy, Cloudflare) staat $_SERVER['HTTPS']
- * niet, maar stuurt de proxy X-Forwarded-Proto. Die header kan een bezoeker
- * verzinnen, maar alleen in zijn eigen nadeel: hij zet cookies dan strenger.
+ * niet, maar stuurt de proxy X-Forwarded-Proto.
+ *
+ * Staat er een lijst met vertrouwde proxy's, dan nemen we die header alleen van
+ * die proxy's aan. Staat er geen lijst, dan geloven we hem wel: een bezoeker die
+ * hem zelf verzint werkt uitsluitend zichzelf tegen (zijn cookies worden dan
+ * strenger gezet), terwijl hem niet geloven bij een installatie achter een proxy
+ * zónder TRUSTED_PROXIES betekent dat de sessiecookie de `secure`-vlag verliest.
+ * Dat laatste is een echte verzwakking; dit niet.
  */
 function https_actief(): bool
 {
     if (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off') {
         return true;
     }
-    $doorgestuurd = strtolower(trim((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')));
-    // Een proxyketen kan er meerdere op een rij zetten: "https, http".
-    if ($doorgestuurd !== '' && explode(',', $doorgestuurd)[0] === 'https') {
-        return true;
+
+    $mogenWeKijken = vertrouwde_proxies() === []
+        || is_vertrouwde_proxy((string)($_SERVER['REMOTE_ADDR'] ?? ''));
+
+    if ($mogenWeKijken) {
+        $doorgestuurd = strtolower(trim((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')));
+        // Een proxyketen kan er meerdere op een rij zetten: "https, http".
+        if ($doorgestuurd !== '' && explode(',', $doorgestuurd)[0] === 'https') {
+            return true;
+        }
     }
+
     return ((int)($_SERVER['SERVER_PORT'] ?? 0)) === 443;
 }
 
@@ -329,6 +344,10 @@ function db(): PDO
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,
+            // Zonder limiet blijft elke pagina hangen zolang het besturingssysteem
+            // op een antwoord wacht. Tien seconden is ruim voor een database die
+            // er is, en kort genoeg om een verkeerd adres meteen te merken.
+            PDO::ATTR_TIMEOUT            => 10,
         ]);
     }
     return $pdo;
@@ -553,10 +572,161 @@ function geldig_email(string $email): bool
     return (bool)filter_var($email, FILTER_VALIDATE_EMAIL) && strlen($email) <= 190;
 }
 
+// ─── Vertrouwde proxy's ──────────────────────────────────────────────────────
+/**
+ * De proxy's waarvan dit portaal de doorstuurheaders aanneemt, uit
+ * TRUSTED_PROXIES in .env (komma's ertussen, IP-adres of CIDR-bereik).
+ *
+ * Staat er niets, dan vertrouwen we niemand. Dat is de veilige stand: elke
+ * bezoeker kan zelf een X-Forwarded-For meesturen, dus zonder deze lijst zou
+ * iemand zich met één header eindeloos nieuwe IP-adressen kunnen aanmeten en
+ * de rate limiting op het aanvragen van inlogcodes waardeloos maken.
+ *
+ * @return string[]
+ */
+function vertrouwde_proxies(): array
+{
+    static $cache = null;
+    if ($cache !== null) {
+        return $cache;
+    }
+    $cache = [];
+    foreach (explode(',', env('TRUSTED_PROXIES')) as $stuk) {
+        $stuk = trim($stuk);
+        if ($stuk !== '') {
+            $cache[] = $stuk;
+        }
+    }
+    return $cache;
+}
+
+/**
+ * Valt $ip binnen $bereik? $bereik is één IP-adres of een CIDR-notatie
+ * (10.0.0.0/8, 2001:db8::/32). Werkt voor IPv4 en IPv6.
+ */
+function ip_in_bereik(string $ip, string $bereik): bool
+{
+    $ipBin = @inet_pton($ip);
+    if ($ipBin === false) {
+        return false;
+    }
+
+    if (!str_contains($bereik, '/')) {
+        $bereikBin = @inet_pton($bereik);
+        return $bereikBin !== false && hash_equals($bereikBin, $ipBin);
+    }
+
+    [$net, $bits] = explode('/', $bereik, 2);
+    $netBin = @inet_pton(trim($net));
+    if ($netBin === false || !ctype_digit(trim($bits))) {
+        return false;
+    }
+    // IPv4 en IPv6 zijn niet met elkaar te vergelijken: verschillende lengte.
+    if (strlen($netBin) !== strlen($ipBin)) {
+        return false;
+    }
+
+    $bits = (int)trim($bits);
+    $max  = strlen($netBin) * 8;
+    if ($bits < 0 || $bits > $max) {
+        return false;
+    }
+
+    $helebytes = intdiv($bits, 8);
+    $restbits  = $bits % 8;
+
+    if ($helebytes > 0 && !hash_equals(substr($netBin, 0, $helebytes), substr($ipBin, 0, $helebytes))) {
+        return false;
+    }
+    if ($restbits === 0) {
+        return true;
+    }
+    $masker = ~((1 << (8 - $restbits)) - 1) & 0xFF;
+
+    return (ord($netBin[$helebytes]) & $masker) === (ord($ipBin[$helebytes]) & $masker);
+}
+
+/**
+ * Is dit een bruikbaar los IP-adres of CIDR-bereik? Gebruikt door setup.php om
+ * een typefout in TRUSTED_PROXIES te weigeren in plaats van hem stil te
+ * accepteren — een te ruim of onleesbaar bereik is hier het gevaarlijkst.
+ */
+function geldig_ip_of_bereik(string $waarde): bool
+{
+    $waarde = trim($waarde);
+    if ($waarde === '') {
+        return false;
+    }
+
+    if (!str_contains($waarde, '/')) {
+        return @inet_pton($waarde) !== false;
+    }
+
+    [$net, $bits] = explode('/', $waarde, 2);
+    $netBin = @inet_pton(trim($net));
+    $bits   = trim($bits);
+    if ($netBin === false || $bits === '' || !ctype_digit($bits)) {
+        return false;
+    }
+
+    return (int)$bits >= 0 && (int)$bits <= strlen($netBin) * 8;
+}
+
+/** Staat dit adres in TRUSTED_PROXIES? */
+function is_vertrouwde_proxy(string $ip): bool
+{
+    if ($ip === '') {
+        return false;
+    }
+    foreach (vertrouwde_proxies() as $bereik) {
+        if (ip_in_bereik($ip, $bereik)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // ─── Client-informatie ───────────────────────────────────────────────────────
+/**
+ * Het IP-adres van de bezoeker.
+ *
+ * Zonder proxy is dat gewoon REMOTE_ADDR. Staat er een proxy voor die in
+ * TRUSTED_PROXIES is opgegeven, dan lezen we X-Forwarded-For van rechts naar
+ * links: die lijst groeit aan de rechterkant aan, dus de laatste waarde is door
+ * onze eigen proxy gezet en de waarden daarvóór zijn steeds minder betrouwbaar.
+ * We slaan de adressen van onze eigen proxy's over en nemen het eerste adres
+ * daarbuiten. Alles links daarvan heeft de bezoeker zelf kunnen verzinnen en
+ * negeren we dus.
+ *
+ * Is REMOTE_ADDR géén vertrouwde proxy, dan kijken we niet naar de header:
+ * dan praat de bezoeker rechtstreeks met ons en is REMOTE_ADDR de waarheid.
+ */
 function client_ip(): string
 {
-    return (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    $remote = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+
+    if ($remote === '' || !is_vertrouwde_proxy($remote)) {
+        return $remote;
+    }
+
+    $doorgestuurd = (string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
+    if ($doorgestuurd === '') {
+        return $remote;
+    }
+
+    foreach (array_reverse(array_map('trim', explode(',', $doorgestuurd))) as $kandidaat) {
+        // Een poort of vierkante haken eromheen (IPv6) hoort er niet bij.
+        $kandidaat = trim($kandidaat, '[]');
+        if ($kandidaat === '' || @inet_pton($kandidaat) === false) {
+            continue;                       // onzin: overslaan, niet vertrouwen
+        }
+        if (is_vertrouwde_proxy($kandidaat)) {
+            continue;                       // onze eigen proxy: doorlopen
+        }
+        return $kandidaat;
+    }
+
+    return $remote;
 }
 
 /** IP als binaire waarde voor de VARBINARY(16)-kolommen; null bij onbekend. */

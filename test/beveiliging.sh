@@ -88,6 +88,29 @@ else
 fi
 
 echo ""
+echo "── Een vervalste X-Forwarded-For verandert niets ───────────"
+# In deze testomgeving staat TRUSTED_PROXIES niet ingesteld. Een bezoeker die
+# zelf een doorstuurheader meestuurt, mag dan géén ander IP-adres in het logboek
+# krijgen; anders is de rate limiting op inlogcodes met één header te omzeilen.
+docker compose exec -T db mariadb -u root -pdjmtest djm_portaal \
+    -e "DELETE FROM login_log; DELETE FROM aanvraag_limiet;" >/dev/null 2>&1
+K=$(mktemp)
+FORM=$(curl -s -c "$K" -b "$K" http://localhost:8123/index.php)
+TOKEN=$(printf '%s' "$FORM" | grep -o 'name="csrf_token" value="[^"]*"' | head -1 | cut -d'"' -f4)
+curl -s -o /dev/null -c "$K" -b "$K" -H "X-Forwarded-For: 198.51.100.77" \
+    -d "csrf_token=$TOKEN" -d "email=ouder@example.nl" http://localhost:8123/index.php
+rm -f "$K"
+GELOGD=$(docker compose exec -T db mariadb -u root -pdjmtest djm_portaal -N \
+    -e "SELECT INET6_NTOA(ip) FROM login_log ORDER BY id DESC LIMIT 1;" 2>/dev/null | tr -d '\r')
+if [ "$GELOGD" = "198.51.100.77" ]; then
+    printf '  ✗ het verzonnen adres staat in het logboek (%s)\n' "$GELOGD"; FOUT=$((FOUT+1))
+elif [ -z "$GELOGD" ]; then
+    printf '  ✗ geen logregel gevonden om te controleren\n'; FOUT=$((FOUT+1))
+else
+    printf '  ✓ logboek noteert het echte adres (%s), niet het verzonnen adres\n' "$GELOGD"; GOED=$((GOED+1))
+fi
+
+echo ""
 echo "── Uitloggen kan niet met een GET ──────────────────────────"
 toets "GET op logout.php stuurt door"       "302" "$(status http://localhost:8123/logout.php)"
 toets "GET op admin/logout.php stuurt door" "302" "$(status http://localhost:8123/admin/logout.php)"
@@ -97,9 +120,18 @@ echo "── Afgeschermde paden per webserver ───────────�
 for SERVER in "PHP-server|http://localhost:8123" "nginx|http://localhost:8126" "Apache|http://localhost:8127"; do
     NAAM=${SERVER%%|*}; BASIS=${SERVER#*|}
     printf '  %s\n' "$NAAM"
-    for PAD in /.env /db.sql /includes/auth.php /logs/app.log /opslag/2026/musical-2026.mp4 /README.md; do
+    for PAD in /.env /db.sql /includes/auth.php /logs/app.log /opslag/2026/musical-2026.mp4 \
+               /README.md /test/smoke.php /test/zelftest_cli.php; do
         CODE=$(status "$BASIS$PAD")
-        if [ "$NAAM" = "PHP-server" ]; then
+        if [ "$NAAM" = "PHP-server" ] && [ "${PAD#/test/}" != "$PAD" ]; then
+            # De testscripts weigeren zelf een webverzoek, ook zonder .htaccess.
+            # Dat is juist de laag die telt als test/ per ongeluk meegeüpload is.
+            if [ "$CODE" = "200" ]; then
+                printf '    ✗ %-32s is uitvoerbaar via de browser (200)\n' "$PAD"; FOUT=$((FOUT+1))
+            else
+                printf '    ✓ %-32s weigert zichzelf (%s)\n' "$PAD" "$CODE"; GOED=$((GOED+1))
+            fi
+        elif [ "$NAAM" = "PHP-server" ]; then
             # De ingebouwde PHP-server kent geen .htaccess en is nooit voor
             # productie bedoeld; alleen melden, niet afkeuren.
             printf '    – %-32s %s (niet van toepassing)\n' "$PAD" "$CODE"
@@ -121,6 +153,45 @@ done
 echo ""
 echo "── Eenheidstests op de beveiligingshelpers ─────────────────"
 docker compose exec -T web php /app/test/beveiliging.php || FOUT=$((FOUT+1))
+
+echo ""
+echo "── Opslagmap binnen de webroot (het Plesk-scenario) ────────"
+# Op Plesk staat nginx vóór Apache en levert nginx statische bestanden zelf uit,
+# gekozen op extensie. .htaccess doet dan niets meer voor een .mp4. Twee dingen
+# moeten kloppen:
+#   1. de zelftest MOET dat kunnen zien (anders stempelt hij ten onrechte groen);
+#   2. op een server waar .htaccess wél geldt, moet de map dicht zijn.
+
+# 1. De ingebouwde PHP-server kent geen .htaccess: daar hoort de zelftest te
+#    klagen, en wel per videoformaat.
+BLOOT=$(docker compose exec -T -e OPSLAG_PAD=/app/opslag web \
+    php /app/test/zelftest_cli.php http://localhost:8080 2>&1)
+if printf '%s' "$BLOOT" | grep -q "^FOUT Niet rechtstreeks bereikbaar"; then
+    printf '  ✓ zelftest ziet een open opslagmap\n'; GOED=$((GOED+1))
+else
+    printf '  ✗ zelftest ziet een open opslagmap NIET — de controle is waardeloos\n'; FOUT=$((FOUT+1))
+fi
+if printf '%s' "$BLOOT" | grep -q "opslagmap (.mp4)"; then
+    printf '  ✓ en meldt het videoformaat apart (.mp4)\n'; GOED=$((GOED+1))
+else
+    printf '  ✗ .mp4 wordt niet apart geprobeerd; een extensiegebonden lek blijft dan onzichtbaar\n'; FOUT=$((FOUT+1))
+fi
+
+# 2. Apache mét .htaccess hoort de map wél dicht te houden, ook per formaat.
+DICHT=$(docker compose exec -T -e OPSLAG_PAD=/var/www/html/opslag apache \
+    php /var/www/html/test/zelftest_cli.php http://localhost:80 2>&1)
+if printf '%s' "$DICHT" | grep -q "^OK   Niet rechtstreeks bereikbaar"; then
+    printf '  ✓ met .htaccess is de map dicht, ook per videoformaat\n'; GOED=$((GOED+1))
+else
+    printf '  ✗ .htaccess schermt de opslagmap niet af\n'; FOUT=$((FOUT+1))
+    printf '%s\n' "$DICHT" | grep "Niet rechtstreeks" | sed 's/^/      /'
+fi
+
+echo ""
+echo "── Achter een reverse proxy ────────────────────────────────"
+# Eigen proces: de proxylijst wordt per proces één keer ingelezen.
+docker compose exec -T -e TRUSTED_PROXIES="10.0.0.0/8,172.16.0.0/12" \
+    web php /app/test/proxy_test.php || FOUT=$((FOUT+1))
 
 echo ""
 echo "────────────────────────────────────────────────────────────"

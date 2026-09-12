@@ -45,9 +45,10 @@ DirectoryIndex index.php index.html
 # docs/      bevat installatie- en serverdocumentatie
 # opslag/    bevat de videobestanden; die lopen uitsluitend via download.php
 # sql/       migraties
+# test/      testscripts die gegevens wissen; horen niet op een server te staan
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteRule ^(includes|logs|docs|opslag|sql)(/|$) - [F,L]
+    RewriteRule ^(includes|logs|docs|opslag|sql|test)(/|$) - [F,L]
 </IfModule>
 
 # Vangnet als mod_rewrite ontbreekt: elke map heeft daarnaast een eigen

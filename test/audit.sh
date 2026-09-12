@@ -98,6 +98,30 @@ done
 [ "$PROBLEMEN" -eq "$VOOR" ] && echo "  ✓ alle opmaak komt uit deze installatie en is aanwezig"
 
 echo ""
+echo "── Testscripts weigeren een webverzoek ─────────────────────"
+VOOR=$PROBLEMEN
+# test/ hoort niet op een server te staan, maar hostingpanelen uploaden nu
+# eenmaal hele mappen. smoke.php leegt de deelnemerstabel; dat mag nooit met
+# een browserverzoek te starten zijn.
+for f in test/*.php; do
+    grep -q "PHP_SAPI" "$f" || melden "$f: geen controle op PHP_SAPI === 'cli'"
+done
+[ "$PROBLEMEN" -eq "$VOOR" ] && echo "  ✓ elk testscript draait alleen op de commandoregel"
+
+echo ""
+echo "── Bezoekersadres: alleen via client_ip() ──────────────────"
+VOOR=$PROBLEMEN
+# Wie zelf REMOTE_ADDR of X-Forwarded-For uitleest, omzeilt de controle op
+# vertrouwde proxy's in client_ip() en https_actief(). config.php is de enige
+# plek waar dat mag; admin/index.php kijkt alleen of de header er ís.
+for f in $BESTANDEN; do
+    case "${f#./}" in config.php|admin/index.php) continue;; esac
+    TREFFERS=$(grep -nE "\\\$_SERVER\[.(REMOTE_ADDR|HTTP_X_FORWARDED_FOR|HTTP_X_FORWARDED_PROTO|HTTP_X_REAL_IP|HTTP_CF_CONNECTING_IP)" "$f")
+    [ -n "$TREFFERS" ] && { melden "$f: leest het bezoekersadres buiten client_ip() om"; printf '%s\n' "$TREFFERS" | head -3 | sed 's/^/      /'; }
+done
+[ "$PROBLEMEN" -eq "$VOOR" ] && echo "  ✓ het bezoekersadres loopt overal via client_ip()"
+
+echo ""
 echo "── Bestandspaden: alleen via opslag_absoluut_pad() ─────────"
 VOOR=$PROBLEMEN
 TREFFERS=$(grep -rnE "(readfile|fopen|file_get_contents|unlink)\s*\(\s*\\\$_(GET|POST|REQUEST)" $BESTANDEN 2>/dev/null)

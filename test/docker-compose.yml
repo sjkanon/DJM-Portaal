@@ -49,6 +49,34 @@ services:
       - "8123:8080"
     command: php -S 0.0.0.0:8080 -t /app
 
+  # ── Verse installatie: bewust zónder omgevingsvariabelen ──────────────────
+  # De andere containers krijgen DB_HOST en de rest mee als echte
+  # omgevingsvariabele, en die winnen van .env. Hier staat niets ingesteld, dus
+  # moet setup.php het .env-bestand zelf schrijven — precies zoals bij een
+  # klant op een lege server.
+  #
+  # De projectmap hangt er alleen-lezen in en wordt bij het starten gekopieerd
+  # naar /verse. Daar draait de test op. Zo kan de wizard nooit een .env in de
+  # werkmap van de ontwikkelaar achterlaten: het bestand bestaat alleen in deze
+  # container en verdwijnt met de container mee.
+  vers:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ..:/app:ro
+    environment:
+      PHP_CLI_SERVER_WORKERS: "4"
+    ports:
+      - "8128:8080"
+    command: >
+      sh -c "rm -rf /verse && cp -a /app /verse && rm -rf /verse/.git &&
+             rm -f /verse/.env /verse/.env.backup-* /verse/setup.toegestaan &&
+             php -S 0.0.0.0:8080 -t /verse"
+
   # ── nginx + PHP-FPM: de X-Accel-Redirect-route ────────────────────────────
   fpm:
     build:
