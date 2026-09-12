@@ -125,7 +125,9 @@ Dat draait achtereenvolgens:
 - syntaxcontrole en een statische controle op SQL-interpolatie, dubbel gebruikte
   query-parameters, CSRF, uitvoer-escaping en autorisatie;
 - een verse installatie via `setup.php`, in een container zonder omgevingsvariabelen, zodat
-  de wizard `.env` echt zelf moet schrijven;
+  de wizard `.env` echt zelf moet schrijven. Die container draait op een kopie van het
+  project en heeft de werkmap alleen-lezen in handen: het `.env` dat de test oplevert
+  bestaat alleen daarbinnen en verdwijnt met de container mee;
 - de kernlogica en de inlogcodes (eenmalig gebruik, pogingenlimiet, throttling,
   binding aan de browser, timinggedrag);
 - de beveiliging: securityheaders, afgeschermde paden per webserver, uitloggen dat

@@ -176,7 +176,9 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
   plaats van naar ieder bestand met een formulier erin, zodat een formulier en de
   verwerking ervan in verschillende bestanden mogen staan.
 - `test/installatie.sh` draait tegen een nieuwe container `vers`, die met opzet géén
-  omgevingsvariabelen meekrijgt. De wizard moet `.env` daar dus echt zelf schrijven, net
+  omgevingsvariabelen meekrijgt en de projectmap alleen-lezen in handen heeft: de test
+  draait op een kopie binnen de container, zodat het `.env` dat de wizard schrijft nooit
+  in de werkmap van de ontwikkelaar belandt. De wizard moet `.env` daar dus echt zelf schrijven, net
   als bij een klant op een lege server. De test controleert onder meer dat een
   databasewachtwoord met een `#` en een `"` erin de rit overleeft, dat een leeg
   wachtwoordveld het bestaande wachtwoord laat staan, dat er een reservekopie met rechten

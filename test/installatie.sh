@@ -34,7 +34,17 @@ stuur() { local url="$1"; shift; curl -s -o /dev/null -c "$J" -b "$J" -X POST "$
 DBWW='wachtwoord#met"tekens'
 
 echo "── Testomgeving klaarzetten ────────────────────────────────────"
+# De container draait op een kopie van het project (/verse), niet op de werkmap
+# zelf: die hangt er alleen-lezen in. De wizard schrijft zijn .env dus binnen de
+# container, waar hij niemand in de weg zit. De kopie wordt hier ververst, zodat
+# de test altijd de code van dit moment draait.
 docker compose up -d vers >/dev/null 2>&1
+for i in $(seq 1 60); do
+    docker compose exec -T vers true >/dev/null 2>&1 && break
+    sleep 1
+done
+docker compose exec -T vers sh -c \
+    'rm -rf /verse && cp -a /app /verse && rm -rf /verse/.git && rm -f /verse/.env' 2>/dev/null
 for i in $(seq 1 60); do
     [ "$(curl -s -o /dev/null -w '%{http_code}' "$BASIS/setup.php" 2>/dev/null)" != "000" ] && break
     sleep 1
@@ -43,11 +53,13 @@ docker compose exec -T db mariadb -u root -pdjmtest -e \
     "DROP DATABASE IF EXISTS djm_portaal; DROP USER IF EXISTS 'wizard'@'%';
      CREATE USER 'wizard'@'%' IDENTIFIED BY '$DBWW';
      GRANT ALL PRIVILEGES ON *.* TO 'wizard'@'%'; FLUSH PRIVILEGES;" 2>/dev/null
-docker compose exec -T vers sh -c 'rm -f /app/.env /app/.env.backup-* /app/setup.toegestaan' 2>/dev/null
+docker compose exec -T vers sh -c 'rm -f /verse/.env /verse/.env.backup-* /verse/setup.toegestaan' 2>/dev/null
+toets "de werkmap zelf is alleen-lezen voor de container" "1" \
+    "$(docker compose exec -T vers sh -c 'touch /app/.schrijfproef 2>/dev/null && echo 0 || echo 1' | tr -d '\r ')"
 BESTAAT=$(docker compose exec -T db mariadb -u root -pdjmtest -N -e \
     "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name='djm_portaal';" 2>/dev/null | tr -d '\r ')
 toets "database bestaat nog niet" "0" "$BESTAAT"
-toets "er is nog geen .env" "1" "$(docker compose exec -T vers sh -c '[ -f /app/.env ] && echo 0 || echo 1' 2>/dev/null | tr -d '\r ')"
+toets "er is nog geen .env" "1" "$(docker compose exec -T vers sh -c '[ -f /verse/.env ] && echo 0 || echo 1' 2>/dev/null | tr -d '\r ')"
 
 echo ""
 echo "── Zonder installatie stuurt alles door naar setup ─────────"
@@ -76,7 +88,7 @@ bevat "weigert een databasenaam met leestekens" "letters, cijfers en liggende st
 bevat "weigert een lege gebruikersnaam" "Vul de databasegebruiker in" "$MIS"
 bevat "weigert een relatief opslagpad" "volledig pad" "$MIS"
 bevat "weigert een prefix zonder slashes" "begint én eindigt met een slash" "$MIS"
-toets "en schrijft niets weg" "1" "$(docker compose exec -T vers sh -c '[ -f /app/.env ] && echo 0 || echo 1' 2>/dev/null | tr -d '\r ')"
+toets "en schrijft niets weg" "1" "$(docker compose exec -T vers sh -c '[ -f /verse/.env ] && echo 0 || echo 1' 2>/dev/null | tr -d '\r ')"
 
 echo ""
 echo "── Stap 2: .env wegschrijven ───────────────────────────────"
@@ -92,10 +104,10 @@ stuur "$BASIS/setup.php?stap=2" \
     --data-urlencode "XACCEL_PREFIX=/beveiligd/" \
     --data-urlencode "MAIL_VAN_NAAM=Deventer Jeugd Musical" \
     --data-urlencode "SMTP_POORT=587" --data-urlencode "SMTP_BEVEILIGING=tls"
-toets ".env is aangemaakt" "0" "$(docker compose exec -T vers sh -c '[ -f /app/.env ] && echo 0 || echo 1' 2>/dev/null | tr -d '\r ')"
+toets ".env is aangemaakt" "0" "$(docker compose exec -T vers sh -c '[ -f /verse/.env ] && echo 0 || echo 1' 2>/dev/null | tr -d '\r ')"
 toets ".env is alleen voor de eigenaar leesbaar" "600" \
-    "$(docker compose exec -T vers sh -c 'stat -c %a /app/.env' 2>/dev/null | tr -d '\r ')"
-ENV=$(docker compose exec -T vers cat /app/.env 2>/dev/null)
+    "$(docker compose exec -T vers sh -c 'stat -c %a /verse/.env' 2>/dev/null | tr -d '\r ')"
+ENV=$(docker compose exec -T vers cat /verse/.env 2>/dev/null)
 bevat "het lastige wachtwoord is goed geciteerd" 'DB_PASS="wachtwoord#met\"tekens"' "$ENV"
 bevat "APP_KEY is gegenereerd" "APP_KEY=" "$ENV"
 toets "APP_KEY is 64 tekens" "1" "$(printf '%s' "$ENV" | grep -cE '^APP_KEY="[0-9a-f]{64}"$' | tr -d ' ')"
@@ -117,7 +129,7 @@ bevat "en zegt erbij dat het eerst gerepareerd moet worden" "op straat" "$UITSLA
 echo ""
 echo "── Stap 2: opnieuw opslaan bewaart het oude bestand ────────"
 # Een zelf toegevoegde regel hoort het overschrijven te overleven.
-docker compose exec -T vers sh -c 'printf "\nEIGEN_SLEUTEL=\"iets van mezelf\"\n" >> /app/.env' 2>/dev/null
+docker compose exec -T vers sh -c 'printf "\nEIGEN_SLEUTEL=\"iets van mezelf\"\n" >> /verse/.env' 2>/dev/null
 S2=$(haal "$BASIS/setup.php?stap=2")
 bevat "meldt dat er al een .env is" "Er is al een" "$S2"
 # Wachtwoordveld leeg laten hoort het bestaande wachtwoord te behouden.
@@ -130,13 +142,13 @@ stuur "$BASIS/setup.php?stap=2" \
     --data-urlencode "XACCEL_PREFIX=/beveiligd/" \
     --data-urlencode "MAIL_VAN_NAAM=Deventer Jeugd Musical" \
     --data-urlencode "SMTP_POORT=587" --data-urlencode "SMTP_BEVEILIGING=tls"
-ENV2=$(docker compose exec -T vers cat /app/.env 2>/dev/null)
+ENV2=$(docker compose exec -T vers cat /verse/.env 2>/dev/null)
 bevat "het nieuwe adres staat erin" "APP_URL=\"$BASIS\"" "$ENV2"
 bevat "een leeg wachtwoordveld laat het wachtwoord staan" 'DB_PASS="wachtwoord#met\"tekens"' "$ENV2"
 toets "er is één reservekopie gemaakt" "1" \
-    "$(docker compose exec -T vers sh -c 'ls /app/.env.backup-* 2>/dev/null | wc -l' | tr -d '\r ')"
+    "$(docker compose exec -T vers sh -c 'ls /verse/.env.backup-* 2>/dev/null | wc -l' | tr -d '\r ')"
 toets "de reservekopie is ook afgeschermd" "600" \
-    "$(docker compose exec -T vers sh -c 'stat -c %a $(ls /app/.env.backup-* | head -1)' 2>/dev/null | tr -d '\r ')"
+    "$(docker compose exec -T vers sh -c 'stat -c %a $(ls /verse/.env.backup-* | head -1)' 2>/dev/null | tr -d '\r ')"
 bevat "een zelf toegevoegde sleutel blijft staan" 'EIGEN_SLEUTEL="iets van mezelf"' "$ENV2"
 SLEUTELS=$(printf '%s' "$ENV2" | grep -oE '^(APP_KEY|OTP_PEPPER)="[0-9a-f]{64}"$' | sort)
 toets "de sleutels zijn niet opnieuw gegenereerd" "$(printf '%s' "$ENV" | grep -oE '^(APP_KEY|OTP_PEPPER)="[0-9a-f]{64}"$' | sort)" "$SLEUTELS"
@@ -207,7 +219,7 @@ toets "geen tweede beheerder toegevoegd" "1" "$AANTAL2"
 curl -s -o /dev/null -c "$K" -b "$K" -X POST -d "actie=env_opslaan" \
     --data-urlencode "APP_URL=http://kwaadwillend.example" --data-urlencode "DB_HOST=elders" \
     --data-urlencode "DB_NAME=x" --data-urlencode "DB_USER=x" "$BASIS/setup.php?stap=2"
-ENVNA=$(docker compose exec -T vers cat /app/.env 2>/dev/null)
+ENVNA=$(docker compose exec -T vers cat /verse/.env 2>/dev/null)
 mist ".env is niet meer te overschrijven" "kwaadwillend.example" "$ENVNA"
 
 echo ""
@@ -223,12 +235,14 @@ toets "portaal draait ook" "200" "$(curl -s -o /dev/null -w '%{http_code}' "$BAS
 
 echo ""
 echo "── Opruimen ────────────────────────────────────────────────"
-# De .env die de wizard schreef hoort niet in de werkmap achter te blijven; de
-# overige containers halen hun instellingen uit omgevingsvariabelen.
-docker compose exec -T vers sh -c 'rm -f /app/.env /app/.env.backup-*' 2>/dev/null
-toets ".env opgeruimd" "1" "$(docker compose exec -T vers sh -c '[ -f /app/.env ] && echo 0 || echo 1' 2>/dev/null | tr -d '\r ')"
+# De .env die de wizard schreef staat alleen in de container, maar hij hoort ook
+# daar niet te blijven staan: een volgende testrun moet weer bij nul beginnen.
+toets "er staat geen .env in de werkmap van de ontwikkelaar" "1" \
+    "$([ -f "$PROJECT/.env" ] && echo 0 || echo 1)"
+docker compose exec -T vers sh -c 'rm -f /verse/.env /verse/.env.backup-*' 2>/dev/null
+toets ".env opgeruimd" "1" "$(docker compose exec -T vers sh -c '[ -f /verse/.env ] && echo 0 || echo 1' 2>/dev/null | tr -d '\r ')"
 toets "reservekopieën opgeruimd" "0" \
-    "$(docker compose exec -T vers sh -c 'ls /app/.env.backup-* 2>/dev/null | wc -l' | tr -d '\r ')"
+    "$(docker compose exec -T vers sh -c 'ls /verse/.env.backup-* 2>/dev/null | wc -l' | tr -d '\r ')"
 
 echo ""
 echo "────────────────────────────────────────────────────────────"
