@@ -7,6 +7,14 @@
  * begrijpelijke melding opleveren, dat er niets crasht, en dat de mislukking
  * in mail_log terechtkomt.
  */
+
+// Deze testscripts horen uitsluitend op de commandoregel te draaien. Ze wijzigen
+// of wissen gegevens; wordt de map test/ per ongeluk meegeüpload naar een
+// server, dan mag een bezoeker ze nooit via de browser kunnen starten.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
 $_SERVER['SCRIPT_NAME'] = '/index.php';
 $_SERVER['HTTP_HOST']   = 'localhost';
 require '/app/config.php';

@@ -688,9 +688,14 @@ function setup_env_valideren(array $bestaand): array
             $fouten['OPSLAG_PAD'] = $resultaat['fout'] . ' Voer op de server uit: mkdir -p '
                 . $doelmap . ' && chown ' . setup_webserver_gebruiker() . ' ' . $doelmap;
         } elseif (str_starts_with($doelmap . '/', APP_ROOT . '/')) {
-            $waarschuwingen[] = 'De opslagmap staat binnen de webroot. Dat werkt, maar de videobestanden '
-                . 'zijn dan alleen door .htaccess afgeschermd. Veiliger is een map daarbuiten, '
-                . 'bijvoorbeeld /var/djm-opslag.';
+            $waarschuwingen[] = 'De opslagmap staat binnen de webroot. De videobestanden zijn dan '
+                . 'alleen door .htaccess afgeschermd, en dat is niet overal genoeg: staat er een '
+                . 'nginx vóór Apache die statische bestanden zelf uitlevert — de standaardinstelling '
+                . 'van Plesk — dan komt een verzoek om een .mp4 nooit bij Apache aan en doet .htaccess '
+                . 'niets. Zet de map bij voorkeur naast de webroot in plaats van erin, bijvoorbeeld '
+                . '/var/www/vhosts/uwdomein.nl/djm-opslag of /var/djm-opslag. Controleer het daarna met '
+                . 'de knop "Uitlevering uitproberen" in Beheer > Instellingen: die probeert de map ook '
+                . 'per videoformaat rechtstreeks op te halen.';
         }
     }
 

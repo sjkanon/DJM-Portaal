@@ -98,6 +98,17 @@ done
 [ "$PROBLEMEN" -eq "$VOOR" ] && echo "  ✓ alle opmaak komt uit deze installatie en is aanwezig"
 
 echo ""
+echo "── Testscripts weigeren een webverzoek ─────────────────────"
+VOOR=$PROBLEMEN
+# test/ hoort niet op een server te staan, maar hostingpanelen uploaden nu
+# eenmaal hele mappen. smoke.php leegt de deelnemerstabel; dat mag nooit met
+# een browserverzoek te starten zijn.
+for f in test/*.php; do
+    grep -q "PHP_SAPI" "$f" || melden "$f: geen controle op PHP_SAPI === 'cli'"
+done
+[ "$PROBLEMEN" -eq "$VOOR" ] && echo "  ✓ elk testscript draait alleen op de commandoregel"
+
+echo ""
 echo "── Bezoekersadres: alleen via client_ip() ──────────────────"
 VOOR=$PROBLEMEN
 # Wie zelf REMOTE_ADDR of X-Forwarded-For uitleest, omzeilt de controle op

@@ -86,7 +86,7 @@ docs/                        documentatie en voorbeeldconfiguraties
 
 | Document | Voor wie |
 |---|---|
-| [docs/INSTALLATIE.md](docs/INSTALLATIE.md) | De serverbeheerder: van lege server tot werkend portaal, inclusief probleemoplossing |
+| [docs/INSTALLATIE.md](docs/INSTALLATIE.md) | De serverbeheerder: van lege server tot werkend portaal, inclusief probleemoplossing. Draait u op **Plesk**, lees dan hoofdstuk 7b — daar gelden andere regels. |
 | [docs/GRAPH-SETUP.md](docs/GRAPH-SETUP.md) | De serverbeheerder: Microsoft Graph instellen zodat de inlogcodes verstuurd worden |
 | [docs/NIEUW-JAAR.md](docs/NIEUW-JAAR.md) | De beheerder van de vereniging: elk jaar een nieuwe jaargang toevoegen |
 

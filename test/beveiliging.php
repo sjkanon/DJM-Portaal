@@ -7,6 +7,14 @@
  *     docker compose exec -T web php /app/test/beveiliging.php
  */
 
+
+// Deze testscripts horen uitsluitend op de commandoregel te draaien. Ze wijzigen
+// of wissen gegevens; wordt de map test/ per ongeluk meegeüpload naar een
+// server, dan mag een bezoeker ze nooit via de browser kunnen starten.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/email_helper.php';
 require_once dirname(__DIR__) . '/includes/download_helper.php';

@@ -146,6 +146,39 @@ echo "── Eenheidstests op de beveiligingshelpers ─────────
 docker compose exec -T web php /app/test/beveiliging.php || FOUT=$((FOUT+1))
 
 echo ""
+echo "── Opslagmap binnen de webroot (het Plesk-scenario) ────────"
+# Op Plesk staat nginx vóór Apache en levert nginx statische bestanden zelf uit,
+# gekozen op extensie. .htaccess doet dan niets meer voor een .mp4. Twee dingen
+# moeten kloppen:
+#   1. de zelftest MOET dat kunnen zien (anders stempelt hij ten onrechte groen);
+#   2. op een server waar .htaccess wél geldt, moet de map dicht zijn.
+
+# 1. De ingebouwde PHP-server kent geen .htaccess: daar hoort de zelftest te
+#    klagen, en wel per videoformaat.
+BLOOT=$(docker compose exec -T -e OPSLAG_PAD=/app/opslag web \
+    php /app/test/zelftest_cli.php http://localhost:8080 2>&1)
+if printf '%s' "$BLOOT" | grep -q "^FOUT Niet rechtstreeks bereikbaar"; then
+    printf '  ✓ zelftest ziet een open opslagmap\n'; GOED=$((GOED+1))
+else
+    printf '  ✗ zelftest ziet een open opslagmap NIET — de controle is waardeloos\n'; FOUT=$((FOUT+1))
+fi
+if printf '%s' "$BLOOT" | grep -q "opslagmap (.mp4)"; then
+    printf '  ✓ en meldt het videoformaat apart (.mp4)\n'; GOED=$((GOED+1))
+else
+    printf '  ✗ .mp4 wordt niet apart geprobeerd; een extensiegebonden lek blijft dan onzichtbaar\n'; FOUT=$((FOUT+1))
+fi
+
+# 2. Apache mét .htaccess hoort de map wél dicht te houden, ook per formaat.
+DICHT=$(docker compose exec -T -e OPSLAG_PAD=/var/www/html/opslag apache \
+    php /var/www/html/test/zelftest_cli.php http://localhost:80 2>&1)
+if printf '%s' "$DICHT" | grep -q "^OK   Niet rechtstreeks bereikbaar"; then
+    printf '  ✓ met .htaccess is de map dicht, ook per videoformaat\n'; GOED=$((GOED+1))
+else
+    printf '  ✗ .htaccess schermt de opslagmap niet af\n'; FOUT=$((FOUT+1))
+    printf '%s\n' "$DICHT" | grep "Niet rechtstreeks" | sed 's/^/      /'
+fi
+
+echo ""
 echo "── Achter een reverse proxy ────────────────────────────────"
 # Eigen proces: de proxylijst wordt per proces één keer ingelezen.
 docker compose exec -T -e TRUSTED_PROXIES="10.0.0.0/8,172.16.0.0/12" \

@@ -451,24 +451,32 @@ function zelftest_directe_toegang(string $basisUrl, string $methode, callable $s
         }
         $gecontroleerd[] = $omschrijving . ' (HTTP ' . $antwoord['status'] . ')';
         if ($antwoord['status'] === 200) {
-            $problemen[] = $omschrijving . ' levert het bestand gewoon uit: ' . $url;
+            $problemen[] = $omschrijving;
         }
     }
 
     if ($problemen !== []) {
-        $stap('Niet rechtstreeks bereikbaar', false, implode(' — ', $problemen)
-            . ' Iedereen met de juiste URL kan de video\'s zo ophalen, zonder in te loggen.'
-            . ' Levert alleen een bepaalde extensie uit, dan handelt er een webserver'
-            . ' statische bestanden af buiten PHP en .htaccess om (op Plesk: nginx vóór'
-            . ' Apache). Zet de opslagmap dan buiten de webroot, of sluit de map af in de'
-            . ' nginx-instellingen van het domein.');
+        $stap(
+            'Niet rechtstreeks bereikbaar',
+            false,
+            'De opslagmap is van buitenaf te benaderen: ' . implode(' · ', $problemen)
+            . '. Iedereen met de juiste URL kan de video\'s zo ophalen, zonder in te loggen.'
+            . ' Lukt dat alleen bij bepaalde extensies, dan handelt er een webserver de'
+            . ' statische bestanden af buiten PHP en .htaccess om — dat is de'
+            . ' standaardinstelling van Plesk, waar nginx vóór Apache staat. Zet de'
+            . ' opslagmap dan buiten de webroot (OPSLAG_PAD in .env), of sluit de map af'
+            . ' in de nginx-instellingen van het domein.'
+        );
         return;
     }
 
+    $perFormaat = count($gecontroleerd) > 1
+        ? ' Ook per videoformaat geprobeerd (' . implode(', ', ZELFTEST_PROBEER_EXTENSIES) . ').'
+        : '';
     $stap('Niet rechtstreeks bereikbaar', true, sprintf(
-        'Alle %d geprobeerde adressen werden geweigerd, ook per videoformaat (%s).',
+        '%d adres(sen) geprobeerd, allemaal geweigerd.%s',
         count($gecontroleerd),
-        implode(', ', ZELFTEST_PROBEER_EXTENSIES)
+        $perFormaat
     ));
 }
 

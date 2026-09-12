@@ -6,6 +6,10 @@ plus de tijd die het uploaden van de video's kost.
 
 Doorloop de hoofdstukken op volgorde.
 
+> **Draait u op Plesk?** Lees dan sowieso [hoofdstuk 7b](#7b-plesk). Plesk zet standaard
+> nginx vóór Apache en levert video's zelf uit op extensie; met de standaardinstellingen
+> staan de registraties dan publiek op internet, terwijl het portaal er goed uitziet.
+
 | Stap | Onderwerp |
 |---|---|
 | 1 | [Vereisten](#1-vereisten) |
@@ -15,6 +19,7 @@ Doorloop de hoofdstukken op volgorde.
 | 5 | [.env in detail](#5-env-in-detail) |
 | 6 | [Opslagmap inrichten](#6-opslagmap-inrichten) |
 | 7 | [Webserver configureren](#7-webserver-configureren) |
+| 7b | [**Plesk**](#7b-plesk) — lees dit als u op Plesk draait |
 | 8 | [E-mail via Microsoft Graph](#8-e-mail-via-microsoft-graph) |
 | 9 | [Cron instellen](#9-cron-instellen) |
 | 10 | [Na installatie](#10-na-installatie) |
@@ -319,6 +324,11 @@ controleert of de ingelogde deelnemer recht heeft op dat jaar.
 
 Zet de map daarom bij voorkeur **buiten de webroot**.
 
+Op een hostingpaneel is dat geen voorkeur maar een noodzaak: staat de map binnen de webroot,
+dan is `.htaccess` de enige afscherming, en die wordt overgeslagen zodra er een webserver
+vóór Apache staat die statische bestanden zelf afhandelt. Zie [hoofdstuk 7b](#7b-plesk) voor
+Plesk; bij DirectAdmin en cPanel met een nginx-proxy geldt hetzelfde.
+
 Geeft u het pad op in stap 2 van `setup.php`, dan maakt de wizard de map zelf aan en test hij
 met een echte schrijfpoging of de webserver erin kan. Ligt de map binnen de webroot, dan krijgt
 u daar een waarschuwing over. De opdrachten hieronder zijn voor wie het liever zelf doet, of
@@ -387,6 +397,10 @@ sudo -u www-data test -r /var/djm-opslag/2026/musical-2026.mp4 && echo leesbaar
 
 ## 7. Webserver configureren
 
+> Gebruikt u een hostingpaneel in plaats van een eigen server? Dan beheert het paneel deze
+> bestanden en moet u de instellingen via het paneel doen. Voor Plesk staat dat in
+> [hoofdstuk 7b](#7b-plesk).
+
 Er liggen twee kant-en-klare voorbeelden in deze map:
 
 - **`docs/nginx.voorbeeld.conf`** — nginx met PHP-FPM
@@ -443,6 +457,175 @@ en beide geheime sleutels liggen dan op straat.
 
 - Apache: zorg dat `AllowOverride All` aanstaat, zodat de meegeleverde `.htaccess` werkt.
 - nginx: het blok `location ~ /\. { deny all; }` uit het voorbeeldbestand regelt dit.
+
+---
+
+## 7b. Plesk
+
+Draait het portaal op een Plesk-server, lees dan eerst dit hoofdstuk. Plesk zet standaard
+**nginx vóór Apache**, en dat verandert twee dingen die u anders pas merkt als het misgaat.
+
+### Het belangrijkste: nginx levert statische bestanden zelf uit
+
+In **Websites & Domeinen → uw domein → Apache- en nginx-instellingen** staat een optie in de
+trant van *"Statische bestanden rechtstreeks door nginx verwerken"*, met daaronder een lijst
+met extensies. Die optie staat standaard aan, en in die lijst staan onder meer `mp4`, `avi`,
+`mov` en `zip`.
+
+Wat dat betekent: een verzoek om `https://uwdomein.nl/opslag/2026/musical-2026.mp4` wordt
+dan door nginx zelf afgehandeld. Het komt **nooit bij Apache aan**, en dus doet de
+`.htaccess` in `opslag/` niets. De videoregistraties staan dan gewoon publiek op internet
+voor iedereen die het pad raadt — terwijl alles in het portaal er correct uitziet.
+
+> Dit is geen theoretisch risico. Het is de standaardinstelling van Plesk in combinatie met
+> de standaardlocatie van de opslagmap (`opslag/` binnen de projectmap).
+
+**De oplossing: zet de opslagmap naast de webroot in plaats van erin.**
+
+Op Plesk is `httpdocs` de webroot. Alles wat daar een niveau boven staat, is niet via een URL
+te bereiken — ongeacht welke webserver ervoor staat, en ongeacht welke instellingen er
+veranderen:
+
+```
+/var/www/vhosts/uwdomein.nl/
+├── httpdocs/          ← hier staat het portaal (de webroot)
+└── djm-opslag/        ← hier komen de video's (NIET bereikbaar via een URL)
+```
+
+Maak die map aan via **Bestanden** in Plesk of over SSH, en zet hem in `.env`:
+
+```ini
+OPSLAG_PAD=/var/www/vhosts/uwdomein.nl/djm-opslag
+```
+
+De map moet schrijfbaar zijn voor de systeemgebruiker van het abonnement (in Plesk meestal
+de FTP-gebruiker van het domein). Over SSH:
+
+```bash
+mkdir -p /var/www/vhosts/uwdomein.nl/djm-opslag
+chown uwgebruiker:psacln /var/www/vhosts/uwdomein.nl/djm-opslag
+chmod 750 /var/www/vhosts/uwdomein.nl/djm-opslag
+```
+
+Zet de video's daarna via SFTP in die map, met een submap per jaar (`2026/`, `2027/`).
+
+**Moet de map tóch binnen `httpdocs` blijven?** Sluit hem dan af in
+**Apache- en nginx-instellingen → Aanvullende nginx-richtlijnen**:
+
+```nginx
+location ^~ /opslag/ {
+    deny all;
+}
+location ^~ /logs/ {
+    deny all;
+}
+location ^~ /includes/ {
+    deny all;
+}
+location ~ /\. {
+    deny all;
+}
+```
+
+`^~` is hier belangrijk: daarmee wint dit blok van de regel die nginx gebruikt om statische
+bestanden op extensie af te handelen.
+
+### Controleer het, vertrouw het niet
+
+Ga na de installatie naar **Beheer → Instellingen → Uitlevering van downloads uitproberen**.
+Die knop zet kort een testbestand klaar en probeert het daarna op te halen — ook per
+videoformaat apart, juist omdat een webserver per extensie kan verschillen. Bij de regel
+*"Niet rechtstreeks bereikbaar"* hoort **OK** te staan. Staat er FOUT bij, dan zijn de video's
+op dit moment publiek en klopt bovenstaande nog niet.
+
+### Uitlevering van grote bestanden
+
+| PHP-handler in Plesk | Zet in `.env` |
+|---|---|
+| FPM-toepassing bediend door Apache (standaard) | `DELIVERY_MODE=php` |
+| FPM-toepassing bediend door nginx | `DELIVERY_MODE=php`, of `xaccel` mét de richtlijn hieronder |
+| Apache-module | `DELIVERY_MODE=php` |
+
+Laat `DELIVERY_MODE` op een Plesk-server niet op `auto` staan. De automatische herkenning
+kijkt naar wie PHP draait; wordt dat nginx, dan kiest hij `xaccel` — en zonder het
+`internal` location-blok krijgt de bezoeker dan een 404 in plaats van zijn video.
+
+`mod_xsendfile` zit niet standaard in Plesk; `xsendfile` is dus geen optie tenzij u die
+module zelf installeert.
+
+**Belangrijk bij `DELIVERY_MODE=php`:** nginx bewaart standaard eerst het hele antwoord van
+Apache voordat het naar de bezoeker gaat. Bij een video van enkele gigabytes loopt de
+schijf vol of valt de download stil. Zet dit in **Aanvullende nginx-richtlijnen**:
+
+```nginx
+location ~ ^/download\.php {
+    proxy_pass http://127.0.0.1:7080;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+}
+```
+
+> Controleer de poort: Plesk gebruikt meestal `7080` voor Apache over http en `7081` voor
+> https. U vindt de juiste waarde in de door Plesk gegenereerde nginx-configuratie van het
+> domein.
+
+Wilt u liever `xaccel` (nginx levert de video zelf uit, buiten PHP en Apache om), voeg dan
+óók dit toe en zet `DELIVERY_MODE=xaccel` met `XACCEL_PREFIX=/beveiligd/` in `.env`:
+
+```nginx
+location /beveiligd/ {
+    internal;
+    alias /var/www/vhosts/uwdomein.nl/djm-opslag/;
+    add_header Accept-Ranges bytes;
+}
+```
+
+Dit werkt ook als Apache de PHP-kant afhandelt: nginx ziet de `X-Accel-Redirect` in het
+antwoord van Apache en neemt de uitlevering over. Controleer het daarna met dezelfde
+knop **Uitlevering uitproberen** — die meldt welke route de bytes werkelijk heeft geleverd.
+
+### Het IP-adres van de bezoeker
+
+Omdat nginx vóór Apache staat, ziet PHP mogelijk `127.0.0.1` als adres van élke bezoeker.
+Dan delen alle deelnemers dezelfde teller en sluit de limiet op inlogcodes iedereen tegelijk
+buiten. Recente Plesk-versies lossen dit zelf op, maar controleer het:
+
+Open **Beheer → Logboek → Inloggen** na uw eigen inlogpoging. Staat daar uw eigen IP-adres,
+dan is er niets aan de hand. Staat er `127.0.0.1` (of waarschuwt het beheeroverzicht
+erover), zet dan in `.env`:
+
+```ini
+TRUSTED_PROXIES=127.0.0.1,::1
+```
+
+Zie hoofdstuk 5 voor de achtergrond.
+
+### PHP-instellingen
+
+Zet deze niet in `.htaccess` — dat werkt alleen met de Apache-module, niet met FPM. Gebruik
+**Websites & Domeinen → uw domein → PHP-instellingen**:
+
+| Instelling | Waarde |
+|---|---|
+| `max_execution_time` | `0` (of ruim, bijvoorbeeld `3600`) bij `DELIVERY_MODE=php` |
+| `memory_limit` | `256M` is ruim voldoende; het bestand wordt in blokken gelezen |
+| `post_max_size` / `upload_max_filesize` | Alleen van belang als u video's via de browser wilt uploaden. Voor grote bestanden is SFTP de betere route. |
+| `output_buffering` | `Off` |
+
+### Cron
+
+Gebruik de ingebouwde planner in plaats van `crontab -e`: **Websites & Domeinen → uw domein
+→ Geplande taken → Taak toevoegen**, type *"PHP-script uitvoeren"*, met als pad:
+
+```
+/httpdocs/cron_opschonen.php
+```
+
+Dagelijks, bijvoorbeeld om 04:00. Plesk gebruikt dan vanzelf de PHP-versie van het domein.
 
 ---
 
@@ -516,7 +699,10 @@ Loop deze lijst af zodra het portaal draait.
    tekst. Zie verder hoofdstuk 7.
 
 4. **Controleer dat de video's niet publiek zijn.** Probeer een bestand rechtstreeks te
-   openen via de URL; dat moet mislukken.
+   openen via de URL; dat moet mislukken. Test met de échte extensie van uw video
+   (`.mp4`), niet met een willekeurig ander bestand: een webserver die statische bestanden
+   zelf afhandelt doet dat per extensie, en dan zegt een `.txt` niets over een `.mp4`.
+   De zelftest bij punt 9 doet dit voor alle videoformaten tegelijk.
 
 5. **Zet HTTPS verplicht.** De omleiding staat in beide voorbeeldconfiguraties.
 
@@ -535,8 +721,10 @@ Loop deze lijst af zodra het portaal draait.
    dan stopt de mail — en daarmee het inloggen. Zie `GRAPH-SETUP.md`.
 
 9. **Draai de uitleveringszelftest** onder **Beheer › Instellingen › Testen**, knop
-   **Uitproberen**. Alle stappen horen groen te zijn. Dit is de snelste controle dat de
-   serverconfiguratie uit hoofdstuk 7 ook echt doet wat de bedoeling is.
+   **Uitproberen**. Alle stappen horen groen te zijn — let vooral op *"Niet rechtstreeks
+   bereikbaar"*, want dat is de regel die zegt of uw video's afgeschermd zijn. Dit is de
+   snelste controle dat de serverconfiguratie uit hoofdstuk 7 (of 7b) ook echt doet wat de
+   bedoeling is.
 
 10. **Doe een volledige test met uw eigen e-mailadres**: code aanvragen, inloggen, downloaden.
 
