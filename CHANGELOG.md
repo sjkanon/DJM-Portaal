@@ -4,7 +4,33 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
 
 ## 1.1.0 — 12 september 2026
 
+### Plesk en andere hostingpanelen
+
+- **De zelftest van de uitlevering probeert nu ook per videoformaat of de opslagmap
+  rechtstreeks bereikbaar is.** Hij gebruikte alleen een `.bin`-bestand, en dat is precies de
+  extensie die een webserver met "statische bestanden zelf afhandelen" met rust laat. Op
+  Plesk — waar nginx vóór Apache staat en die optie standaard aan staat mét `mp4` en `zip` in
+  de lijst — meldde de test daardoor "niet rechtstreeks bereikbaar" terwijl de video's
+  publiek stonden. De test legt nu per formaat een proefbestand klaar, en de foutmelding
+  noemt de oorzaak en de oplossing.
+- **`setup.php` waarschuwt scherper** als de opslagmap binnen de webroot valt: `.htaccess` is
+  daar niet altijd genoeg, en de melding legt uit waarom en noemt een Plesk-pad.
+- **De waarschuwing over een niet-ingestelde proxy slaat alleen nog aan als het adres dat het
+  portaal ziet zelf intern is.** Panelen die `REMOTE_ADDR` al corrigeren (mod_remoteip)
+  leverden anders een verwarrende melding op. De melding noemt nu ook de Plesk-waarde
+  `TRUSTED_PROXIES=127.0.0.1,::1`.
+- **Nieuw hoofdstuk 7b in `docs/INSTALLATIE.md`**: opslagmap naast `httpdocs`, de
+  nginx-richtlijnen als hij er tóch in moet, `DELIVERY_MODE` per PHP-handler,
+  `proxy_buffering off` voor grote downloads, X-Accel via de paneelinstellingen, het
+  bezoekersadres, PHP-instellingen en de geplande taak.
+
 ### Beveiliging
+
+- **De testscripts weigeren nu een webverzoek** (`PHP_SAPI !== 'cli'` → 404), en `test/` wordt
+  afgeschermd door de root-`.htaccess`, een eigen `test/.htaccess` en beide
+  voorbeeldconfiguraties. Panelen uploaden nu eenmaal hele mappen, en `test/smoke.php` leegt
+  de deelnemers- en jaargangentabel. De statische controle bewaakt dat elk testscript die
+  controle houdt. De installatiehandleiding zegt nu expliciet `test/` niet mee te uploaden.
 - **Content-Security-Policy zonder `'unsafe-inline'` voor scripts.** Alle JavaScript
   staat nu in `admin/assets/admin.js` in plaats van in `onclick=`-attributen en
   scriptblokken in de pagina. Zou er ooit tekst van een bezoeker ongeëscaped op een

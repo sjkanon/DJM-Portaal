@@ -65,10 +65,14 @@ sudo systemctl restart php8.3-fpm
 Zet de projectmap op de server. Op een VPS is `/var/www/djm-portaal` een logische plek;
 op shared hosting is dat meestal `~/domains/portaal.example.nl/public_html`.
 
+Laat `test/` erbuiten: die map hoort bij de ontwikkeling en bevat scripts die gegevens
+wissen. Ze weigeren zelf een webverzoek en de meegeleverde configuratie sluit de map af,
+maar wat er niet staat, kan ook niet misgaan.
+
 Met rsync vanaf uw eigen computer:
 
 ```bash
-rsync -av --exclude '.git' --exclude '.env' --exclude 'opslag/' \
+rsync -av --exclude '.git' --exclude '.env' --exclude 'opslag/' --exclude 'test/' \
       ./ gebruiker@server:/var/www/djm-portaal/
 ```
 
@@ -77,7 +81,12 @@ Of met git op de server:
 ```bash
 cd /var/www
 git clone <repository-url> djm-portaal
+rm -rf djm-portaal/test
 ```
+
+> **Uploadt u via het bestandsbeheer van een hostingpaneel** (Plesk, DirectAdmin, cPanel),
+> dan gaat meestal de hele map mee. Verwijder `test/` daarna met de hand, en controleer dat
+> `https://uwdomein.nl/test/smoke.php` geen resultaat geeft.
 
 Zet daarna de rechten goed. De webserver (meestal `www-data`) moet in `logs/` kunnen
 schrijven, en in de opslagmap kunnen lezen:

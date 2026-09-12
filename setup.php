@@ -913,13 +913,46 @@ function setup_mag_slotpagina(): bool
 }
 
 if (setup_installatie_voltooid() && !setup_ontgrendeld() && !setup_mag_slotpagina()) {
+    $netOpgeslagen = !empty($_SESSION['setup_env_geschreven']);
+    unset($_SESSION['setup_env_geschreven']);
+
     setup_kop('Installatie voltooid');
     ?>
     <h2 class="h5">De installatie is al voltooid</h2>
-    <p>
-        Er staat al minstens één actieve beheerder in de database. Om te voorkomen dat iemand
-        anders de installatie overneemt, doet <code>setup.php</code> nu niets meer.
-    </p>
+
+    <?php if ($netOpgeslagen): ?>
+        <div class="alert alert-warning">
+            <h3 class="h6">Wat er zojuist gebeurde</h3>
+            <p class="mb-2">
+                Uw instellingen <strong>zijn bewaard</strong> in <code>.env</code>. Daardoor kon de
+                wizard voor het eerst bij de database — en daar staat al een complete installatie
+                met minstens één beheerder in. Op dat moment doet <code>setup.php</code> niets meer,
+                ook niet de stappen die u nog voor zich had.
+            </p>
+            <table class="table table-sm mb-2">
+                <tbody>
+                    <tr><th class="w-25">Databaseserver</th><td><code><?= h(DB_SOCKET !== '' ? DB_SOCKET : DB_HOST . (DB_PORT !== '' ? ':' . DB_PORT : '')) ?></code></td></tr>
+                    <tr><th>Database</th><td><code><?= h(DB_NAME) ?></code></td></tr>
+                    <tr><th>Beheerders erin</th><td><?= (int)setup_aantal_beheerders() ?></td></tr>
+                </tbody>
+            </table>
+            <p class="mb-0">
+                <strong>Is dit de juiste database?</strong> Dan bent u klaar — log hieronder in.
+                Het portaal draait al; de stappen die u miste waren alleen nodig geweest als de
+                database nog leeg was.<br>
+                <strong>Is dit niet de bedoeling?</strong> Dan wees u per ongeluk een database aan
+                die al in gebruik is. Pas <code>DB_NAME</code> in <code>.env</code> aan naar een
+                lege database, of maak het ontgrendelbestand hieronder aan om de wizard opnieuw
+                te doorlopen.
+            </p>
+        </div>
+    <?php else: ?>
+        <p>
+            Er staat al minstens één actieve beheerder in de database. Om te voorkomen dat iemand
+            anders de installatie overneemt, doet <code>setup.php</code> nu niets meer.
+        </p>
+    <?php endif; ?>
+
     <p class="mb-2">Wilt u de installatie tóch opnieuw draaien? Maak dan op de server een leeg
         bestand aan in de projectmap:</p>
     <pre>touch <?= h(APP_ROOT) ?>/<?= h(SETUP_ONTGRENDEL_BESTAND) ?></pre>
@@ -973,6 +1006,10 @@ if ($actie === 'env_opslaan' || $actie === 'env_testen') {
                 'tekst'  => $tekst,
                 'punten' => $envWaarschuwingen,
             ];
+            // Onthouden voor het geval het slot hierna dichtvalt: dan hoort de
+            // gebruiker te horen dát zijn instellingen bewaard zijn, en waarom
+            // de wizard er ineens mee ophoudt.
+            $_SESSION['setup_env_geschreven'] = true;
             // Alleen doorlopen als de database ook echt antwoordt. Zo niet, dan
             // terug naar dit formulier — dat leest .env opnieuw in en laat de
             // foutmelding zien bij de gegevens die het probleem veroorzaken.

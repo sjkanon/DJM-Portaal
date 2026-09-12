@@ -120,9 +120,18 @@ echo "── Afgeschermde paden per webserver ───────────�
 for SERVER in "PHP-server|http://localhost:8123" "nginx|http://localhost:8126" "Apache|http://localhost:8127"; do
     NAAM=${SERVER%%|*}; BASIS=${SERVER#*|}
     printf '  %s\n' "$NAAM"
-    for PAD in /.env /db.sql /includes/auth.php /logs/app.log /opslag/2026/musical-2026.mp4 /README.md; do
+    for PAD in /.env /db.sql /includes/auth.php /logs/app.log /opslag/2026/musical-2026.mp4 \
+               /README.md /test/smoke.php /test/zelftest_cli.php; do
         CODE=$(status "$BASIS$PAD")
-        if [ "$NAAM" = "PHP-server" ]; then
+        if [ "$NAAM" = "PHP-server" ] && [ "${PAD#/test/}" != "$PAD" ]; then
+            # De testscripts weigeren zelf een webverzoek, ook zonder .htaccess.
+            # Dat is juist de laag die telt als test/ per ongeluk meegeüpload is.
+            if [ "$CODE" = "200" ]; then
+                printf '    ✗ %-32s is uitvoerbaar via de browser (200)\n' "$PAD"; FOUT=$((FOUT+1))
+            else
+                printf '    ✓ %-32s weigert zichzelf (%s)\n' "$PAD" "$CODE"; GOED=$((GOED+1))
+            fi
+        elif [ "$NAAM" = "PHP-server" ]; then
             # De ingebouwde PHP-server kent geen .htaccess en is nooit voor
             # productie bedoeld; alleen melden, niet afkeuren.
             printf '    – %-32s %s (niet van toepassing)\n' "$PAD" "$CODE"
