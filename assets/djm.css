@@ -351,14 +351,6 @@ body {
     outline-offset: 2px;
 }
 
-/* Het menu-item Uitloggen is een knop in een formulier (CSRF), maar moet er
-   hetzelfde uitzien als de links ernaast. */
-.navbar-djm .nav-link.btn {
-    border: 0;
-    padding-top: .5rem;
-    padding-bottom: .5rem;
-}
-
 /* Icoon en label horen op één regel te blijven. Zonder dit breekt het label
    onder het icoon zodra de balk krap wordt, en wordt de navigatiebalk anderhalf
    keer zo hoog. */
@@ -377,9 +369,9 @@ body {
     text-overflow: ellipsis;
 }
 
-/* Zodra het menu uitklapt, staan er tien items naast de portaalnaam binnen een
-   container van maximaal 1320 pixels. Met de standaardmaten van Bootstrap past
-   dat niet: de naam wordt dan op élk breed scherm afgekapt. Iets minder
+/* Zodra het menu uitklapt, staan er negen items plus het accountmenu naast het
+   logo, binnen een container van 1140 (xl) of 1320 pixels (xxl). Met de
+   standaardmaten van Bootstrap past dat op xl net niet; iets minder
    tussenruimte en een fractie kleinere letter lossen dat op. */
 @media (min-width: 1200px) {
     .navbar-djm .navbar-nav .nav-link {
@@ -394,33 +386,39 @@ body {
     }
 }
 
-/* Tussen 1200 en 1400 pixels is het nog krapper. Daar wordt de naam van de
-   beheerder ingeklapt tot alleen het uitlogicoon; hij blijft wel in de HTML
-   staan, zodat een schermlezer hem nog voorleest. */
-@media (min-width: 1200px) and (max-width: 1399.98px) {
-    .navbar-djm .djm-beheerdersnaam {
-        position: absolute !important;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        border: 0;
-    }
-
-    /* De uitlogknop is het enige menu-item in een formulier; zonder zichtbaar
-       label hoeft het icoon daar geen rechtermarge meer. */
-    .navbar-djm form .nav-link .bi {
-        margin-right: 0 !important;
-    }
-}
-
 @media (min-width: 1400px) {
     .navbar-djm .navbar-brand {
         max-width: 420px;
     }
+}
+
+/* Zonder logo staat de portaalnaam links. Tussen 1200 en 1400 pixels is daar
+   geen ruimte voor naast het uitgeklapte menu; een naam van een paar letters
+   ("D…") zegt niets, dus dan alleen het icoon. De naam staat in de tooltip. */
+@media (min-width: 1200px) and (max-width: 1399.98px) {
+    .djm-beheer .navbar-brand .djm-merknaam {
+        display: none;
+    }
+}
+
+/* Het logo in de balk van het beheer: vrij te uploaden, dus een vaste hoogte. */
+.djm-beheer .navbar-brand img {
+    height: 32px;
+    width: auto;
+    max-width: 160px;
+    object-fit: contain;
+}
+
+/* Het accountmenu: de actieve regel in de merkkleur in plaats van Bootstrap-blauw.
+   Uitloggen is een knop in een formulier en moet er net zo uitzien als de links. */
+.navbar-djm .dropdown-menu {
+    --bs-dropdown-link-active-bg: var(--djm);
+    --bs-dropdown-link-active-color: var(--djm-tekst);
+    min-width: 13rem;
+}
+
+.navbar-djm .dropdown-toggle::after {
+    vertical-align: .15em;
 }
 
 .kaart {

@@ -6,6 +6,10 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
 
 ### Beheer
 
+- **De menubalk van het beheer past weer op één regel.** Handleiding, Portaal bekijken en
+  Uitloggen staan nu in een menu onder de naam van de beheerder, en links staat het logo in
+  plaats van de portaalnaam (zonder logo blijft de naam staan). Voorheen bleef er op een breed
+  scherm van de portaalnaam maar één letter over.
 - **Nieuw: Beheer › Beheerders.** Beheerders toevoegen, een nieuwe link sturen en accounts uit-
   en weer inschakelen, zonder server of database. Een nieuwe beheerder krijgt een uitnodiging
   per e-mail en kiest daarin zelf een wachtwoord (link 72 uur geldig); niemand anders ziet het.
