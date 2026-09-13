@@ -103,9 +103,7 @@ body {
 /* ─── Portaal (publiek) ──────────────────────────────────────────────────── */
 
 .djm-portaal {
-    background: #0f172a;
-    background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%);
-    background-attachment: fixed;
+    background: #f4f6f9;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -120,41 +118,90 @@ body {
 
 .djm-portaal main {
     flex: 1 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 32px 16px;
 }
 
-.djm-kaart {
-    width: 100%;
-    max-width: 820px;
-    background: #fff;
-    border: 0;
-    border-radius: 16px;
-    box-shadow: 0 24px 60px rgba(0, 0, 0, .35);
-    overflow: hidden;
-}
-
-.djm-kaart-smal {
-    max-width: 440px;
-}
-
-.djm-kop {
-    background: var(--djm);
-    padding: 28px 24px;
+.djm-portaal footer {
+    flex-shrink: 0;
+    padding: 18px;
     text-align: center;
-    color: var(--djm-tekst);
+    color: #6b7280;
+    font-size: .8rem;
 }
 
-.djm-kop img {
-    max-height: 52px;
-    max-width: 100%;
+/* De balk en de kop eronder vormen één vlak in de merkkleur; een haarlijn
+   houdt ze toch als twee lagen herkenbaar. */
+.djm-portaal-nav {
+    border-bottom: 1px solid color-mix(in srgb, var(--djm-tekst) 14%, transparent);
+    padding-top: .6rem;
+    padding-bottom: .6rem;
+}
+
+.djm-portaal-nav .navbar-brand img {
+    max-height: 40px;
     width: auto;
 }
 
-.djm-kop .djm-kop-titel {
+.djm-portaal-gebruiker {
     color: var(--djm-tekst-zacht);
+    max-width: 32ch;
+}
+
+/* Uitlogknop op de merkkleur: omlijnd in de tekstkleur, zodat hij bij elke
+   ingestelde kleur leesbaar is. */
+.btn-djm-omlijnd {
+    background: transparent;
+    border: 1px solid color-mix(in srgb, var(--djm-tekst) 45%, transparent);
+    color: var(--djm-tekst);
+}
+
+.btn-djm-omlijnd:hover,
+.btn-djm-omlijnd:focus,
+.btn-djm-omlijnd:active {
+    background: color-mix(in srgb, var(--djm-tekst) 14%, transparent);
+    border-color: var(--djm-tekst);
+    color: var(--djm-tekst);
+}
+
+.btn-djm-omlijnd:focus-visible {
+    outline: 2px solid var(--djm-tekst);
+    outline-offset: 2px;
+    box-shadow: none;
+}
+
+/* De kop loopt onder de eerste kaart door: die schuift er een stukje over. */
+.djm-paginakop {
+    background: var(--djm);
+    color: var(--djm-tekst);
+    padding: 2.25rem 0 4.5rem;
+}
+
+.djm-paginakop-intro {
+    color: var(--djm-tekst-zacht);
+    max-width: 70ch;
+}
+
+.djm-portaal main> :first-child:not(.alert),
+.djm-portaal main>.alert:first-child {
+    margin-top: -2.75rem;
+    position: relative;
+}
+
+.djm-portaal .kaart {
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px rgba(15, 23, 42, .06);
+}
+
+/* Inlogstappen: titel en formulierkaart smal en gecentreerd. */
+.djm-paginakop-smal {
+    text-align: center;
+}
+
+.djm-paginakop-smal .djm-paginakop-intro {
+    max-width: 44ch;
+    margin-inline: auto;
+}
+
+.djm-portaal main.djm-smal {
+    max-width: calc(480px + 1.5rem);
 }
 
 .djm-code-invoer {
@@ -166,12 +213,95 @@ body {
     text-indent: .6rem;
 }
 
-.djm-portaal footer {
+.min-w-0 {
+    min-width: 0;
+}
+
+/* Jaargangen als kaarten in een raster: zoveel naast elkaar als er passen
+   (minimaal 340 pixels breed), nieuwste eerst. Eén jaargang vult de breedte,
+   twee delen hem, vanaf drie loopt het door op de volgende rij. */
+.djm-jaargangen {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+    gap: 1.5rem;
+    /* Kaarten op één rij even hoog, zodat er geen gaten in het raster vallen. */
+    align-items: stretch;
+}
+
+.djm-jaargang {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem;
+    /* De bestanden hieronder richten zich naar de breedte van de kaart, niet
+       naar die van het scherm. */
+    container-type: inline-size;
+}
+
+.djm-jaargang-kop {
+    display: flex;
+    align-items: center;
+    gap: .85rem;
+}
+
+.djm-jaargang-jaar {
     flex-shrink: 0;
-    padding: 18px;
-    text-align: center;
-    color: rgba(255, 255, 255, .55);
-    font-size: .8rem;
+    padding: .35rem .6rem;
+    border-radius: 8px;
+    background: var(--djm);
+    color: var(--djm-tekst);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+}
+
+/* Bestanden binnen een jaargang: in een smalle kaart onder elkaar, in een
+   brede kaart (één jaargang over de volle breedte) naast elkaar. */
+.djm-bestanden {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+    gap: .6rem;
+}
+
+.djm-bestand {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .6rem .85rem;
+    padding: .75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fafbfc;
+}
+
+.djm-bestand-naam {
+    flex: 1 1 8rem;
+}
+
+.djm-bestand-icoon {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 9px;
+    font-size: 1.2rem;
+    color: var(--djm);
+    background: color-mix(in srgb, var(--djm) 10%, #fff);
+}
+
+/* Is de kaart te smal voor titel en knop naast elkaar, dan komt de knop
+   eronder over de volle breedte in plaats van de titel af te knijpen. */
+@container (max-width: 330px) {
+    .djm-bestand .btn {
+        width: 100%;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .djm-paginakop {
+        padding-top: 1.5rem;
+    }
 }
 
 /* ─── Beheer ─────────────────────────────────────────────────────────────── */
@@ -446,7 +576,7 @@ code.pad {
         background: #fff;
     }
 
-    .djm-kaart {
+    .djm-portaal .kaart {
         box-shadow: none;
     }
 }

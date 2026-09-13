@@ -2,6 +2,18 @@
 
 Alle noemenswaardige wijzigingen aan het DJM Portaal.
 
+## Onuitgebracht
+
+### Portaal
+
+- **Het portaal is schermvullend, met een navigatiebalk.** Inloggen, de inlogcode en het
+  overzicht hebben nu dezelfde opbouw: een balk in de merkkleur met het logo, een kop met de
+  paginatitel en daaronder de inhoud. Bij de inlogstappen staat het formulier in een smalle
+  kaart onder de kop. Na het inloggen staan het e-mailadres en de uitlogknop in de balk en de
+  jaargangen als kaarten in een raster (nieuwste eerst, zoveel naast elkaar als er passen),
+  elk met het aantal video's en de totale grootte. Op een telefoon valt het e-mailadres uit
+  de balk en staat alles onder elkaar. Nog steeds zonder JavaScript.
+
 ## 1.1.0 — 12 september 2026
 
 ### Plesk en andere hostingpanelen

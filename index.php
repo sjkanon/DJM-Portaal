@@ -65,7 +65,13 @@ if ($portaalOpen && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-pagina_start('Inloggen', ['smal' => true]);
+portaal_start('Inloggen', [
+    'smal'  => true,
+    'intro' => $portaalOpen ? instelling(
+        'portaal_welkomst',
+        'Vul uw e-mailadres in. U ontvangt een eenmalige inlogcode waarmee u de videoregistratie van de musical kunt downloaden.'
+    ) : '',
+]);
 
 if ($melding !== '') {
     toon_melding($melding, $meldingType);
@@ -82,13 +88,6 @@ if (!$portaalOpen): ?>
 <?php else:
     toon_fout($fout);
     ?>
-    <p class="text-secondary small">
-        <?= h(instelling(
-            'portaal_welkomst',
-            'Vul uw e-mailadres in. U ontvangt een eenmalige inlogcode waarmee u de videoregistratie van de musical kunt downloaden.'
-        )) ?>
-    </p>
-
     <form method="post" action="<?= h(url('index.php')) ?>" novalidate>
         <?= csrf_field() ?>
         <div class="mb-3">
@@ -122,4 +121,4 @@ if (!$portaalOpen): ?>
     </div>
 </div>
 <?php
-pagina_eind();
+portaal_eind();

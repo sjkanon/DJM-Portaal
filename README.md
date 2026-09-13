@@ -89,6 +89,7 @@ docs/                        documentatie en voorbeeldconfiguraties
 | [docs/INSTALLATIE.md](docs/INSTALLATIE.md) | De serverbeheerder: van lege server tot werkend portaal, inclusief probleemoplossing. Draait u op **Plesk**, lees dan hoofdstuk 7b — daar gelden andere regels. |
 | [docs/GRAPH-SETUP.md](docs/GRAPH-SETUP.md) | De serverbeheerder: Microsoft Graph instellen zodat de inlogcodes verstuurd worden |
 | [docs/NIEUW-JAAR.md](docs/NIEUW-JAAR.md) | De beheerder van de vereniging: elk jaar een nieuwe jaargang toevoegen |
+| [docs/BEHEER.md](docs/BEHEER.md) | Wie het beheer overneemt of deelt: hoe het platform werkt, elk beheerscherm, beheerders, terugkerende taken, vragen van deelnemers en technisch beheer |
 
 Verder in `docs/`: [ARCHITECTUUR.md](docs/ARCHITECTUUR.md) met de afspraken in de code, en
 [nginx.voorbeeld.conf](docs/nginx.voorbeeld.conf) en

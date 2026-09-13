@@ -86,7 +86,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $fout = $fouten[0] ?? 'De code kon niet worden gecontroleerd. Vraag een nieuwe code aan.';
 }
 
-pagina_start('Inlogcode invoeren', ['smal' => true]);
+portaal_start('Inlogcode invoeren', [
+    'smal'  => true,
+    'intro' => 'Kijk in uw mailbox: daar staat een code van zes cijfers.',
+]);
 toon_fout($fout);
 ?>
 
@@ -136,4 +139,4 @@ toon_fout($fout);
     </a>
 </div>
 <?php
-pagina_eind();
+portaal_eind();
