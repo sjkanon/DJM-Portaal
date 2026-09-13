@@ -54,7 +54,7 @@ function portaal_start(string $titel, array $opties = []): void
             <a class="navbar-brand d-flex align-items-center gap-2 me-0"
                href="<?= h(url($email !== '' ? 'portaal/index.php' : 'index.php')) ?>">
                 <?php if ($logo !== ''): ?>
-                    <img src="<?= h($logo) ?>" alt="<?= h($naam) ?>">
+                    <img src="<?= h($logo) ?>" alt="<?= h($naam) ?>" height="34">
                 <?php else: ?>
                     <i class="bi bi-collection-play"></i><span class="fw-semibold"><?= h($naam) ?></span>
                 <?php endif; ?>

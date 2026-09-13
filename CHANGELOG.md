@@ -13,6 +13,10 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
   jaargangen als kaarten in een raster (nieuwste eerst, zoveel naast elkaar als er passen),
   elk met het aantal video's en de totale grootte. Op een telefoon valt het e-mailadres uit
   de balk en staat alles onder elkaar. Nog steeds zonder JavaScript.
+- **Een aangepast stijlbestand komt niet meer uit de cache van de browser.** Achter
+  `djm.css` en `admin.js` staat naast het versienummer nu ook de wijzigingstijd van het
+  bestand. Voorheen bleef een browser na een wijziging zonder nieuwe versie de oude opmaak
+  gebruiken — waardoor onder meer het logo op volle grootte in de balk verscheen.
 
 ## 1.1.0 — 12 september 2026
 

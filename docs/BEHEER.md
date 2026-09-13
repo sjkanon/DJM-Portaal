@@ -129,7 +129,9 @@ Het belangrijkste scherm voor het jaarlijkse werk. Per jaargang:
 
 Zoeken op e-mailadres, en per deelnemer:
 
-- naam en e-mailadres aanpassen, en de toegang per jaargang aan- of uitvinken;
+- de naam aanpassen en de toegang per jaargang aan- of uitvinken. Het e-mailadres zelf is niet
+  te wijzigen: klopt het niet, verwijder de deelnemer dan en voeg het juiste adres toe via
+  **Toegang**;
 - de downloads en inlogpogingen van die persoon bekijken;
 - **Blokkeren:** de persoon krijgt geen inlogcodes meer. De toegangsrechten blijven bewaard,
   dus deblokkeren zet alles terug;
@@ -257,8 +259,9 @@ waarschuwt er niet vooraf voor. Zet de vervaldatum in een agenda die niet aan é
 
 ### "Ik gebruik een ander e-mailadres"
 
-Pas het adres aan bij **Deelnemers**, of voeg het nieuwe adres toe via **Toegang**. Staat het
-oude adres nergens meer voor nodig, verwijder die deelnemer dan.
+Een e-mailadres is niet te wijzigen. Voeg het nieuwe adres toe via **Toegang**, bij dezelfde
+jaargangen. Is het oude adres nergens meer voor nodig, verwijder die deelnemer dan bij
+**Deelnemers**.
 
 ### "De download stopt halverwege" of "de video is kapot"
 

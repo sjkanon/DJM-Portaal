@@ -104,7 +104,10 @@ function djm_favicon(string $kleur): string
  */
 function djm_asset(string $pad): string
 {
-    return url($pad) . '?v=' . rawurlencode(APP_VERSION);
+    // Ook de wijzigingstijd, zodat een aangepast bestand zonder nieuwe versie
+    // (een hotfix, of tijdens ontwikkeling) niet uit de cache blijft komen.
+    $gewijzigd = @filemtime(APP_ROOT . '/' . $pad);
+    return url($pad) . '?v=' . rawurlencode(APP_VERSION . ($gewijzigd ? '-' . $gewijzigd : ''));
 }
 
 /**
