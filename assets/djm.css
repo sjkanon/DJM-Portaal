@@ -103,9 +103,7 @@ body {
 /* ─── Portaal (publiek) ──────────────────────────────────────────────────── */
 
 .djm-portaal {
-    background: #0f172a;
-    background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%);
-    background-attachment: fixed;
+    background: #f4f6f9;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -120,80 +118,9 @@ body {
 
 .djm-portaal main {
     flex: 1 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 32px 16px;
-}
-
-.djm-kaart {
-    width: 100%;
-    max-width: 820px;
-    background: #fff;
-    border: 0;
-    border-radius: 16px;
-    box-shadow: 0 24px 60px rgba(0, 0, 0, .35);
-    overflow: hidden;
-}
-
-.djm-kaart-smal {
-    max-width: 440px;
-}
-
-.djm-kop {
-    background: var(--djm);
-    padding: 28px 24px;
-    text-align: center;
-    color: var(--djm-tekst);
-}
-
-.djm-kop img {
-    max-height: 52px;
-    max-width: 100%;
-    width: auto;
-}
-
-.djm-kop .djm-kop-titel {
-    color: var(--djm-tekst-zacht);
-}
-
-.djm-code-invoer {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 2rem;
-    letter-spacing: .6rem;
-    text-align: center;
-    /* De letterspatiëring zet de cijfers uit het midden; dit trekt dat recht. */
-    text-indent: .6rem;
 }
 
 .djm-portaal footer {
-    flex-shrink: 0;
-    padding: 18px;
-    text-align: center;
-    color: rgba(255, 255, 255, .55);
-    font-size: .8rem;
-}
-
-/* ─── Portaal na inloggen (schermvullend) ────────────────────────────────── */
-
-.djm-portaal-vol {
-    background: #f4f6f9;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-}
-
-@supports (min-height: 100dvh) {
-    .djm-portaal-vol {
-        min-height: 100dvh;
-    }
-}
-
-.djm-portaal-vol main {
-    flex: 1 0 auto;
-}
-
-.djm-portaal-vol footer {
     flex-shrink: 0;
     padding: 18px;
     text-align: center;
@@ -253,14 +180,37 @@ body {
     max-width: 70ch;
 }
 
-.djm-portaal-vol main> :first-child:not(.alert),
-.djm-portaal-vol main>.alert:first-child {
+.djm-portaal main> :first-child:not(.alert),
+.djm-portaal main>.alert:first-child {
     margin-top: -2.75rem;
     position: relative;
 }
 
-.djm-portaal-vol .kaart {
+.djm-portaal .kaart {
     box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px rgba(15, 23, 42, .06);
+}
+
+/* Inlogstappen: titel en formulierkaart smal en gecentreerd. */
+.djm-paginakop-smal {
+    text-align: center;
+}
+
+.djm-paginakop-smal .djm-paginakop-intro {
+    max-width: 44ch;
+    margin-inline: auto;
+}
+
+.djm-portaal main.djm-smal {
+    max-width: calc(480px + 1.5rem);
+}
+
+.djm-code-invoer {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 2rem;
+    letter-spacing: .6rem;
+    text-align: center;
+    /* De letterspatiëring zet de cijfers uit het midden; dit trekt dat recht. */
+    text-indent: .6rem;
 }
 
 .min-w-0 {
@@ -622,12 +572,11 @@ code.pad {
     }
 
     .djm-portaal,
-    .djm-portaal-vol,
     .djm-inlogkaart {
         background: #fff;
     }
 
-    .djm-kaart {
+    .djm-portaal .kaart {
         box-shadow: none;
     }
 }

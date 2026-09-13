@@ -27,7 +27,7 @@ includes/email_helper.php   GraphMailer + SimpleMailer + mailsjablonen
 includes/toegang_helper.php wie mag welke jaargang / welk bestand
 includes/download_helper.php uitlevering: X-Accel / X-Sendfile / PHP-stream
 includes/uitlevering_helper.php serverconfig tonen + de uitlevering echt uitproberen
-includes/layout.php         pagina_start() / pagina_eind() voor het portaal
+includes/layout.php         portaal_start() / portaal_eind() voor het portaal
 admin/includes/layout.php   admin_start() / admin_eind() / admin_login_start()
 admin/bestandscontrole.php  controle: staan alle gekoppelde bestanden er nog?
 admin/*.php                 beheerinterface
@@ -88,9 +88,8 @@ leesrechten die de app bewust niet heeft. Levert die een 403 met
 zegt dan niets over het verzenden en wordt in Beheer als *niet te controleren*
 getoond in plaats van als fout.
 
-**layout.php:** `pagina_start($titel, ['smal' => true])`, `pagina_eind()` (inlogstappen),
-`portaal_start($titel, $email, $intro = '')`, `portaal_eind()` (schermvullend overzicht na
-het inloggen), `toon_flash()`, `toon_fout()`,
+**layout.php:** `portaal_start($titel, ['email' => …, 'intro' => …, 'smal' => true])`,
+`portaal_eind()`, `toon_flash()`, `toon_fout()`,
 `toon_melding()`, `toon_contact()`, `branding_kleur()`, `branding_logo()`.
 
 **admin/includes/layout.php:** `admin_start($titel, $subtitel = '')`, `admin_eind()`,

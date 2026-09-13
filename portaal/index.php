@@ -18,15 +18,14 @@ $deelnemerId = (int)$deelnemer['id'];
 $jaargangen = deelnemer_jaargangen($deelnemerId);
 $email      = (string)$deelnemer['email'];
 
-portaal_start(
-    'Uw video\'s',
-    $email,
-    $jaargangen
+portaal_start('Uw video\'s', [
+    'email' => $email,
+    'intro' => $jaargangen
         ? 'Het gaat om grote bestanden van meerdere gigabytes. Download ze bij voorkeur op een snelle, '
           . 'vaste verbinding. Valt een download halverwege weg? Start hem dan opnieuw — hij wordt '
           . 'hervat op het punt waar hij was gebleven.'
-        : ''
-);
+        : '',
+]);
 ?>
 
 <?php if (!$jaargangen): ?>

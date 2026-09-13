@@ -6,13 +6,13 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
 
 ### Portaal
 
-- **Het overzicht na het inloggen is schermvullend.** In plaats van een losse kaart op een
-  donkere achtergrond staat er nu een navigatiebalk in de merkkleur met logo, het
-  e-mailadres van de deelnemer en de uitlogknop, met daaronder een kop en de jaargangen als
-  kaarten in een raster (nieuwste eerst, zoveel naast elkaar als er passen). Elke kaart
-  toont het aantal video's en de totale grootte. Op een telefoon valt het e-mailadres uit de
-  balk en staan de kaarten onder elkaar, met de downloadknop over de volle breedte. De inlogstappen houden de compacte kaart.
-  Nog steeds zonder JavaScript.
+- **Het portaal is schermvullend, met een navigatiebalk.** Inloggen, de inlogcode en het
+  overzicht hebben nu dezelfde opbouw: een balk in de merkkleur met het logo, een kop met de
+  paginatitel en daaronder de inhoud. Bij de inlogstappen staat het formulier in een smalle
+  kaart onder de kop. Na het inloggen staan het e-mailadres en de uitlogknop in de balk en de
+  jaargangen als kaarten in een raster (nieuwste eerst, zoveel naast elkaar als er passen),
+  elk met het aantal video's en de totale grootte. Op een telefoon valt het e-mailadres uit
+  de balk en staat alles onder elkaar. Nog steeds zonder JavaScript.
 
 ## 1.1.0 — 12 september 2026
 
