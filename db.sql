@@ -184,6 +184,28 @@ CREATE TABLE IF NOT EXISTS beheerders (
     UNIQUE KEY uniq_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ─── Links waarmee een beheerder zelf een wachtwoord kiest ─────────────────
+-- Voor een uitnodiging of na "wachtwoord vergeten". Van het geheime deel van de
+-- link staat alleen een HMAC in token_hash. includes/beheerder_helper.php maakt
+-- deze tabel zelf aan op installaties van vóór deze functie: houd beide gelijk.
+CREATE TABLE IF NOT EXISTS beheerder_tokens (
+    id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    beheerder_id  INT UNSIGNED NOT NULL,
+    doel          VARCHAR(20) NOT NULL,              -- uitnodiging | reset
+    selector      CHAR(18) NOT NULL,
+    token_hash    CHAR(64) NOT NULL,
+    verloopt_op   DATETIME NOT NULL,
+    gebruikt_op   DATETIME NULL,
+    ip            VARBINARY(16) NULL,
+    aangemaakt_op DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_selector (selector),
+    KEY idx_beheerder (beheerder_id, gebruikt_op),
+    KEY idx_verloopt (verloopt_op),
+    CONSTRAINT fk_token_beheerder FOREIGN KEY (beheerder_id)
+        REFERENCES beheerders (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ─── Instellingen (sleutel/waarde) ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS instellingen (
     sleutel      VARCHAR(100) NOT NULL,

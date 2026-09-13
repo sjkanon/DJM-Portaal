@@ -3,13 +3,14 @@
 /**
  * Beheerdersinlog — e-mailadres + wachtwoord tegen de tabel `beheerders`.
  *
- * Bevat een eenvoudige brute-force rem op IP-niveau via de tabel
- * `aanvraag_limiet`. Die logica staat bewust in dit bestand: het beheer mag
- * niet afhankelijk zijn van de OTP-helpers van het portaal.
+ * Bevat een brute-force rem per IP-adres en per account via de tabel
+ * `aanvraag_limiet`. De functies daarvoor staan in includes/beheerder_helper.php,
+ * los van de OTP-helpers van het portaal: het beheer mag daar niet van afhangen.
  */
 
 require_once dirname(__DIR__) . '/config.php';
 require_once __DIR__ . '/includes/layout.php';
+require_once dirname(__DIR__) . '/includes/beheerder_helper.php';
 vereis_installatie();
 
 // ─── Instellingen van de brute-force rem ─────────────────────────────────────
@@ -28,57 +29,6 @@ const ADMIN_LOGIN_VENSTER_MINUTEN = 15;
  *     php -r 'echo password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);'
  */
 const ADMIN_LOGIN_DUMMY_HASH = '$2y$10$/YnHO/yUCv420CzbsUR70ubt0vXUtW3NO1VgmnNSqAzzapf5B5/5u';
-
-/** Huidige tellerstand voor deze sleutel; 0 als het venster verlopen is. */
-function admin_limiet_teller(string $sleutel, int $vensterMinuten): int
-{
-    try {
-        $stmt = db()->prepare('SELECT teller, venster_start FROM aanvraag_limiet WHERE sleutel = :s');
-        $stmt->execute([':s' => $sleutel]);
-        $rij = $stmt->fetch();
-        if (!$rij) {
-            return 0;
-        }
-        $start = strtotime((string)$rij['venster_start']);
-        if ($start === false || $start < time() - ($vensterMinuten * 60)) {
-            return 0;
-        }
-        return (int)$rij['teller'];
-    } catch (Throwable $e) {
-        // Bij twijfel niet blokkeren: een kapotte tabel mag het beheer niet buitensluiten.
-        app_log('admin rate limit lezen mislukt', ['fout' => $e->getMessage()]);
-        return 0;
-    }
-}
-
-/** Hoogt de teller op en start een nieuw venster zodra het oude verlopen is. */
-function admin_limiet_ophogen(string $sleutel, int $vensterMinuten): void
-{
-    $minuten = max(1, $vensterMinuten);
-    $sql = sprintf(
-        'INSERT INTO aanvraag_limiet (sleutel, teller, venster_start)
-         VALUES (:s, 1, NOW())
-         ON DUPLICATE KEY UPDATE
-             teller = IF(venster_start < (NOW() - INTERVAL %1$d MINUTE), 1, teller + 1),
-             venster_start = IF(venster_start < (NOW() - INTERVAL %1$d MINUTE), NOW(), venster_start)',
-        $minuten
-    );
-    try {
-        db()->prepare($sql)->execute([':s' => $sleutel]);
-    } catch (Throwable $e) {
-        app_log('admin rate limit ophogen mislukt', ['fout' => $e->getMessage()]);
-    }
-}
-
-/** Wist de teller na een geslaagde inlog. */
-function admin_limiet_wissen(string $sleutel): void
-{
-    try {
-        db()->prepare('DELETE FROM aanvraag_limiet WHERE sleutel = :s')->execute([':s' => $sleutel]);
-    } catch (Throwable $e) {
-        // niet blokkerend
-    }
-}
 
 /**
  * Controleert de `terug`-parameter. Alleen een pad binnen dit project is
@@ -137,17 +87,6 @@ try {
 
 $limietSleutel = 'admin:' . client_ip();
 $teVaak        = admin_limiet_teller($limietSleutel, ADMIN_LOGIN_VENSTER_MINUTEN) >= ADMIN_LOGIN_MAX_POGINGEN;
-
-/**
- * Sleutel voor de rem per account. De rem per IP-adres houdt één aanvaller
- * tegen, maar niet iemand die vanaf veel adressen tegelijk op hetzelfde
- * beheerdersaccount blijft gokken. Deze tweede teller sluit dat gat.
- */
-function admin_account_sleutel(string $email): string
-{
-    // Alleen een hash in de tabel: daar hoeft geen e-mailadres in te staan.
-    return 'adminacc:' . substr(hash_hmac('sha256', $email, app_key()), 0, 40);
-}
 
 $terugParameter = (string)($_POST['terug'] ?? $_GET['terug'] ?? '');
 $fout           = '';
@@ -267,7 +206,10 @@ admin_login_start('Beheer ' . portaal_naam());
         </div>
 
         <div class="mb-3">
-            <label class="form-label" for="wachtwoord">Wachtwoord</label>
+            <div class="d-flex justify-content-between align-items-baseline gap-2">
+                <label class="form-label" for="wachtwoord">Wachtwoord</label>
+                <a class="small text-decoration-none" href="<?= h(url('admin/wachtwoord_vergeten.php')) ?>">Wachtwoord vergeten?</a>
+            </div>
             <input type="password" class="form-control" id="wachtwoord" name="wachtwoord" required
                 autocomplete="current-password">
         </div>

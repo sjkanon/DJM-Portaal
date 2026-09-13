@@ -146,7 +146,7 @@ done
 echo ""
 echo "── Beheer eist een sessie ──────────────────────────────────"
 for PAD in index.php jaargangen.php bestanden.php bestandscontrole.php toegang.php \
-           deelnemers.php logboek.php instellingen.php; do
+           deelnemers.php logboek.php beheerders.php instellingen.php handleiding.php; do
     toets "admin/$PAD stuurt door naar inloggen" "302" "$(status "http://localhost:8123/admin/$PAD")"
 done
 

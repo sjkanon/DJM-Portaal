@@ -86,6 +86,17 @@ $totaal += cron_stap(
     'DELETE FROM remember_tokens WHERE verloopt_op < NOW()'
 );
 
+// ─── Links voor beheerders ───────────────────────────────────────────────────
+// Verlopen of gebruikte links zijn nergens meer voor nodig. De tabel bestaat op
+// oudere installaties pas zodra er voor het eerst een link is gemaakt.
+if (tabel_bestaat('beheerder_tokens')) {
+    $totaal += cron_stap(
+        'Verlopen/gebruikte beheerderslinks',
+        'DELETE FROM beheerder_tokens
+          WHERE verloopt_op < NOW() OR gebruikt_op < (NOW() - INTERVAL 24 HOUR)'
+    );
+}
+
 // ─── Rate limiting ───────────────────────────────────────────────────────────
 $totaal += cron_stap(
     'Oude limietvensters',

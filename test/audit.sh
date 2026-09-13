@@ -63,7 +63,8 @@ echo ""
 echo "── Beheerpagina's: autorisatie aanwezig ────────────────────"
 VOOR=$PROBLEMEN
 for f in admin/*.php; do
-    case "$(basename "$f")" in login.php|logout.php) continue;; esac
+    # De pagina's rond het wachtwoord zijn juist bedoeld voor wie niet is ingelogd.
+    case "$(basename "$f")" in login.php|logout.php|wachtwoord_vergeten.php|wachtwoord_instellen.php) continue;; esac
     grep -q "vereis_beheerder()" "$f" || melden "$f: roept vereis_beheerder() niet aan"
 done
 [ "$PROBLEMEN" -eq "$VOOR" ] && echo "  ✓ elke beheerpagina eist een beheerderssessie"
@@ -96,6 +97,26 @@ for FONT in $(grep -oE 'url\("[^"]+\.woff2?[^"]*"\)' assets/vendor/bootstrap-ico
     [ -f "assets/vendor/$FONT" ] || melden "lettertype ontbreekt: assets/vendor/$FONT"
 done
 [ "$PROBLEMEN" -eq "$VOOR" ] && echo "  ✓ alle opmaak komt uit deze installatie en is aanwezig"
+
+echo ""
+echo "── Handleiding: elk beheerscherm beschreven ────────────────"
+VOOR=$PROBLEMEN
+# Beheer › Handleiding moet meegroeien met de software. Een nieuw scherm in het
+# menu zonder uitleg laat de knop "Uitleg" in het niets springen; een
+# schermafdruk die ontbreekt valt stilletjes weg. Allebei laten we hier vallen.
+for SCHERM in $(sed -n '/function admin_menu/,/^}/p' admin/includes/layout.php | grep -oE "'[a-z_]+\.php'" | tr -d "'"); do
+    grep -q "data-scherm=\"$SCHERM\"" admin/handleiding.php \
+        || melden "admin/handleiding.php: geen uitleg bij $SCHERM (blok met data-scherm=\"$SCHERM\")"
+done
+for NAAM in $(grep -oE "handleiding_figuur\('[a-z0-9-]+'" admin/handleiding.php | sed "s/.*('//;s/'//" | sort -u); do
+    [ -f "assets/handleiding/$NAAM.webp" ] \
+        || melden "schermafdruk ontbreekt: assets/handleiding/$NAAM.webp (maak hem met bash test/handleiding.sh)"
+done
+[ "$PROBLEMEN" -eq "$VOOR" ] && echo "  ✓ elk beheerscherm staat in de handleiding, met schermafdrukken"
+# Geen fout, wel een seintje: schermafdrukken van een oudere versie.
+if [ -f assets/handleiding/versie.txt ] && [ "$(head -n 1 assets/handleiding/versie.txt)" != "$(tr -d '[:space:]' < VERSION)" ]; then
+    echo "  – schermafdrukken zijn van versie $(head -n 1 assets/handleiding/versie.txt), het portaal is $(tr -d '[:space:]' < VERSION): draai bash test/handleiding.sh"
+fi
 
 echo ""
 echo "── Testscripts weigeren een webverzoek ─────────────────────"

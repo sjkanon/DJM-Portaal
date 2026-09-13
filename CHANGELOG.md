@@ -4,6 +4,32 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
 
 ## Onuitgebracht
 
+### Beheer
+
+- **Nieuw: Beheer › Beheerders.** Beheerders toevoegen, een nieuwe link sturen en accounts uit-
+  en weer inschakelen, zonder server of database. Een nieuwe beheerder krijgt een uitnodiging
+  per e-mail en kiest daarin zelf een wachtwoord (link 72 uur geldig); niemand anders ziet het.
+  Uw eigen account kunt u niet uitschakelen, zodat er altijd iemand overblijft. Verwijderen kan
+  bewust niet. Elke handeling staat in het inloglogboek, met wie hem deed.
+- **Wachtwoord vergeten.** Op de inlogpagina van het beheer vraagt een beheerder zelf een
+  resetlink aan (60 minuten geldig, werkt één keer). De pagina zegt nooit of een adres bekend is,
+  heeft een vaste minimale antwoordtijd en remt per IP-adres en per adres. Van de link staat
+  alleen een HMAC in de database, een nieuwe link maakt de vorige ongeldig en na het instellen
+  vervalt de rem op eerdere foute inlogpogingen. Zo'n link wordt alleen verstuurd als `APP_URL`
+  in `.env` staat (de installatiewizard zet hem er altijd in): anders zou een vervalste
+  Host-header de link in een echte mail naar een andere site kunnen laten wijzen.
+- **Nieuwe tabel `beheerder_tokens`.** Bestaande installaties hoeven niets te doen: het portaal
+  maakt hem zelf aan zodra hij nodig is. De nachtelijke taak ruimt verlopen links op.
+- **Nieuw: Beheer › Handleiding.** De handleiding voor beheerders staat nu in het portaal zelf,
+  zodat iedereen die het beheer doet of overneemt hem heeft — bij precies de versie die draait.
+  Hoe het portaal werkt, elk beheerscherm met schermafdrukken, een nieuw jaar online zetten,
+  beheerders, terugkerende taken, vragen van ouders en technisch beheer. Waar het kan, staan de
+  gegevens van déze installatie erin, zoals de opslagmap en het pad voor de nachtelijke taak.
+- **Elk beheerscherm heeft een knop *Uitleg*** die naar het juiste stuk van de handleiding springt.
+- **De handleiding loopt niet achter.** `test/audit.sh` faalt als een scherm uit het menu geen
+  uitleg heeft of als een schermafdruk ontbreekt, en `bash test/handleiding.sh` maakt alle
+  schermafdrukken opnieuw met voorbeeldgegevens. De afspraak staat in `docs/ARCHITECTUUR.md`.
+
 ### Portaal
 
 - **Het portaal is schermvullend, met een navigatiebalk.** Inloggen, de inlogcode en het

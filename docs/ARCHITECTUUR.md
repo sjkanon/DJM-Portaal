@@ -28,8 +28,14 @@ includes/toegang_helper.php wie mag welke jaargang / welk bestand
 includes/download_helper.php uitlevering: X-Accel / X-Sendfile / PHP-stream
 includes/uitlevering_helper.php serverconfig tonen + de uitlevering echt uitproberen
 includes/layout.php         portaal_start() / portaal_eind() voor het portaal
+includes/beheerder_helper.php  rem op pogingen, links om een wachtwoord te kiezen
 admin/includes/layout.php   admin_start() / admin_eind() / admin_login_start()
 admin/bestandscontrole.php  controle: staan alle gekoppelde bestanden er nog?
+admin/handleiding.php       handleiding voor beheerders, met schermafdrukken
+admin/beheerders.php        beheerders toevoegen, links sturen, uit- en inschakelen
+admin/wachtwoord_vergeten.php  resetlink aanvragen (zonder sessie)
+admin/wachtwoord_instellen.php wachtwoord kiezen via de link (zonder sessie)
+assets/handleiding/         schermafdrukken voor de handleiding (gemaakt door test/handleiding.sh)
 admin/*.php                 beheerinterface
 opslag/                     videobestanden (niet publiek benaderbaar)
 ```
@@ -47,6 +53,20 @@ opslag/                     videobestanden (niet publiek benaderbaar)
 - Logregels via `log_login()` (inloggebeurtenissen) en `app_log()` (technische fouten).
 - Datums tonen met `formatteer_datum()`, bestandsgroottes met `formatteer_bytes()`.
 - Links bouwen met `url('admin/jaargangen.php')` — nooit hardcoded paden.
+
+## Handleiding bijhouden
+
+**Beheer › Handleiding** (`admin/handleiding.php`) is de handleiding voor wie het portaal beheert.
+Een wijziging die een beheerder of deelnemer kan merken, is pas af als de handleiding klopt:
+
+1. Pas de tekst aan in `admin/handleiding.php`, en in `docs/BEHEER.md` (de tekstversie).
+2. Een nieuw scherm in `admin_menu()` krijgt een blok met `id="scherm-<naam>"` en
+   `data-scherm="<naam>.php"`. De knop **Uitleg** op dat scherm springt ernaartoe, en
+   `test/audit.sh` faalt zolang het blok ontbreekt.
+3. Maak de schermafdrukken opnieuw met `bash test/handleiding.sh` en commit
+   `assets/handleiding/` mee. Een nieuwe afbeelding voeg je toe in `test/handleiding.js` en
+   met `handleiding_figuur()` in de pagina; `test/audit.sh` controleert dat het bestand bestaat.
+4. Noem de wijziging in `CHANGELOG.md`.
 
 ## Beschikbare functies (config.php)
 
@@ -78,7 +98,7 @@ nooit zelf uit `$_SERVER`: alleen deze functie weet of `X-Forwarded-For` te vert
 
 **email_helper.php:** `mail_config()`, `mailer_maken()`, `mail_geconfigureerd()`,
 `verstuur_mail()`, `verstuur_inlogcode_mail()`, `verstuur_uitnodiging_mail()`,
-`verstuur_testmail()`, `mail_html_omhulsel()`, `mail_sjabloon_vullen()`.
+`verstuur_beheerder_link_mail()`, `verstuur_testmail()`, `mail_html_omhulsel()`, `mail_sjabloon_vullen()`.
 `GraphMailer` heeft `diagnoseConfiguration(): array` met `token_ok`, `roles`,
 `has_mail_send`, `mailbox_status`, `mailbox_conclusief`, `mailbox_hint`, `errors`.
 
@@ -92,6 +112,15 @@ getoond in plaats van als fout.
 `portaal_eind()`, `toon_flash()`, `toon_fout()`,
 `toon_melding()`, `toon_contact()`, `branding_kleur()`, `branding_logo()`.
 
+**beheerder_helper.php:** `beheerder_link_versturen()`, `beheerder_link_controleren()`,
+`beheerder_wachtwoord_opslaan()`, `beheerder_links_intrekken()`, `admin_limiet_teller()` /
+`admin_limiet_ophogen()` / `admin_limiet_wissen()`. Links bestaan uit een selector en een geheim
+deel; van dat laatste staat alleen een HMAC met `APP_KEY` in de database. De tabel
+`beheerder_tokens` wordt zo nodig aangemaakt, want `db.sql` draait alleen bij de installatie.
+`admin/wachtwoord_vergeten.php` verstuurt alleen een link als `APP_URL` vaststaat
+(`beheerder_link_basis_vast()`): zonder sessie bepaalt de aanvrager anders via de Host-header
+naar welke site de link wijst.
+
 **admin/includes/layout.php:** `admin_start($titel, $subtitel = '')`, `admin_eind()`,
 `admin_login_start($titel)`, `admin_login_eind()`, `admin_menu()`.
 
@@ -99,7 +128,7 @@ getoond in plaats van als fout.
 
 Zie `db.sql` — dat bestand is leidend. Kern: `jaargangen` 1—n `jaargang_bestanden`,
 `deelnemers` n—n `jaargangen` via `toegang`. Verder `login_codes`, `remember_tokens`,
-`aanvraag_limiet`, `download_log`, `mail_log`, `login_log`, `beheerders`, `instellingen`.
+`aanvraag_limiet`, `download_log`, `mail_log`, `login_log`, `beheerders`, `beheerder_tokens`, `instellingen`.
 
 `jaargang_bestanden.pad` is **altijd relatief** ten opzichte van `opslag_pad()` en wordt
 uitsluitend via `opslag_absoluut_pad()` naar een absoluut pad omgezet.

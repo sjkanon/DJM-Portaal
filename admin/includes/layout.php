@@ -28,6 +28,7 @@ function admin_menu(): array
         'toegang.php'     => ['Toegang',     'bi-person-check'],
         'deelnemers.php'  => ['Deelnemers',  'bi-people'],
         'logboek.php'     => ['Logboek',     'bi-journal-text'],
+        'beheerders.php'  => ['Beheerders',  'bi-shield-lock'],
         'instellingen.php' => ['Instellingen', 'bi-gear'],
     ];
 }
@@ -80,8 +81,17 @@ function admin_start(string $titel, string $subtitel = ''): void
                 </ul>
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a class="nav-link" href="<?= h(url('index.php')) ?>" target="_blank">
-                            <i class="bi bi-box-arrow-up-right me-1"></i>Portaal
+                        <!-- Tussen xl en xxl is de balk te smal voor het woord; dan alleen het icoon. -->
+                        <a class="nav-link <?= $huidig === 'handleiding.php' ? 'active' : '' ?>"
+                            href="<?= h(url('admin/handleiding.php')) ?>" title="Handleiding">
+                            <i class="bi bi-book"></i><span class="ms-1 d-xl-none d-xxl-inline">Handleiding</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <!-- Net als Handleiding: tussen xl en xxl alleen het icoon, zodat de
+                             portaalnaam links niet tot een paar letters wordt afgekapt. -->
+                        <a class="nav-link" href="<?= h(url('index.php')) ?>" target="_blank" title="Portaal">
+                            <i class="bi bi-box-arrow-up-right"></i><span class="ms-1 d-xl-none d-xxl-inline">Portaal</span>
                         </a>
                     </li>
                     <li class="nav-item">
@@ -103,10 +113,20 @@ function admin_start(string $titel, string $subtitel = ''): void
     </nav>
 
     <div class="container-xl pb-5">
-        <div class="mb-3">
-            <h1 class="h4 mb-0"><?= h($titel) ?></h1>
-            <?php if ($subtitel !== ''): ?>
-                <div class="text-muted small"><?= h($subtitel) ?></div>
+        <div class="mb-3 d-flex flex-wrap align-items-start justify-content-between gap-2">
+            <div class="min-w-0">
+                <h1 class="h4 mb-0"><?= h($titel) ?></h1>
+                <?php if ($subtitel !== ''): ?>
+                    <div class="text-muted small"><?= h($subtitel) ?></div>
+                <?php endif; ?>
+            </div>
+            <?php if (isset(admin_menu()[$huidig])): ?>
+                <!-- Elk scherm uit het menu heeft een eigen stuk in de handleiding;
+                     test/audit.sh bewaakt dat. -->
+                <a class="btn btn-sm btn-outline-secondary"
+                    href="<?= h(url('admin/handleiding.php') . '#scherm-' . basename($huidig, '.php')) ?>">
+                    <i class="bi bi-question-circle me-1"></i>Uitleg
+                </a>
             <?php endif; ?>
         </div>
 
