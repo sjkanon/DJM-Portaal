@@ -171,7 +171,7 @@ bevat "de verbinding werkt nu" "De verbinding met de database werkt" "$S3"
 stuur "$BASIS/setup.php?stap=3" -d "setup_csrf=$(tok "$S3")" -d "actie=schema_installeren"
 TABELLEN=$(docker compose exec -T db mariadb -u root -pdjmtest -N -e \
     "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='djm_portaal';" 2>/dev/null | tr -d '\r ')
-toets "dertien tabellen aangemaakt" "13" "$TABELLEN"
+toets "veertien tabellen aangemaakt" "14" "$TABELLEN"
 INSTELLINGEN=$(docker compose exec -T db mariadb -u root -pdjmtest -N -e \
     "SELECT COUNT(*) FROM djm_portaal.instellingen;" 2>/dev/null | tr -d '\r ')
 toets "standaardinstellingen geladen" "1" "$([ "${INSTELLINGEN:-0}" -gt 20 ] && echo 1 || echo 0)"

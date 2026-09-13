@@ -89,7 +89,7 @@ rm -rf djm-portaal/test
 > `https://uwdomein.nl/test/smoke.php` geen resultaat geeft.
 
 Zet daarna de rechten goed. De webserver (meestal `www-data`) moet in `logs/` kunnen
-schrijven, en in de opslagmap kunnen lezen:
+schrijven, en in de opslagmap kunnen lezen en schrijven (om video's via het beheer te uploaden):
 
 ```bash
 cd /var/www/djm-portaal
@@ -389,7 +389,13 @@ Eén map per jaar, met een duidelijke bestandsnaam:
     └── musical-2026.mp4
 ```
 
-Video's van meerdere gigabytes upload u via SFTP, niet via de browser:
+De beheerder van de vereniging uploadt video's via **Beheer › Bestanden**, ook bestanden van vele
+gigabytes: het portaal stuurt ze in stukken en gaat na een weggevallen verbinding verder waar het
+was. Daarvoor moet PHP in de opslagmap kunnen **schrijven**. Het portaal maakt zelf een submap per
+jaar, en een verborgen map `.uploads/` voor uploads die nog niet klaar zijn.
+
+Wie zelf toegang tot de server heeft, kan een video ook rechtstreeks neerzetten en daarna in
+**Beheer › Bestanden** kiezen:
 
 ```bash
 scp musical-2026.mp4 gebruiker@server:/var/djm-opslag/2026/
@@ -516,7 +522,8 @@ chown uwgebruiker:psacln /var/www/vhosts/uwdomein.nl/djm-opslag
 chmod 750 /var/www/vhosts/uwdomein.nl/djm-opslag
 ```
 
-Zet de video's daarna via SFTP in die map, met een submap per jaar (`2026/`, `2027/`).
+Video's komen daarna via **Beheer › Bestanden** in die map, met een submap per jaar (`2026/`,
+`2027/`). PHP draait op Plesk als de abonnementsgebruiker, en die kan er met deze rechten in schrijven.
 
 **Moet de map tóch binnen `httpdocs` blijven?** Sluit hem dan af in
 **Apache- en nginx-instellingen → Aanvullende nginx-richtlijnen**:
@@ -622,7 +629,7 @@ Zet deze niet in `.htaccess` — dat werkt alleen met de Apache-module, niet met
 |---|---|
 | `max_execution_time` | `0` (of ruim, bijvoorbeeld `3600`) bij `DELIVERY_MODE=php` |
 | `memory_limit` | `256M` is ruim voldoende; het bestand wordt in blokken gelezen |
-| `post_max_size` / `upload_max_filesize` | Alleen van belang als u video's via de browser wilt uploaden. Voor grote bestanden is SFTP de betere route. |
+| `post_max_size` | Hoe groot één uploadstuk mag zijn. De standaard `8M` werkt; `64M` uploadt sneller. `upload_max_filesize` doet er niet toe. |
 | `output_buffering` | `Off` |
 
 ### Cron

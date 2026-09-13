@@ -259,6 +259,13 @@ function vereis_beheerder(): array
 {
     $beheerder = huidige_beheerder();
     if ($beheerder === null) {
+        // Een script (admin/upload.php) kan niets met een doorverwijzing naar de
+        // inlogpagina: die volgt fetch() stilletjes en levert dan HTML op.
+        if (str_contains((string)($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json')) {
+            http_response_code(401);
+            header('Content-Type: application/json; charset=utf-8');
+            exit(json_encode(['fout' => 'U bent niet meer ingelogd.']));
+        }
         $terug = urlencode((string)($_SERVER['REQUEST_URI'] ?? ''));
         header('Location: ' . url('admin/login.php') . ($terug ? '?terug=' . $terug : ''));
         exit;

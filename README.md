@@ -31,7 +31,8 @@ controleert.
 **Voor de beheerder**
 
 - Jaargangen aanmaken, publiceren, depubliceren en laten verlopen
-- Bestanden koppelen: kiezen uit de opslagmap (voor grote video's via SFTP) of uploaden
+- Video's uploaden via de browser, ook van vele gigabytes: in stukken, met voortgang, te pauzeren
+  en na een weggevallen verbinding te hervatten; of een bestand kiezen dat al in de opslagmap staat
 - Toegang per jaargang beheren: e-mailadressen plakken of via CSV importeren, met preview
   en optioneel meteen een uitnodigingsmail
 - Deelnemers zoeken, blokkeren en verwijderen (AVG)
@@ -39,8 +40,8 @@ controleert.
 - Instellingen voor Microsoft Graph, afzender, branding en mailteksten, met een testmail en
   een Graph-diagnose
 
-**Een nieuw jaar toevoegen kost geen regel code**: video uploaden, jaargang aanmaken, bestand
-koppelen, e-mailadressen importeren.
+**Een nieuw jaar toevoegen kost geen regel code**: jaargang aanmaken, video uploaden (hij wordt
+meteen gekoppeld), e-mailadressen importeren.
 
 ---
 
@@ -67,12 +68,14 @@ includes/
 ├── email_helper.php         GraphMailer, SMTP-fallback, mailsjablonen
 ├── toegang_helper.php       wie mag welke jaargang en welk bestand
 ├── download_helper.php      X-Accel-Redirect / X-Sendfile / PHP-stream
+├── bestand_helper.php       opslagmap scannen, bestanden koppelen, upload in delen
 ├── uitlevering_helper.php   serverconfiguratie tonen en de uitlevering uitproberen
 ├── layout.php               gedeelde opmaak voor het portaal
 └── opmaak.php               merkkleur, logo, favicon en het <head>-blok van alle pagina's
 
 admin/                       beheerinterface, met Beheer › Handleiding
-admin/assets/admin.js        het enige JavaScript van het beheer (de CSP staat inline niet toe)
+admin/assets/admin.js        JavaScript van het beheer (de CSP staat geen inline scripts toe)
+admin/assets/upload.js       de upload in delen van Beheer › Bestanden
 assets/djm.css               eigen opmaak voor portaal, beheer en installatie
 assets/handleiding/          schermafdrukken voor de handleiding (test/handleiding.sh)
 assets/vendor/               Bootstrap en Bootstrap Icons, meegeleverd (zie HERKOMST.md)

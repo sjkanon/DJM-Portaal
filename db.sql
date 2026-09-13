@@ -206,6 +206,33 @@ CREATE TABLE IF NOT EXISTS beheerder_tokens (
         REFERENCES beheerders (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ─── Uploads in delen die nog niet klaar zijn ─────────────────────────────
+-- Eén regel per onafgemaakte upload via Beheer › Bestanden. De bytes zelf staan
+-- in <OPSLAG_PAD>/.uploads/<sleutel>.deel; wat daar staat, is wat er binnen is.
+-- Na afronden of annuleren verdwijnt de regel. Houd gelijk aan upload_tabel()
+-- in includes/bestand_helper.php.
+CREATE TABLE IF NOT EXISTS uploads (
+    id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    sleutel       CHAR(32) NOT NULL,
+    vingerafdruk  CHAR(64) NOT NULL,                 -- jaargang + naam + grootte + wijzigingsdatum
+    jaargang_id   INT UNSIGNED NOT NULL,
+    beheerder_id  INT UNSIGNED NULL,
+    origineel     VARCHAR(255) NOT NULL,             -- naam op de computer van de beheerder
+    naam          VARCHAR(255) NOT NULL,             -- veilige naam in de opslagmap
+    bytes         BIGINT UNSIGNED NOT NULL,
+    aangemaakt_op DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    bijgewerkt_op DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_sleutel (sleutel),
+    UNIQUE KEY uniq_vingerafdruk (vingerafdruk),
+    KEY idx_jaargang (jaargang_id),
+    KEY idx_bijgewerkt (bijgewerkt_op),
+    CONSTRAINT fk_upload_jaargang FOREIGN KEY (jaargang_id)
+        REFERENCES jaargangen (id) ON DELETE CASCADE,
+    CONSTRAINT fk_upload_beheerder FOREIGN KEY (beheerder_id)
+        REFERENCES beheerders (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ─── Instellingen (sleutel/waarde) ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS instellingen (
     sleutel      VARCHAR(100) NOT NULL,

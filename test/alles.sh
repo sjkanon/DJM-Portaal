@@ -43,6 +43,9 @@ KOP "Op telefoonformaat";      docker run --rm --network test_default \
 # ingebouwde PHP-server.
 KOP "Uitlevering per webserver"; bash uitlevering.sh || MISLUKT=$((MISLUKT+1))
 KOP "Bestand van 5 GB";        bash grootbestand.sh || MISLUKT=$((MISLUKT+1))
+# Op alle drie de webservers en in een echte browser, met een weggevallen
+# verbinding en een ververst tabblad halverwege.
+KOP "Upload in delen";         bash upload_test.sh || MISLUKT=$((MISLUKT+1))
 KOP "Graph-foutafhandeling";   docker compose exec -T web php /app/test/graph_test.php || MISLUKT=$((MISLUKT+1))
 KOP "Opschoonscript";          docker compose exec -T web php /app/cron_opschonen.php || MISLUKT=$((MISLUKT+1))
 

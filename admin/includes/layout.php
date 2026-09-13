@@ -52,6 +52,7 @@ function admin_start(string $titel, string $subtitel = ''): void
     $naam   = portaal_naam();
     $kleur  = branding_kleur();
     $beheerderNaam = (string)($_SESSION['beheerder_naam'] ?? '');
+    $logo   = branding_logo();
     ?>
 <!DOCTYPE html>
 <html lang="nl">
@@ -63,8 +64,15 @@ function admin_start(string $titel, string $subtitel = ''): void
 <body class="djm-beheer">
     <nav class="navbar navbar-expand-xl navbar-djm mb-4">
         <div class="container-xl">
-            <a class="navbar-brand fw-semibold" href="<?= h(url('admin/index.php')) ?>">
-                <i class="bi bi-collection-play me-1"></i><?= h($naam) ?>
+            <!-- Het logo in plaats van de naam: de naam is vrij in te vullen en kan lang
+                 zijn, en naast negen menu-items bleef er dan maar een paar letters van over. -->
+            <a class="navbar-brand fw-semibold d-flex align-items-center gap-2" href="<?= h(url('admin/index.php')) ?>"
+                title="<?= h($naam) ?> — beheer">
+                <?php if ($logo !== ''): ?>
+                    <img src="<?= h($logo) ?>" alt="<?= h($naam) ?>" height="32">
+                <?php else: ?>
+                    <i class="bi bi-collection-play"></i><span class="text-truncate djm-merknaam"><?= h($naam) ?></span>
+                <?php endif; ?>
             </a>
             <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse"
                 data-bs-target="#adminNav"><i class="bi bi-list fs-3"></i></button>
@@ -79,33 +87,40 @@ function admin_start(string $titel, string $subtitel = ''): void
                         </li>
                     <?php endforeach; ?>
                 </ul>
+                <!-- Handleiding, het portaal en uitloggen staan onder de naam van de beheerder.
+                     Zo past het hele menu op één regel, ook tussen 1200 en 1400 pixels. -->
                 <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <!-- Tussen xl en xxl is de balk te smal voor het woord; dan alleen het icoon. -->
-                        <a class="nav-link <?= $huidig === 'handleiding.php' ? 'active' : '' ?>"
-                            href="<?= h(url('admin/handleiding.php')) ?>" title="Handleiding">
-                            <i class="bi bi-book"></i><span class="ms-1 d-xl-none d-xxl-inline">Handleiding</span>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle <?= $huidig === 'handleiding.php' ? 'active' : '' ?>" href="#"
+                            role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-person-circle me-1"></i><span
+                                class="djm-afkappen"><?= h($beheerderNaam ?: 'Account') ?></span>
                         </a>
-                    </li>
-                    <li class="nav-item">
-                        <!-- Net als Handleiding: tussen xl en xxl alleen het icoon, zodat de
-                             portaalnaam links niet tot een paar letters wordt afgekapt. -->
-                        <a class="nav-link" href="<?= h(url('index.php')) ?>" target="_blank" title="Portaal">
-                            <i class="bi bi-box-arrow-up-right"></i><span class="ms-1 d-xl-none d-xxl-inline">Portaal</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <!-- Uitloggen wijzigt de sessie en gaat daarom via POST met een
-                             CSRF-token; een <img src="…/logout.php"> op een andere site
-                             kan de beheerder dan niet ongevraagd uitloggen. -->
-                        <form method="post" action="<?= h(url('admin/logout.php')) ?>" class="d-inline">
-                            <?= csrf_field() ?>
-                            <button type="submit" class="nav-link btn btn-link text-decoration-none"
-                                title="Uitloggen">
-                                <i class="bi bi-box-arrow-right me-1"></i><span
-                                    class="djm-afkappen djm-beheerdersnaam"><?= h($beheerderNaam ?: 'Uitloggen') ?></span>
-                            </button>
-                        </form>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            <li>
+                                <a class="dropdown-item <?= $huidig === 'handleiding.php' ? 'active' : '' ?>"
+                                    href="<?= h(url('admin/handleiding.php')) ?>">
+                                    <i class="bi bi-book me-2"></i>Handleiding
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="<?= h(url('index.php')) ?>" target="_blank">
+                                    <i class="bi bi-box-arrow-up-right me-2"></i>Portaal bekijken
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <!-- Uitloggen wijzigt de sessie en gaat daarom via POST met een
+                                     CSRF-token; een <img src="…/logout.php"> op een andere site
+                                     kan de beheerder dan niet ongevraagd uitloggen. -->
+                                <form method="post" action="<?= h(url('admin/logout.php')) ?>" class="m-0">
+                                    <?= csrf_field() ?>
+                                    <button type="submit" class="dropdown-item">
+                                        <i class="bi bi-box-arrow-right me-2"></i>Uitloggen
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
                     </li>
                 </ul>
             </div>
@@ -145,6 +160,7 @@ function admin_eind(): void
     </div>
     <script src="<?= h(djm_asset('assets/vendor/bootstrap.bundle.min.js')) ?>"></script>
     <script src="<?= h(djm_asset('admin/assets/admin.js')) ?>"></script>
+    <script src="<?= h(djm_asset('admin/assets/upload.js')) ?>"></script>
 </body>
 
 </html>
