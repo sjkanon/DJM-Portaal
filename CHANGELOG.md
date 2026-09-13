@@ -4,6 +4,18 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
 
 ## Onuitgebracht
 
+### Beheer
+
+- **Nieuw: Beheer › Handleiding.** De handleiding voor beheerders staat nu in het portaal zelf,
+  zodat iedereen die het beheer doet of overneemt hem heeft — bij precies de versie die draait.
+  Hoe het portaal werkt, elk beheerscherm met schermafdrukken, een nieuw jaar online zetten,
+  beheerders, terugkerende taken, vragen van ouders en technisch beheer. Waar het kan, staan de
+  gegevens van déze installatie erin, zoals de opslagmap en het pad voor de nachtelijke taak.
+- **Elk beheerscherm heeft een knop *Uitleg*** die naar het juiste stuk van de handleiding springt.
+- **De handleiding loopt niet achter.** `test/audit.sh` faalt als een scherm uit het menu geen
+  uitleg heeft of als een schermafdruk ontbreekt, en `bash test/handleiding.sh` maakt alle
+  schermafdrukken opnieuw met voorbeeldgegevens. De afspraak staat in `docs/ARCHITECTUUR.md`.
+
 ### Portaal
 
 - **Het portaal is schermvullend, met een navigatiebalk.** Inloggen, de inlogcode en het

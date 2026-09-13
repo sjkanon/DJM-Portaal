@@ -98,6 +98,26 @@ done
 [ "$PROBLEMEN" -eq "$VOOR" ] && echo "  ✓ alle opmaak komt uit deze installatie en is aanwezig"
 
 echo ""
+echo "── Handleiding: elk beheerscherm beschreven ────────────────"
+VOOR=$PROBLEMEN
+# Beheer › Handleiding moet meegroeien met de software. Een nieuw scherm in het
+# menu zonder uitleg laat de knop "Uitleg" in het niets springen; een
+# schermafdruk die ontbreekt valt stilletjes weg. Allebei laten we hier vallen.
+for SCHERM in $(sed -n '/function admin_menu/,/^}/p' admin/includes/layout.php | grep -oE "'[a-z_]+\.php'" | tr -d "'"); do
+    grep -q "data-scherm=\"$SCHERM\"" admin/handleiding.php \
+        || melden "admin/handleiding.php: geen uitleg bij $SCHERM (blok met data-scherm=\"$SCHERM\")"
+done
+for NAAM in $(grep -oE "handleiding_figuur\('[a-z0-9-]+'" admin/handleiding.php | sed "s/.*('//;s/'//" | sort -u); do
+    [ -f "assets/handleiding/$NAAM.webp" ] \
+        || melden "schermafdruk ontbreekt: assets/handleiding/$NAAM.webp (maak hem met bash test/handleiding.sh)"
+done
+[ "$PROBLEMEN" -eq "$VOOR" ] && echo "  ✓ elk beheerscherm staat in de handleiding, met schermafdrukken"
+# Geen fout, wel een seintje: schermafdrukken van een oudere versie.
+if [ -f assets/handleiding/versie.txt ] && [ "$(head -n 1 assets/handleiding/versie.txt)" != "$(tr -d '[:space:]' < VERSION)" ]; then
+    echo "  – schermafdrukken zijn van versie $(head -n 1 assets/handleiding/versie.txt), het portaal is $(tr -d '[:space:]' < VERSION): draai bash test/handleiding.sh"
+fi
+
+echo ""
 echo "── Testscripts weigeren een webverzoek ─────────────────────"
 VOOR=$PROBLEMEN
 # test/ hoort niet op een server te staan, maar hostingpanelen uploaden nu

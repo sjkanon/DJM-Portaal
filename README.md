@@ -71,9 +71,10 @@ includes/
 ├── layout.php               gedeelde opmaak voor het portaal
 └── opmaak.php               merkkleur, logo, favicon en het <head>-blok van alle pagina's
 
-admin/                       beheerinterface
+admin/                       beheerinterface, met Beheer › Handleiding
 admin/assets/admin.js        het enige JavaScript van het beheer (de CSP staat inline niet toe)
 assets/djm.css               eigen opmaak voor portaal, beheer en installatie
+assets/handleiding/          schermafdrukken voor de handleiding (test/handleiding.sh)
 assets/vendor/               Bootstrap en Bootstrap Icons, meegeleverd (zie HERKOMST.md)
 opslag/                      videobestanden — .htaccess weigert alles
 logs/                        applicatie- en foutlogboek
@@ -89,6 +90,7 @@ docs/                        documentatie en voorbeeldconfiguraties
 | [docs/INSTALLATIE.md](docs/INSTALLATIE.md) | De serverbeheerder: van lege server tot werkend portaal, inclusief probleemoplossing. Draait u op **Plesk**, lees dan hoofdstuk 7b — daar gelden andere regels. |
 | [docs/GRAPH-SETUP.md](docs/GRAPH-SETUP.md) | De serverbeheerder: Microsoft Graph instellen zodat de inlogcodes verstuurd worden |
 | [docs/NIEUW-JAAR.md](docs/NIEUW-JAAR.md) | De beheerder van de vereniging: elk jaar een nieuwe jaargang toevoegen |
+| **Beheer › Handleiding** (in het portaal) | Iedere beheerder: hoe het portaal werkt en wat elk scherm doet, met schermafdrukken. Elk beheerscherm heeft een knop *Uitleg* die ernaartoe springt. |
 | [docs/BEHEER.md](docs/BEHEER.md) | Wie het beheer overneemt of deelt: hoe het platform werkt, elk beheerscherm, beheerders, terugkerende taken, vragen van deelnemers en technisch beheer |
 
 Verder in `docs/`: [ARCHITECTUUR.md](docs/ARCHITECTUUR.md) met de afspraken in de code, en

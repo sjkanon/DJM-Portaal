@@ -17,6 +17,7 @@ const PAGINAS = [
     ['/admin/deelnemers.php', true],
     ['/admin/logboek.php', true],
     ['/admin/instellingen.php', true],
+    ['/admin/handleiding.php', true],
 ];
 
 (async () => {

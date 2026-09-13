@@ -512,6 +512,315 @@ code.pad {
     }
 }
 
+/* ─── Handleiding (admin/handleiding.php) ────────────────────────────────── */
+
+/* Lopende tekst op leesbare breedte; schermafdrukken mogen de kaart vullen. */
+.djm-hl-tekst {
+    max-width: 46rem;
+}
+
+.djm-hl-inhoud {
+    position: sticky;
+    top: 1rem;
+    font-size: .875rem;
+}
+
+.djm-hl-inhoud ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    counter-reset: hoofdstuk;
+}
+
+.djm-hl-inhoud > ol > li {
+    counter-increment: hoofdstuk;
+}
+
+.djm-hl-inhoud a {
+    display: block;
+    padding: .25rem .5rem;
+    border-radius: 6px;
+    color: #4b5563;
+    text-decoration: none;
+}
+
+.djm-hl-inhoud > ol > li > a::before {
+    content: counter(hoofdstuk) ".";
+    display: inline-block;
+    width: 1.4rem;
+    color: #9ca3af;
+    font-variant-numeric: tabular-nums;
+}
+
+.djm-hl-inhoud a:hover,
+.djm-hl-inhoud a:focus-visible {
+    background: #eef0f4;
+    color: #111827;
+}
+
+.djm-hl-inhoud ul {
+    list-style: none;
+    margin: 0 0 .25rem 1.4rem;
+    padding: 0;
+}
+
+.djm-hl-inhoud ul a {
+    padding: .1rem .5rem;
+    font-size: .8125rem;
+}
+
+.djm-hl-kop {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .5rem .75rem;
+    margin-bottom: 1rem;
+    padding-bottom: .75rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.djm-hl-kop h2 {
+    margin: 0;
+    font-size: 1.35rem;
+    text-wrap: balance;
+}
+
+.djm-hl-nr {
+    color: #9ca3af;
+    font-size: .8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.djm-hl-scherm {
+    margin-top: 2.25rem;
+}
+
+.djm-hl-scherm-kop {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem .75rem;
+    margin-bottom: .5rem;
+}
+
+.djm-hl-scherm-kop h3 {
+    margin: 0;
+    font-size: 1.15rem;
+}
+
+/* Voor wie is dit hoofdstuk: de vereniging, de technisch beheerder, of beide. */
+.djm-hl-rol {
+    display: inline-block;
+    padding: .1rem .5rem;
+    border-radius: 999px;
+    font-size: .6875rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.djm-hl-rol-v {
+    background: #e7f0ff;
+    color: #0a58ca;
+}
+
+.djm-hl-rol-t {
+    background: #eeebfb;
+    color: #5b4bb7;
+}
+
+.djm-hl-snel {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: .5rem;
+}
+
+.djm-hl-snel a {
+    display: block;
+    padding: .7rem .9rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+    color: #111827;
+    text-decoration: none;
+}
+
+.djm-hl-snel a:hover,
+.djm-hl-snel a:focus-visible {
+    border-color: var(--djm);
+}
+
+.djm-hl-snel small {
+    display: block;
+    color: #6b7280;
+}
+
+/* Schermafdruk in een browserkader, klikbaar naar het volledige beeld. */
+.djm-hl-figuur {
+    margin: 1rem 0 1.5rem;
+}
+
+.djm-hl-figuur > a {
+    display: block;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 8px 24px -14px rgba(15, 23, 42, .25);
+    cursor: zoom-in;
+}
+
+.djm-hl-balk {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .35rem .7rem;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f3f4f6;
+    color: #6b7280;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .75rem;
+}
+
+.djm-hl-balk::before {
+    content: "";
+    flex: none;
+    width: 34px;
+    height: 8px;
+    background: radial-gradient(circle, #d1d5db 3.5px, transparent 4px) 0 0 / 13px 8px repeat-x;
+}
+
+.djm-hl-figuur img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+/* Lange pagina's: bovenkant tonen, de rest achter een klik. */
+.djm-hl-figuur.hoog > a {
+    max-height: 34rem;
+}
+
+.djm-hl-figuur.hoog > a::after {
+    content: "Klik voor de hele pagina";
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    padding: 2.5rem 1rem .75rem;
+    background: linear-gradient(180deg, transparent, rgba(15, 23, 42, .78));
+    color: #fff;
+    font-size: .8125rem;
+    text-align: center;
+}
+
+.djm-hl-figuur.smal {
+    max-width: 16rem;
+}
+
+.djm-hl-figuur figcaption {
+    max-width: 46rem;
+    margin-top: .5rem;
+    color: #4b5563;
+    font-size: .875rem;
+}
+
+.djm-hl-stroom .djm-hl-figuur {
+    margin: 0 0 .5rem;
+}
+
+.djm-hl-stroom .djm-hl-figuur > a {
+    aspect-ratio: 4 / 3;
+}
+
+.djm-hl-stroom .djm-hl-figuur img {
+    height: 100%;
+    object-fit: cover;
+    object-position: top center;
+}
+
+.djm-hl-stap {
+    display: inline-grid;
+    place-items: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    margin-right: .35rem;
+    border-radius: 999px;
+    background: #111827;
+    color: #fff;
+    font-size: .75rem;
+    font-weight: 600;
+}
+
+.djm-hl-stappen {
+    max-width: 46rem;
+    margin: 1rem 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: stap;
+}
+
+.djm-hl-stappen li {
+    display: grid;
+    grid-template-columns: 2rem 1fr;
+    gap: .75rem;
+    margin-bottom: .5rem;
+    padding: .75rem 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    counter-increment: stap;
+}
+
+.djm-hl-stappen li::before {
+    content: counter(stap);
+    color: var(--djm);
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.djm-hl-stappen span {
+    display: block;
+    color: #4b5563;
+    font-size: .9375rem;
+}
+
+.djm-hl-code {
+    max-width: 46rem;
+    padding: .9rem 1rem;
+    overflow-x: auto;
+    border-radius: 8px;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-size: .8125rem;
+}
+
+.djm-hl-code .c {
+    color: #94a3b8;
+}
+
+.djm-hl-vraag {
+    max-width: 46rem;
+    margin-bottom: .5rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+}
+
+.djm-hl-vraag summary {
+    padding: .75rem 1rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.djm-hl-vraag > div {
+    padding: 0 1rem .75rem;
+}
+
+.djm-hl-vraag > div > :last-child {
+    margin-bottom: 0;
+}
+
 /* ─── Inlogkaart van het beheer ──────────────────────────────────────────── */
 
 .djm-inlogkaart {

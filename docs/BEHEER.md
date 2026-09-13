@@ -14,6 +14,10 @@ Er zijn twee soorten beheer, en het mag gerust om twee verschillende mensen gaan
 Wie alleen het jaarlijkse werk doet, heeft genoeg aan hoofdstuk 1 tot en met 5 en
 [NIEUW-JAAR.md](NIEUW-JAAR.md).
 
+> **In het portaal staat dezelfde handleiding, met schermafdrukken:** log in op het beheer en
+> kies **Handleiding** rechts in de menubalk. Elk beheerscherm heeft ook een knop **Uitleg**.
+> Dit bestand is de tekstversie, voor wie (nog) niet kan inloggen.
+
 ---
 
 ## 1. Hoe het platform werkt

@@ -30,6 +30,8 @@ includes/uitlevering_helper.php serverconfig tonen + de uitlevering echt uitprob
 includes/layout.php         portaal_start() / portaal_eind() voor het portaal
 admin/includes/layout.php   admin_start() / admin_eind() / admin_login_start()
 admin/bestandscontrole.php  controle: staan alle gekoppelde bestanden er nog?
+admin/handleiding.php       handleiding voor beheerders, met schermafdrukken
+assets/handleiding/         schermafdrukken voor de handleiding (gemaakt door test/handleiding.sh)
 admin/*.php                 beheerinterface
 opslag/                     videobestanden (niet publiek benaderbaar)
 ```
@@ -47,6 +49,20 @@ opslag/                     videobestanden (niet publiek benaderbaar)
 - Logregels via `log_login()` (inloggebeurtenissen) en `app_log()` (technische fouten).
 - Datums tonen met `formatteer_datum()`, bestandsgroottes met `formatteer_bytes()`.
 - Links bouwen met `url('admin/jaargangen.php')` — nooit hardcoded paden.
+
+## Handleiding bijhouden
+
+**Beheer › Handleiding** (`admin/handleiding.php`) is de handleiding voor wie het portaal beheert.
+Een wijziging die een beheerder of deelnemer kan merken, is pas af als de handleiding klopt:
+
+1. Pas de tekst aan in `admin/handleiding.php`, en in `docs/BEHEER.md` (de tekstversie).
+2. Een nieuw scherm in `admin_menu()` krijgt een blok met `id="scherm-<naam>"` en
+   `data-scherm="<naam>.php"`. De knop **Uitleg** op dat scherm springt ernaartoe, en
+   `test/audit.sh` faalt zolang het blok ontbreekt.
+3. Maak de schermafdrukken opnieuw met `bash test/handleiding.sh` en commit
+   `assets/handleiding/` mee. Een nieuwe afbeelding voeg je toe in `test/handleiding.js` en
+   met `handleiding_figuur()` in de pagina; `test/audit.sh` controleert dat het bestand bestaat.
+4. Noem de wijziging in `CHANGELOG.md`.
 
 ## Beschikbare functies (config.php)
 
