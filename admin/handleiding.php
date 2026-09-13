@@ -225,7 +225,6 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet â€
                     <ul class="mb-0">
                         <li>Een beheeraccount op eigen naam: een andere beheerder voegt u toe via Beheer â€º Beheerders
                             (<a href="#beheerders">hoofdstuk 5</a>). Deel geen accounts.</li>
-                        <li>SFTP-gegevens voor de opslagmap.</li>
                         <li>Het adres van het portaal en van <code>/admin/</code>.</li>
                         <li>Een contactadres bij <a href="<?= h(url('admin/instellingen.php')) ?>#portaal">Instellingen â†’ Portaal</a>
                             dat uitkomt bij iemand die nog actief is.</li>
@@ -243,7 +242,7 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet â€
                 </div>
             </div>
             <div class="alert alert-warning mt-4 mb-0 djm-hl-tekst">
-                <strong>Vertrekt er iemand?</strong> Schakel diens beheeraccount uit, trek de SFTP-toegang in, en vervang
+                <strong>Vertrekt er iemand?</strong> Schakel diens beheeraccount uit, trek zo nodig diens toegang tot de server in, en vervang
                 het client secret als die persoon het ooit in handen heeft gehad.
             </div>
         </section>
@@ -290,12 +289,24 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet â€
             <div class="djm-hl-scherm djm-sectie" id="scherm-bestanden" data-scherm="bestanden.php">
                 <?php handleiding_scherm_kop('bestanden.php', 'Bestanden'); ?>
                 <div class="djm-hl-tekst">
-                    <p>Koppelt een videobestand uit de opslagmap aan een jaargang. U kiest het bestand uit een lijst en
-                        geeft het een <strong>titel</strong> (de tekst op de downloadknop) en een <strong>downloadnaam</strong>
-                        (hoe het bestand bij de ouder op de computer komt). Meerdere bestanden per jaar kan, bijvoorbeeld een
-                        kleinere versie voor trage verbindingen.</p>
-                    <div class="alert alert-info">Grote video's zet u via <strong>SFTP</strong> in de opslagmap, niet via
-                        de uploadknop in de browser: die is alleen voor kleine bestanden.</div>
+                    <p>Hier zet u de video online en koppelt u hem aan een jaargang. Kies de jaargang, sleep de video in het
+                        vak <strong>Video uploaden</strong> en klik op <strong>Uploaden</strong>. Geef hem een <strong>titel</strong>
+                        (de tekst op de downloadknop) en eventueel een <strong>downloadnaam</strong> (hoe het bestand bij de ouder
+                        op de computer komt); na afloop is hij meteen gekoppeld. Meerdere bestanden per jaar kan, bijvoorbeeld
+                        een kleinere versie voor trage verbindingen.</p>
+                    <ul>
+                        <li><strong>Ook grote bestanden.</strong> De video gaat in stukken naar de server. Valt de verbinding
+                            weg, dan probeert het portaal het zelf opnieuw. U ziet hoeveel er binnen is en hoe lang het nog
+                            duurt.</li>
+                        <li><strong>Tabblad per ongeluk dicht?</strong> Open Bestanden opnieuw en kies hetzelfde bestand: de
+                            upload gaat verder waar hij was. Een onafgemaakte upload staat boven het uploadvak en wordt na een
+                            week zonder voortgang vanzelf weggegooid.</li>
+                        <li><strong>Houd het tabblad open</strong> en laat de computer niet slapen tot de upload klaar is.
+                            Met <em>Pauzeren</em> onderbreekt u hem, met <em>Doorgaan</em> gaat hij verder.</li>
+                        <li><strong>Kiezen uit de opslagmap</strong> is voor een bestand dat al op de server staat,
+                            bijvoorbeeld na ontkoppelen. Daaronder kunt u bestanden die aan geen enkele jaargang hangen
+                            definitief verwijderen.</li>
+                    </ul>
                 </div>
                 <?php handleiding_figuur('beheer-bestanden', 'Gekoppelde bestanden van jaargang 2026', [
                     'adres' => '/admin/bestanden.php?jaargang=â€¦', 'hoog' => true,
@@ -450,15 +461,12 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet â€
             <?php handleiding_kop(4, 'Een nieuw jaar online zetten', ['vereniging']); ?>
             <p class="djm-hl-tekst">Reken op een kwartier werk, plus de tijd die het uploaden van de video kost.</p>
             <ol class="djm-hl-stappen">
-                <li><div><strong>Video via SFTP in de opslagmap zetten</strong><span>In een map met het jaartal, bijvoorbeeld
-                    <code><?= h(rtrim(opslag_pad(), '/')) ?>/<?= (int)date('Y') ?>/musical-<?= (int)date('Y') ?>.mp4</code>. Geen spaties of
-                    accenten in de bestandsnaam. Controleer daarna of de bestandsgrootte op de server exact gelijk is
-                    aan die op uw computer.</span></div></li>
                 <li><div><strong>Jaargang aanmaken</strong><span><a href="#scherm-jaargangen">Jaargangen</a> â†’ Nieuwe
                     jaargang. Laat <em>Gepubliceerd</em> nog uit.</span></div></li>
-                <li><div><strong>Bestand koppelen</strong><span><a href="#scherm-bestanden">Bestanden</a> â†’ kies de
-                    jaargang en het bestand. Kijk in <a href="#scherm-bestandscontrole">Controle</a> of het <em>in orde</em>
-                    is.</span></div></li>
+                <li><div><strong>Video uploaden</strong><span><a href="#scherm-bestanden">Bestanden</a> â†’ kies de
+                    jaargang, sleep de video in het uploadvak en klik op <em>Uploaden</em>. Houd het tabblad open; na afloop
+                    is de video meteen gekoppeld. Kijk daarna in <a href="#scherm-bestandscontrole">Controle</a> of hij
+                    <em>in orde</em> is.</span></div></li>
                 <li><div><strong>Eerst uzelf toevoegen en testen</strong><span><a href="#scherm-toegang">Toegang</a> â†’
                     alleen uw eigen adres, met uitnodiging. Publiceer de jaargang, log in als ouder en start de
                     download.</span></div></li>

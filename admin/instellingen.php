@@ -1086,7 +1086,7 @@ $aantalDeelnemers = inst_aantal('deelnemers');
                         <?php elseif (!$opslagSchrijf): ?>
                             <span class="badge text-bg-warning">bestaat, niet schrijfbaar</span>
                             <span class="small text-muted ms-1">
-                                Alleen nodig als u via de browser wilt uploaden.
+                                Nodig om video's via Beheer › Bestanden te uploaden.
                             </span>
                         <?php else: ?>
                             <span class="badge text-bg-success">bestaat en is schrijfbaar</span>

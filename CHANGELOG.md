@@ -6,6 +6,24 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
 
 ### Beheer
 
+- **Video's uploaden via de browser, ook van vele gigabytes.** Beheer › Bestanden heeft een
+  uploadvak: sleep de video erin en hij gaat in stukken naar de server, met voortgang, snelheid en
+  resterende tijd. Valt de verbinding weg, dan probeert het portaal het zelf opnieuw; is het tabblad
+  dicht geweest, kies dan hetzelfde bestand en de upload gaat verder waar hij was. Pauzeren en
+  annuleren kan. Na afloop is de video meteen aan de jaargang gekoppeld. SFTP is voor het jaarlijkse
+  werk niet meer nodig; een bestand dat al in de opslagmap staat, kiest u zoals voorheen.
+- **Niet-gekoppelde bestanden opruimen.** Onder *Kiezen uit de opslagmap* staan de bestanden die aan
+  geen enkele jaargang hangen, met een knop om ze definitief te verwijderen. Een gekoppeld bestand kan
+  niet weg. Elke verwijdering staat in het inloglogboek, met wie het deed.
+- **Geen halve video's meer in de opslagmap.** Tijdens het uploaden staat het bestand apart in
+  `.uploads/` en het komt pas bij het jaar als het compleet is. Elk stuk wordt op lengte en (over
+  https) op SHA-256 gecontroleerd; een bestaand bestand wordt nooit overschreven. De nachtelijke taak
+  ruimt uploads op die een week stilliggen.
+- **Nieuwe tabel `uploads`.** Bestaande installaties hoeven niets te doen: het portaal maakt hem zelf
+  aan. PHP moet wel in de opslagmap kunnen schrijven; Beheer › Instellingen laat zien of dat zo is.
+  `client_max_body_size` in `docs/nginx.voorbeeld.conf` is teruggebracht naar `64m`.
+- Het oude uploadformulier, dat alleen bestanden binnen `upload_max_filesize` aankon, is vervallen.
+
 - **De menubalk van het beheer past weer op één regel.** Handleiding, Portaal bekijken en
   Uitloggen staan nu in een menu onder de naam van de beheerder, en links staat het logo in
   plaats van de portaalnaam (zonder logo blijft de naam staan). Voorheen bleef er op een breed

@@ -404,7 +404,7 @@ admin_start('Jaargangen', 'Eén rij per jaar: titel, zichtbaarheidsperiode en pu
             <i class="bi bi-info-circle me-1"></i>
             Bij het verwijderen van een jaargang verdwijnen ook de gekoppelde bestandsregels en
             toegangsrechten (de database doet dat automatisch). Het videobestand zelf blijft op
-            schijf staan en moet u zo nodig zelf via SFTP opruimen.
+            schijf staan; opruimen kan daarna onder Bestanden, bij de niet-gekoppelde bestanden.
         </p>
     </div>
 

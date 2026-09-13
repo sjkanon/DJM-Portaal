@@ -160,6 +160,7 @@ function admin_eind(): void
     </div>
     <script src="<?= h(djm_asset('assets/vendor/bootstrap.bundle.min.js')) ?>"></script>
     <script src="<?= h(djm_asset('admin/assets/admin.js')) ?>"></script>
+    <script src="<?= h(djm_asset('admin/assets/upload.js')) ?>"></script>
 </body>
 
 </html>

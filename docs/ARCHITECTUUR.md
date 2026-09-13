@@ -29,7 +29,10 @@ includes/download_helper.php uitlevering: X-Accel / X-Sendfile / PHP-stream
 includes/uitlevering_helper.php serverconfig tonen + de uitlevering echt uitproberen
 includes/layout.php         portaal_start() / portaal_eind() voor het portaal
 includes/beheerder_helper.php  rem op pogingen, links om een wachtwoord te kiezen
+includes/bestand_helper.php opslagmap scannen, bestanden koppelen, upload in delen
 admin/includes/layout.php   admin_start() / admin_eind() / admin_login_start()
+admin/bestanden.php         video uploaden, bestanden koppelen en opruimen
+admin/upload.php            JSON-eindpunt voor de upload in delen (admin/assets/upload.js)
 admin/bestandscontrole.php  controle: staan alle gekoppelde bestanden er nog?
 admin/handleiding.php       handleiding voor beheerders, met schermafdrukken
 admin/beheerders.php        beheerders toevoegen, links sturen, uit- en inschakelen
@@ -121,6 +124,17 @@ deel; van dat laatste staat alleen een HMAC met `APP_KEY` in de database. De tab
 (`beheerder_link_basis_vast()`): zonder sessie bepaalt de aanvrager anders via de Host-header
 naar welke site de link wijst.
 
+**bestand_helper.php:** `bestand_scan_opslag()`, `bestand_gekoppelde_paden()`, `bestand_koppelen()`,
+`bestand_veilige_naam()`, `bestand_vrije_naam()`, `download_veilige_naam()`, `mime_uit_extensie()`,
+`upload_start()`, `upload_deel_schrijven()`, `upload_afronden()`, `upload_verwijderen()`,
+`upload_openstaand()`, `upload_opruimen()`. Een upload staat tot hij compleet is in
+`<opslagmap>/.uploads/<sleutel>.deel`; de scan slaat alles met een punt ervoor over, dus een half
+bestand is nooit te koppelen. Wat op schijf staat, is leidend voor de voortgang; de tabel `uploads`
+(zo nodig aangemaakt door `upload_tabel()`) onthoudt alleen wat bij welk bestand hoort.
+`admin/upload.php` antwoordt met JSON: `vereis_beheerder()` geeft daar een 401 in plaats van een
+doorverwijzing zodra het verzoek om JSON vraagt. Gebruik in zo'n eindpunt geen status 419: Apache
+maakt van een onbekende status een 500.
+
 **admin/includes/layout.php:** `admin_start($titel, $subtitel = '')`, `admin_eind()`,
 `admin_login_start($titel)`, `admin_login_eind()`, `admin_menu()`.
 
@@ -128,7 +142,7 @@ naar welke site de link wijst.
 
 Zie `db.sql` — dat bestand is leidend. Kern: `jaargangen` 1—n `jaargang_bestanden`,
 `deelnemers` n—n `jaargangen` via `toegang`. Verder `login_codes`, `remember_tokens`,
-`aanvraag_limiet`, `download_log`, `mail_log`, `login_log`, `beheerders`, `beheerder_tokens`, `instellingen`.
+`aanvraag_limiet`, `download_log`, `mail_log`, `login_log`, `beheerders`, `beheerder_tokens`, `uploads`, `instellingen`.
 
 `jaargang_bestanden.pad` is **altijd relatief** ten opzichte van `opslag_pad()` en wordt
 uitsluitend via `opslag_absoluut_pad()` naar een absoluut pad omgezet.

@@ -6,6 +6,8 @@
  * Verwijdert verlopen inlogcodes, verlopen remember-tokens, oude limietvensters
  * en logregels die de bewaartermijn hebben overschreden. Onvoltooide downloads
  * ouder dan zeven dagen worden op afgerond gezet, zodat de statistieken kloppen.
+ * Uploads via Beheer › Bestanden die een week stilliggen, gaan met hun halve
+ * bestand weg.
  *
  * Dit script draait uitsluitend op de commandoregel.
  *
@@ -95,6 +97,19 @@ if (tabel_bestaat('beheerder_tokens')) {
         'DELETE FROM beheerder_tokens
           WHERE verloopt_op < NOW() OR gebruikt_op < (NOW() - INTERVAL 24 HOUR)'
     );
+}
+
+// ─── Onafgemaakte uploads ────────────────────────────────────────────────────
+// Een upload via Beheer › Bestanden die een week niets meer ontving, wordt niet
+// meer afgemaakt. Het halve bestand kan gigabytes groot zijn; weg ermee.
+require_once __DIR__ . '/includes/bestand_helper.php';
+try {
+    $aantal = upload_opruimen(UPLOAD_VERLOOP_DAGEN);
+    cron_regel(sprintf('%-46s %6d upload(s)', 'Onafgemaakte uploads (' . UPLOAD_VERLOOP_DAGEN . ' dagen stil)', $aantal));
+    $totaal += $aantal;
+} catch (Throwable $e) {
+    cron_regel('Onafgemaakte uploads — MISLUKT: ' . $e->getMessage());
+    app_log('cron_opschonen: uploads opruimen mislukt', ['fout' => $e->getMessage()]);
 }
 
 // ─── Rate limiting ───────────────────────────────────────────────────────────

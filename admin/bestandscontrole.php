@@ -554,7 +554,7 @@ admin_start(
                     <?php if ($telling['afwijkend'] > 0): ?>
                         <li>
                             <strong><?= (int)$telling['afwijkend'] ?> bestand(en) hebben een afwijkende grootte.</strong>
-                            Controleer of de SFTP-upload volledig is afgerond. Klopt het bestand,
+                            Controleer of de upload volledig is afgerond. Klopt het bestand,
                             werk dan de grootte bij; is de upload afgebroken, upload dan opnieuw.
                         </li>
                     <?php endif; ?>

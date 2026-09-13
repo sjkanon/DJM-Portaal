@@ -897,3 +897,28 @@ code.pad {
         box-shadow: none;
     }
 }
+
+/* ── Upload in delen (Beheer › Bestanden) ───────────────────────────────────
+   Het vak waar een video op gesleept kan worden. Het bestandsveld zelf staat
+   erin, zodat kiezen met toetsenbord en schermlezer gewoon werkt. */
+.djm-upload-vak {
+    border: 2px dashed var(--bs-border-color);
+    border-radius: var(--bs-border-radius-lg);
+    padding: 1.25rem;
+    text-align: center;
+    transition: border-color .15s, background-color .15s;
+}
+
+.djm-upload-vak-actief {
+    border-color: var(--djm);
+    background: color-mix(in srgb, var(--djm) 8%, transparent);
+}
+
+.djm-upload-vak-uit {
+    opacity: .6;
+}
+
+.djm-upload-vak .form-control {
+    max-width: 28rem;
+    margin: 0 auto;
+}

@@ -47,7 +47,7 @@ foreach (array_filter(array_map('trim', explode(";\n", $sql))) as $stmt) {
     $pdo->exec(rtrim($stmt, ";\n "));
 }
 $tabellen = $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
-toets('alle tabellen aangemaakt', 12, count($tabellen));
+toets('alle tabellen aangemaakt', substr_count($sql, 'CREATE TABLE IF NOT EXISTS'), count($tabellen));
 toets_waar('standaardinstellingen geladen', instelling('portaal_naam') === 'Deventer Jeugd Musical');
 
 echo "\n── Testgegevens ────────────────────────────────────────────\n";

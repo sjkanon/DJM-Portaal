@@ -3,136 +3,23 @@
 /**
  * Beheer — Bestanden koppelen aan een jaargang.
  *
- * Route A (aanbevolen): het videobestand staat al via SFTP in de opslagmap en
- *   wordt hier alleen gekozen. De database bewaart uitsluitend het relatieve pad.
- * Route B (secundair): uploaden via de browser. Werkt alleen binnen de
- *   PHP-limieten en is dus ongeschikt voor grote videoregistraties.
+ * Uploaden: de video gaat in delen via de browser naar de opslagmap
+ *   (admin/upload.php + admin/assets/upload.js) en wordt meteen gekoppeld.
+ *   Werkt voor bestanden van vele gigabytes; een afgebroken upload gaat verder
+ *   waar hij was.
+ * Kiezen uit de opslagmap: voor een bestand dat er al staat, bijvoorbeeld
+ *   eerder geüpload, ontkoppeld, of door de technisch beheerder via SFTP
+ *   neergezet. De database bewaart uitsluitend het relatieve pad.
  *
- * Ontkoppelen verwijdert altijd alleen de databaseregel; het bestand op schijf
- * blijft staan.
+ * Ontkoppelen verwijdert alleen de databaseregel; het bestand blijft staan. Een
+ * bestand dat nergens meer aan gekoppeld is, kan hier ook van schijf af.
  */
 
 require_once dirname(__DIR__) . '/config.php';
 require_once __DIR__ . '/includes/layout.php';
+require_once dirname(__DIR__) . '/includes/bestand_helper.php';
 vereis_installatie();
 $beheerder = vereis_beheerder();
-
-// ─── Toegestane bestandstypen ────────────────────────────────────────────────
-const BESTAND_EXTENSIES = ['mp4', 'mkv', 'mov', 'm4v', 'webm', 'avi', 'zip'];
-const BESTAND_MAX_DIEPTE = 3;
-
-/** MIME-type op basis van de extensie; nooit op basis van gebruikersinvoer. */
-function mime_uit_extensie(string $extensie): string
-{
-    return [
-        'mp4'  => 'video/mp4',
-        'm4v'  => 'video/x-m4v',
-        'mkv'  => 'video/x-matroska',
-        'mov'  => 'video/quicktime',
-        'webm' => 'video/webm',
-        'avi'  => 'video/x-msvideo',
-        'zip'  => 'application/zip',
-    ][strtolower($extensie)] ?? 'application/octet-stream';
-}
-
-/**
- * Naam die de bezoeker in zijn downloadmap ziet. Ruimer dan de naam op schijf:
- * spaties en accenten mogen hier wél. Padscheidingstekens, aanhalingstekens,
- * puntkomma's en regeleindes gaan eruit — die kunnen de Content-Disposition-
- * header breken.
- */
-function download_veilige_naam(string $naam): string
-{
-    $naam = str_replace(['\\', '/'], ' ', $naam);
-    $naam = preg_replace('/[\x00-\x1F\x7F";]+/u', '', $naam) ?? '';
-    $naam = preg_replace('/\s+/u', ' ', $naam) ?? '';
-    $naam = trim($naam, " ._-");
-    return $naam === '' ? 'bestand' : mb_substr($naam, 0, 200);
-}
-
-/** Maakt een bestandsnaam veilig: alleen letters, cijfers, punt, streepje, underscore. */
-function bestand_veilige_naam(string $naam): string
-{
-    $naam = basename(str_replace('\\', '/', $naam));
-    $naam = preg_replace('/[^A-Za-z0-9._-]+/', '_', $naam) ?? '';
-    $naam = trim($naam, '._-');
-    return $naam === '' ? 'bestand' : substr($naam, 0, 200);
-}
-
-/**
- * Scant de opslagmap recursief (maximaal BESTAND_MAX_DIEPTE niveaus) op
- * videobestanden. Geeft een lijst met relatief pad => [pad, bytes, ext].
- */
-function bestand_scan_opslag(): array
-{
-    $basis = realpath(opslag_pad());
-    if ($basis === false || !is_dir($basis)) {
-        return [];
-    }
-
-    $gevonden = [];
-    $stapel   = [['', 1]];
-
-    while ($stapel) {
-        [$relatieveMap, $diepte] = array_pop($stapel);
-        $map   = $relatieveMap === '' ? $basis : $basis . '/' . $relatieveMap;
-        $items = @scandir($map);
-        if ($items === false) {
-            continue;
-        }
-        foreach ($items as $item) {
-            if ($item === '.' || $item === '..' || $item[0] === '.') {
-                continue;
-            }
-            $volledig = $map . '/' . $item;
-            if (is_link($volledig)) {
-                continue;   // symlinks nooit volgen: die kunnen buiten de opslagmap wijzen
-            }
-            $relatief = $relatieveMap === '' ? $item : $relatieveMap . '/' . $item;
-
-            if (is_dir($volledig)) {
-                if ($diepte < BESTAND_MAX_DIEPTE) {
-                    $stapel[] = [$relatief, $diepte + 1];
-                }
-                continue;
-            }
-            if (!is_file($volledig)) {
-                continue;
-            }
-            $ext = strtolower((string)pathinfo($item, PATHINFO_EXTENSION));
-            if (!in_array($ext, BESTAND_EXTENSIES, true)) {
-                continue;
-            }
-            $gevonden[$relatief] = [
-                'pad'   => $relatief,
-                'bytes' => (int)@filesize($volledig),
-                'ext'   => $ext,
-            ];
-        }
-    }
-
-    ksort($gevonden, SORT_NATURAL | SORT_FLAG_CASE);
-    return $gevonden;
-}
-
-/** Alle paden die al aan een jaargang gekoppeld zijn: pad => jaar. */
-function bestand_gekoppelde_paden(): array
-{
-    try {
-        $rijen = db()->query(
-            'SELECT b.pad, j.jaar FROM jaargang_bestanden b
-               JOIN jaargangen j ON j.id = b.jaargang_id'
-        )->fetchAll() ?: [];
-    } catch (Throwable $e) {
-        app_log('gekoppelde paden ophalen mislukt', ['fout' => $e->getMessage()]);
-        return [];
-    }
-    $kaart = [];
-    foreach ($rijen as $rij) {
-        $kaart[(string)$rij['pad']] = (int)$rij['jaar'];
-    }
-    return $kaart;
-}
 
 // ─── Jaargangen ophalen ──────────────────────────────────────────────────────
 $jaargangen = [];
@@ -157,18 +44,6 @@ if ($jaargangId === 0 && $jaargangen) {
 
 $paginaUrl = url('admin/bestanden.php') . ($jaargangId > 0 ? '?jaargang=' . $jaargangId : '');
 
-// ─── POST groter dan post_max_size? ──────────────────────────────────────────
-// Dan zijn $_POST en $_FILES leeg en zou de CSRF-controle een verwarrende
-// foutmelding geven. Vang dat af met een begrijpelijke uitleg.
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && empty($_FILES)
-    && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
-    flash('danger', 'De verzonden gegevens waren groter dan de serverlimiet (post_max_size = '
-        . ini_get('post_max_size') . '). Gebruik route A: zet het bestand via SFTP in de opslagmap '
-        . 'en kies het daar.');
-    header('Location: ' . $paginaUrl);
-    exit;
-}
-
 // ─── Verwerking ──────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     vereis_csrf();
@@ -185,30 +60,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Het pad moet uit de scan komen; nooit rechtstreeks uit de invoer.
             flash('danger', 'Dat bestand is niet (meer) in de opslagmap gevonden.');
         } else {
-            $bron  = $gevonden[$gekozen];
-            $titel = trim((string)($_POST['titel'] ?? ''));
-            $naam  = trim((string)($_POST['bestandsnaam'] ?? ''));
-            if ($titel === '') {
-                $titel = 'Videoregistratie ' . (int)$jaargangPerId[$jaargangId]['jaar'];
-            }
-            $naam = $naam !== '' ? download_veilige_naam($naam) : download_veilige_naam(basename($gekozen));
-
             try {
-                db()->prepare(
-                    'INSERT INTO jaargang_bestanden
-                        (jaargang_id, titel, bestandsnaam, pad, bytes, mime, sortering, actief)
-                     VALUES (:j, :t, :n, :p, :b, :m, :s, :a)'
-                )->execute([
-                    ':j' => $jaargangId,
-                    ':t' => substr($titel, 0, 150),
-                    ':n' => substr($naam, 0, 255),
-                    ':p' => substr($bron['pad'], 0, 500),
-                    ':b' => $bron['bytes'],
-                    ':m' => mime_uit_extensie($bron['ext']),
-                    ':s' => (int)($_POST['sortering'] ?? 0),
-                    ':a' => isset($_POST['actief']) ? 1 : 0,
+                bestand_koppelen($jaargangId, $gevonden[$gekozen]['pad'], $gevonden[$gekozen]['bytes'], [
+                    'titel'        => (string)($_POST['titel'] ?? ''),
+                    'bestandsnaam' => (string)($_POST['bestandsnaam'] ?? ''),
+                    'sortering'    => (int)($_POST['sortering'] ?? 0),
+                    'actief'       => isset($_POST['actief']),
                 ]);
-                flash('success', 'Bestand gekoppeld: ' . $bron['pad']);
+                flash('success', 'Bestand gekoppeld: ' . $gekozen);
             } catch (Throwable $e) {
                 app_log('bestand koppelen mislukt', ['fout' => $e->getMessage()]);
                 flash('danger', 'Koppelen is mislukt.');
@@ -218,90 +77,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // ── Uploaden via de browser ─────────────────────────────────────────────
-    if ($actie === 'uploaden') {
-        $upload = $_FILES['bestand'] ?? null;
+    // ── Niet-gekoppeld bestand van schijf verwijderen ───────────────────────
+    if ($actie === 'verwijderen') {
+        $gekozen  = (string)($_POST['pad'] ?? '');
+        $gevonden = bestand_scan_opslag();
 
-        if ($jaargangId <= 0) {
-            flash('danger', 'Kies eerst een jaargang.');
-        } elseif (!is_array($upload) || (int)($upload['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
-            flash('danger', 'Er is geen bestand gekozen.');
-        } elseif ((int)$upload['error'] !== UPLOAD_ERR_OK) {
-            $meldingen = [
-                UPLOAD_ERR_INI_SIZE   => 'Het bestand is groter dan upload_max_filesize (' . ini_get('upload_max_filesize') . ').',
-                UPLOAD_ERR_FORM_SIZE  => 'Het bestand is groter dan toegestaan door het formulier.',
-                UPLOAD_ERR_PARTIAL    => 'Het bestand is maar gedeeltelijk geüpload.',
-                UPLOAD_ERR_NO_TMP_DIR => 'De server heeft geen tijdelijke map voor uploads.',
-                UPLOAD_ERR_CANT_WRITE => 'De server kon het bestand niet wegschrijven.',
-                UPLOAD_ERR_EXTENSION  => 'Een PHP-extensie heeft de upload geblokkeerd.',
-            ];
-            flash('danger', $meldingen[(int)$upload['error']] ?? 'De upload is mislukt.');
+        if (!isset($gevonden[$gekozen])) {
+            flash('danger', 'Dat bestand is niet (meer) in de opslagmap gevonden.');
         } else {
-            $origineel = (string)($upload['name'] ?? '');
-            $extensie  = strtolower((string)pathinfo($origineel, PATHINFO_EXTENSION));
-
-            if (!in_array($extensie, BESTAND_EXTENSIES, true)) {
-                flash('danger', 'Dit bestandstype is niet toegestaan. Toegestaan: '
-                    . implode(', ', BESTAND_EXTENSIES) . '.');
-            } elseif (!is_uploaded_file((string)$upload['tmp_name'])) {
-                flash('danger', 'De upload is niet geldig.');
-            } else {
-                $jaar    = (int)$jaargangPerId[$jaargangId]['jaar'];
-                $doelMap = opslag_pad() . '/' . $jaar;
-                if (!is_dir($doelMap) && !@mkdir($doelMap, 0775, true) && !is_dir($doelMap)) {
-                    flash('danger', 'De map ' . $jaar . ' kon niet in de opslagmap worden aangemaakt. '
-                        . 'Controleer de schrijfrechten.');
-                    header('Location: ' . $paginaUrl);
-                    exit;
-                }
-
-                $veiligeNaam = bestand_veilige_naam($origineel);
-                if (strtolower((string)pathinfo($veiligeNaam, PATHINFO_EXTENSION)) !== $extensie) {
-                    $veiligeNaam .= '.' . $extensie;
-                }
-                // Bestaande bestanden nooit overschrijven.
-                $basisNaam = (string)pathinfo($veiligeNaam, PATHINFO_FILENAME);
-                $teller    = 1;
-                while (file_exists($doelMap . '/' . $veiligeNaam)) {
-                    $teller++;
-                    $veiligeNaam = $basisNaam . '-' . $teller . '.' . $extensie;
-                }
-
-                if (!@move_uploaded_file((string)$upload['tmp_name'], $doelMap . '/' . $veiligeNaam)) {
-                    flash('danger', 'Het bestand kon niet in de opslagmap worden gezet.');
-                } else {
-                    @chmod($doelMap . '/' . $veiligeNaam, 0644);
-                    $relatief = $jaar . '/' . $veiligeNaam;
-                    $titel    = trim((string)($_POST['titel'] ?? ''));
-                    if ($titel === '') {
-                        $titel = 'Videoregistratie ' . $jaar;
-                    }
-                    $downloadNaam = trim((string)($_POST['bestandsnaam'] ?? ''));
-                    $downloadNaam = $downloadNaam !== '' ? download_veilige_naam($downloadNaam) : $veiligeNaam;
-
-                    try {
-                        db()->prepare(
-                            'INSERT INTO jaargang_bestanden
-                                (jaargang_id, titel, bestandsnaam, pad, bytes, mime, sortering, actief)
-                             VALUES (:j, :t, :n, :p, :b, :m, :s, :a)'
-                        )->execute([
-                            ':j' => $jaargangId,
-                            ':t' => substr($titel, 0, 150),
-                            ':n' => substr($downloadNaam, 0, 255),
-                            ':p' => substr($relatief, 0, 500),
-                            ':b' => (int)@filesize($doelMap . '/' . $veiligeNaam),
-                            ':m' => mime_uit_extensie($extensie),
-                            ':s' => (int)($_POST['sortering'] ?? 0),
-                            ':a' => isset($_POST['actief']) ? 1 : 0,
-                        ]);
-                        flash('success', 'Bestand geüpload en gekoppeld: ' . $relatief);
-                    } catch (Throwable $e) {
-                        app_log('geüpload bestand koppelen mislukt', ['fout' => $e->getMessage()]);
-                        flash('warning', 'Het bestand staat in de opslagmap, maar de koppeling is mislukt. '
-                            . 'Koppel het handmatig via route A.');
-                    }
-                }
+            try {
+                // Rechtstreeks nagaan in plaats van via bestand_gekoppelde_paden():
+                // die geeft bij een databasefout een lege lijst, en dan zou een
+                // gekoppelde video zomaar van schijf kunnen.
+                $stmt = db()->prepare('SELECT COUNT(*) FROM jaargang_bestanden WHERE pad = :p');
+                $stmt->execute([':p' => $gekozen]);
+                $gekoppeld = (int)$stmt->fetchColumn() > 0;
+            } catch (Throwable $e) {
+                app_log('koppeling nagaan mislukt', ['fout' => $e->getMessage()]);
+                $gekoppeld = true;
             }
+            $absoluut = opslag_absoluut_pad($gekozen);
+
+            if ($gekoppeld) {
+                flash('danger', 'Dit bestand hoort bij een jaargang. Ontkoppel het eerst; daarna kunt u het verwijderen.');
+            } elseif ($absoluut === null || !@unlink($absoluut)) {
+                flash('danger', 'Het bestand kon niet worden verwijderd. Heeft de webserver schrijfrechten op de map?');
+            } else {
+                log_login('bestand_verwijderd', (string)$beheerder['email'], true,
+                    $gekozen . ' (' . formatteer_bytes($gevonden[$gekozen]['bytes']) . ') door ' . (string)$beheerder['naam']);
+                flash('success', 'Verwijderd uit de opslagmap: ' . $gekozen);
+            }
+        }
+        header('Location: ' . $paginaUrl);
+        exit;
+    }
+
+    // ── Onafgemaakte upload weggooien ───────────────────────────────────────
+    if ($actie === 'upload_verwijderen') {
+        $upload = upload_ophalen((string)($_POST['sleutel'] ?? ''));
+        try {
+            if ($upload !== null) {
+                upload_verwijderen($upload);
+            }
+            flash('success', 'De onafgemaakte upload is weggegooid.');
+        } catch (UploadFout $e) {
+            flash('warning', $e->getMessage());
+        } catch (Throwable $e) {
+            app_log('upload verwijderen mislukt', ['fout' => $e->getMessage()]);
+            flash('danger', 'Weggooien is mislukt.');
         }
         header('Location: ' . $paginaUrl);
         exit;
@@ -322,8 +145,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         SET titel = :t, bestandsnaam = :n, sortering = :s, actief = :a
                       WHERE id = :id'
                 )->execute([
-                    ':t'  => substr($titel, 0, 150),
-                    ':n'  => substr($naam, 0, 255),
+                    ':t'  => mb_substr($titel, 0, 150),
+                    ':n'  => mb_substr($naam, 0, 255),
                     ':s'  => (int)($_POST['sortering'] ?? 0),
                     ':a'  => isset($_POST['actief']) ? 1 : 0,
                     ':id' => $id,
@@ -403,6 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ─── Gegevens voor de weergave ───────────────────────────────────────────────
 $bestanden = [];
+$openstaand = [];
 if ($jaargangId > 0) {
     try {
         $stmt = db()->prepare(
@@ -410,16 +234,20 @@ if ($jaargangId > 0) {
         );
         $stmt->execute([':j' => $jaargangId]);
         $bestanden = $stmt->fetchAll() ?: [];
+        $openstaand = upload_openstaand($jaargangId);
     } catch (Throwable $e) {
         app_log('bestanden ophalen mislukt', ['fout' => $e->getMessage()]);
         flash('danger', 'De bestandenlijst kon niet worden geladen.');
     }
 }
 
-$bewerkId       = (int)($_GET['bewerk'] ?? 0);
+$bewerkId         = (int)($_GET['bewerk'] ?? 0);
 $gevondenOpSchijf = bestand_scan_opslag();
 $gekoppeldePaden  = bestand_gekoppelde_paden();
+$losseBestanden   = array_diff_key($gevondenOpSchijf, $gekoppeldePaden);
 $opslagBestaat    = is_dir(opslag_pad());
+$opslagSchrijfbaar = $opslagBestaat && is_writable(opslag_pad());
+$vrijeRuimte      = $opslagBestaat ? @disk_free_space(opslag_pad()) : false;
 $huidigeJaargang  = $jaargangId > 0 ? $jaargangPerId[$jaargangId] : null;
 
 $subtitel = $huidigeJaargang !== null
@@ -481,7 +309,7 @@ admin_start('Bestanden', $subtitel);
             <div class="p-5 text-center text-muted">
                 <i class="bi bi-film fs-1 d-block mb-2 opacity-50"></i>
                 Aan deze jaargang is nog geen bestand gekoppeld.<br>
-                Kies hieronder een bestand uit de opslagmap.
+                Upload hieronder de video, of kies een bestand dat al in de opslagmap staat.
             </div>
         <?php else: ?>
             <div class="table-responsive">
@@ -631,18 +459,162 @@ admin_start('Bestanden', $subtitel);
 
     <div class="row g-4">
 
-        <!-- ─── Route A: kiezen uit de opslagmap ─────────────────────────── -->
+        <!-- ─── Uploaden via de browser ──────────────────────────────────── -->
         <div class="col-xl-7">
+            <div class="kaart h-100" id="upload" data-upload
+                data-adres="<?= h(url('admin/upload.php')) ?>"
+                data-csrf="<?= h(csrf_token()) ?>"
+                data-jaargang="<?= $jaargangId ?>"
+                data-extensies="<?= h(implode(',', BESTAND_EXTENSIES)) ?>">
+                <div class="p-3 border-bottom">
+                    <h2 class="h6 mb-1"><i class="bi bi-cloud-arrow-up me-1"></i>Video uploaden</h2>
+                    <p class="text-muted small mb-0">
+                        Ook voor video's van vele gigabytes. Het bestand gaat in stukken naar de server;
+                        valt de verbinding weg, dan gaat de upload daarna vanzelf verder waar hij was.
+                    </p>
+                </div>
+
+                <div class="p-3">
+                    <noscript>
+                        <div class="alert alert-warning py-2 small">Uploaden werkt alleen met JavaScript aan.</div>
+                    </noscript>
+
+                    <?php if (!$opslagSchrijfbaar): ?>
+                        <div class="alert alert-danger py-2 small">
+                            De webserver kan niet schrijven in de opslagmap
+                            <code class="pad"><?= h(opslag_pad()) ?></code>. Uploaden lukt zo niet;
+                            vraag de technisch beheerder om schrijfrechten.
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if ($openstaand): ?>
+                        <div class="alert alert-info py-2 small">
+                            <div class="fw-semibold mb-1">
+                                <i class="bi bi-hourglass-split me-1"></i>Onafgemaakte upload<?= count($openstaand) > 1 ? 's' : '' ?>
+                            </div>
+                            <p class="mb-2">
+                                Kies hetzelfde bestand hieronder opnieuw, dan gaat de upload verder waar hij was.
+                                Na <?= UPLOAD_VERLOOP_DAGEN ?> dagen zonder voortgang wordt hij weggegooid.
+                            </p>
+                            <ul class="list-unstyled mb-0">
+                                <?php foreach ($openstaand as $upload): ?>
+                                    <?php $procent = (int)$upload['bytes'] > 0 ? (int)floor($upload['ontvangen'] / (int)$upload['bytes'] * 100) : 0; ?>
+                                    <li class="d-flex flex-wrap align-items-center gap-2 py-1 border-top">
+                                        <div class="flex-grow-1 min-w-0">
+                                            <div class="djm-afkappen"><?= h((string)$upload['origineel']) ?></div>
+                                            <div class="text-muted">
+                                                <?= h(formatteer_bytes((int)$upload['ontvangen'])) ?> van
+                                                <?= h(formatteer_bytes((int)$upload['bytes'])) ?> (<?= $procent ?>%)
+                                                · <?= h(formatteer_datum((string)$upload['bijgewerkt_op'])) ?>
+                                                <?php if (!empty($upload['beheerder_naam'])): ?>
+                                                    · <?= h((string)$upload['beheerder_naam']) ?>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                        <form method="post"
+                                            <?= bevestig_attribuut("Deze onafgemaakte upload weggooien?\n\nWat er al op de server staat, gaat verloren.") ?>>
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="actie" value="upload_verwijderen">
+                                            <input type="hidden" name="jaargang" value="<?= $jaargangId ?>">
+                                            <input type="hidden" name="sleutel" value="<?= h((string)$upload['sleutel']) ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Weggooien">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </div>
+                    <?php endif; ?>
+
+                    <div class="djm-upload-vak" data-upload-vak>
+                        <i class="bi bi-film fs-2 d-block text-muted mb-1" aria-hidden="true"></i>
+                        <label class="form-label" for="upload-bestand">Sleep de video hierheen, of kies hem:</label>
+                        <input type="file" class="form-control" id="upload-bestand" data-upload-invoer
+                            accept=".<?= h(implode(',.', BESTAND_EXTENSIES)) ?>"
+                            <?= $opslagSchrijfbaar ? '' : 'disabled' ?>>
+                        <div class="form-text">
+                            <?= h(implode(', ', BESTAND_EXTENSIES)) ?> · komt in
+                            <code class="pad"><?= h(opslag_pad() . '/' . (int)$huidigeJaargang['jaar']) ?></code>
+                            <?php if ($vrijeRuimte !== false): ?>
+                                · <?= h(formatteer_bytes((int)$vrijeRuimte)) ?> vrij
+                            <?php endif; ?>
+                        </div>
+                        <div class="small mt-2" data-upload-gekozen hidden>
+                            <i class="bi bi-file-earmark-play me-1"></i>
+                            <strong data-upload-naam></strong> (<span data-upload-grootte></span>)
+                        </div>
+                    </div>
+
+                    <div class="form-check form-switch mt-3">
+                        <input class="form-check-input" type="checkbox" id="upload-koppelen" data-upload-koppelen checked>
+                        <label class="form-check-label" for="upload-koppelen">
+                            Na het uploaden meteen koppelen aan <?= h((string)$huidigeJaargang['jaar']) ?>
+                        </label>
+                    </div>
+                    <fieldset class="row g-2 mt-1" data-upload-koppeling>
+                        <div class="col-md-6">
+                            <label class="form-label" for="titel-upload">Titel</label>
+                            <input type="text" class="form-control" id="titel-upload" name="titel" maxlength="150"
+                                placeholder="Videoregistratie <?= h((string)$huidigeJaargang['jaar']) ?>">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="naam-upload">Downloadnaam</label>
+                            <input type="text" class="form-control" id="naam-upload" name="bestandsnaam"
+                                maxlength="255" placeholder="standaard: de bestandsnaam zelf">
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label" for="sort-upload">Sortering</label>
+                            <input type="number" class="form-control" id="sort-upload" name="sortering" step="1" value="0">
+                        </div>
+                        <div class="col-6 col-md-3 d-flex align-items-end">
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="act-upload" name="actief" value="1" checked>
+                                <label class="form-check-label" for="act-upload">Actief</label>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <div class="mt-3" data-upload-voortgang hidden>
+                        <div class="progress" role="progressbar" aria-label="Voortgang van de upload"
+                            aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                            <div class="progress-bar" data-upload-balk style="width: 0%"></div>
+                        </div>
+                        <div class="d-flex flex-wrap justify-content-between gap-2 small text-muted mt-1">
+                            <span data-upload-status></span>
+                            <span data-upload-tijd></span>
+                        </div>
+                    </div>
+
+                    <div data-upload-melding role="status" hidden></div>
+
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                        <button type="button" class="btn btn-djm" data-upload-start disabled>
+                            <i class="bi bi-cloud-arrow-up me-1"></i>Uploaden
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-upload-pauze hidden>
+                            <i class="bi bi-pause-fill me-1"></i>Pauzeren
+                        </button>
+                        <button type="button" class="btn btn-outline-danger" data-upload-annuleer hidden>
+                            <i class="bi bi-x-lg me-1"></i>Annuleren
+                        </button>
+                    </div>
+                    <div class="form-text">
+                        Houd dit tabblad open tot de upload klaar is. U kunt intussen in een ander tabblad
+                        verder werken in het beheer.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── Kiezen uit de opslagmap ──────────────────────────────────── -->
+        <div class="col-xl-5">
             <div class="kaart h-100">
                 <div class="p-3 border-bottom">
-                    <h2 class="h6 mb-1">
-                        <span class="badge text-bg-success me-1">Route A</span>
-                        Kiezen uit de opslagmap
-                    </h2>
+                    <h2 class="h6 mb-1"><i class="bi bi-folder2-open me-1"></i>Kiezen uit de opslagmap</h2>
                     <p class="text-muted small mb-0">
-                        Dit is de aanbevolen route voor grote video's: zet het bestand via SFTP in de
-                        opslagmap en kies het hier. Het bestand gaat dan niet door de browser en er
-                        gelden geen PHP-limieten.
+                        Voor een bestand dat al op de server staat: eerder geüpload, ontkoppeld, of door de
+                        technisch beheerder rechtstreeks in de opslagmap gezet.
                     </p>
                 </div>
 
@@ -659,9 +631,7 @@ admin_start('Bestanden', $subtitel);
                         </div>
                     <?php elseif (!$gevondenOpSchijf): ?>
                         <div class="alert alert-info py-2 small mb-0">
-                            Er zijn nog geen videobestanden gevonden (maximaal <?= BESTAND_MAX_DIEPTE ?> mappen diep).
-                            Zet het bestand via SFTP in de opslagmap — bijvoorbeeld in een submap per jaar — en
-                            ververs deze pagina.
+                            Er staan nog geen videobestanden in de opslagmap (maximaal <?= BESTAND_MAX_DIEPTE ?> mappen diep).
                             Herkende extensies: <?= h(implode(', ', BESTAND_EXTENSIES)) ?>.
                         </div>
                     <?php else: ?>
@@ -715,81 +685,43 @@ admin_start('Bestanden', $subtitel);
                                 </div>
                             </div>
 
-                            <button type="submit" class="btn btn-djm mt-3">
+                            <button type="submit" class="btn btn-outline-secondary mt-3">
                                 <i class="bi bi-link-45deg me-1"></i>Koppelen aan deze jaargang
                             </button>
                         </form>
+
+                        <?php if ($losseBestanden): ?>
+                            <details class="mt-4">
+                                <summary class="small">
+                                    Niet-gekoppelde bestanden opruimen (<?= count($losseBestanden) ?>)
+                                </summary>
+                                <p class="small text-muted mt-2 mb-2">
+                                    Deze bestanden hangen aan geen enkele jaargang. Verwijderen haalt ze definitief
+                                    van de server; dat is niet terug te draaien.
+                                </p>
+                                <ul class="list-unstyled small mb-0">
+                                    <?php foreach ($losseBestanden as $relatief => $info): ?>
+                                        <li class="d-flex align-items-center gap-2 py-1 border-top">
+                                            <div class="flex-grow-1 min-w-0">
+                                                <code class="pad djm-afkappen d-block"><?= h($relatief) ?></code>
+                                                <span class="text-muted"><?= h(formatteer_bytes($info['bytes'])) ?></span>
+                                            </div>
+                                            <form method="post"
+                                                <?= bevestig_attribuut("Dit bestand definitief van de server verwijderen?\n\n" . $relatief . "\n\nDit is niet terug te draaien.") ?>>
+                                                <?= csrf_field() ?>
+                                                <input type="hidden" name="actie" value="verwijderen">
+                                                <input type="hidden" name="jaargang" value="<?= $jaargangId ?>">
+                                                <input type="hidden" name="pad" value="<?= h($relatief) ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Verwijderen">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </details>
+                        <?php endif; ?>
                     <?php endif; ?>
-                </div>
-            </div>
-        </div>
-
-        <!-- ─── Route B: uploaden via de browser ─────────────────────────── -->
-        <div class="col-xl-5">
-            <div class="kaart h-100">
-                <div class="p-3 border-bottom">
-                    <h2 class="h6 mb-1">
-                        <span class="badge text-bg-secondary me-1">Route B</span>
-                        Uploaden via de browser
-                    </h2>
-                    <p class="text-muted small mb-0">
-                        Alleen geschikt voor kleine bestanden. Een videoregistratie van meerdere
-                        gigabytes gaat hier vrijwel zeker niet doorheen.
-                    </p>
-                </div>
-
-                <div class="p-3">
-                    <div class="alert alert-warning py-2 small">
-                        <i class="bi bi-exclamation-triangle me-1"></i>
-                        Serverlimieten op dit moment:
-                        <ul class="mb-0 ps-3">
-                            <li><code>upload_max_filesize</code> = <?= h((string)ini_get('upload_max_filesize')) ?></li>
-                            <li><code>post_max_size</code> = <?= h((string)ini_get('post_max_size')) ?></li>
-                        </ul>
-                        Is uw bestand groter? Gebruik dan route A.
-                    </div>
-
-                    <form method="post" enctype="multipart/form-data">
-                        <?= csrf_field() ?>
-                        <input type="hidden" name="actie" value="uploaden">
-                        <input type="hidden" name="jaargang" value="<?= $jaargangId ?>">
-
-                        <div class="mb-3">
-                            <label class="form-label" for="bestand">Bestand</label>
-                            <input type="file" class="form-control" id="bestand" name="bestand" required
-                                accept=".<?= h(implode(',.', BESTAND_EXTENSIES)) ?>">
-                            <div class="form-text">
-                                Toegestaan: <?= h(implode(', ', BESTAND_EXTENSIES)) ?>.
-                                Het bestand komt in
-                                <code class="pad"><?= h(opslag_pad() . '/' . (int)$huidigeJaargang['jaar']) ?></code>.
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label" for="titel-b">Titel</label>
-                            <input type="text" class="form-control" id="titel-b" name="titel" maxlength="150"
-                                placeholder="Videoregistratie <?= h((string)$huidigeJaargang['jaar']) ?>">
-                        </div>
-
-                        <div class="row g-2">
-                            <div class="col-6">
-                                <label class="form-label" for="sort-b">Sortering</label>
-                                <input type="number" class="form-control" id="sort-b" name="sortering"
-                                    step="1" value="0">
-                            </div>
-                            <div class="col-6 d-flex align-items-end">
-                                <div class="form-check form-switch mb-2">
-                                    <input class="form-check-input" type="checkbox" id="act-b" name="actief"
-                                        value="1" checked>
-                                    <label class="form-check-label" for="act-b">Actief</label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <button type="submit" class="btn btn-outline-secondary mt-3">
-                            <i class="bi bi-upload me-1"></i>Uploaden en koppelen
-                        </button>
-                    </form>
                 </div>
             </div>
         </div>

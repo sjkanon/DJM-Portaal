@@ -8,7 +8,7 @@ Er zijn twee soorten beheer, en het mag gerust om twee verschillende mensen gaan
 
 | Rol | Doet | Nodig |
 |---|---|---|
-| **Beheerder van de vereniging** | Jaargangen, video's, e-maillijsten, vragen van deelnemers | Beheeraccount in het portaal, SFTP-toegang tot de opslagmap |
+| **Beheerder van de vereniging** | Jaargangen, video's, e-maillijsten, vragen van deelnemers | Beheeraccount in het portaal |
 | **Technisch beheerder** | Server, back-ups, updates, Microsoft 365-koppeling, storingen | Toegang tot de server of het hostingpaneel, de database, `.env`, de Microsoft Entra-omgeving |
 
 Wie alleen het jaarlijkse werk doet, heeft genoeg aan hoofdstuk 1 tot en met 5 en
@@ -47,7 +47,7 @@ Wie alleen het jaarlijkse werk doet, heeft genoeg aan hoofdstuk 1 tot en met 5 e
 |---|---|---|
 | Webserver + PHP | De applicatie zelf | Technisch beheerder |
 | MySQL/MariaDB-database | Jaargangen, deelnemers, toegang, logboeken, instellingen | Technisch beheerder |
-| Opslagmap (bijv. `/var/djm-opslag`) | De videobestanden, per jaar een map | Beheerder vereniging (via SFTP) |
+| Opslagmap (bijv. `/var/djm-opslag`) | De videobestanden, per jaar een map | Beheerder vereniging (via Beheer → Bestanden) |
 | `.env` in de projectmap | Databasewachtwoord en geheime sleutels | Technisch beheerder |
 | App-registratie in Microsoft Entra | Mag mail versturen namens de afzenderpostbus | Technisch beheerder |
 | Afzenderpostbus in Microsoft 365 | Het adres waar de inlogcodes vandaan komen | Beheerder Microsoft 365 van de vereniging |
@@ -62,7 +62,6 @@ mail of WhatsApp.
 
 - [ ] **Beheeraccount in het portaal** op eigen naam: een andere beheerder voegt u toe via
       **Beheer → Beheerders** (zie hoofdstuk 4). Deel geen account.
-- [ ] **SFTP-gegevens** voor de opslagmap, en het pad van die map.
 - [ ] **Adres van het portaal** en van het beheer (`https://…/admin/`).
 - [ ] **Contactadres** dat deelnemers in het portaal zien (**Beheer → Instellingen → Portaal**)
       moet uitkomen bij iemand die nog actief is.
@@ -77,7 +76,7 @@ Voor de technisch beheerder daarnaast:
       secret**. Zet die in een gedeelde agenda (zie hoofdstuk 5).
 - [ ] Waar de back-ups staan en hoe u ze terugzet.
 
-**Vertrekt er iemand?** Schakel diens beheeraccount uit (hoofdstuk 4), trek de SFTP-toegang in,
+**Vertrekt er iemand?** Schakel diens beheeraccount uit (hoofdstuk 4), trek zo nodig diens toegang tot de server in,
 en vervang het client secret als die persoon het ooit in handen heeft gehad.
 
 ---
@@ -104,9 +103,20 @@ Eén regel per jaar: titel, omschrijving en zichtbaarheid.
 
 ### Bestanden
 
-Koppelt een videobestand uit de opslagmap aan een jaargang. U kiest het bestand uit een lijst,
-geeft het een titel (de tekst op de downloadknop) en een downloadnaam. Via de browser uploaden
-kan ook, maar alleen voor kleine bestanden. Grote video's zet u via SFTP neer.
+Hier zet u de video online en koppelt u hem aan een jaargang. Kies de jaargang, sleep de video in
+het vak **Video uploaden** en klik op **Uploaden**. Geef hem een titel (de tekst op de downloadknop)
+en eventueel een downloadnaam; na afloop is hij meteen gekoppeld.
+
+- **Ook grote bestanden.** De video gaat in stukken naar de server. Valt de verbinding weg, dan
+  probeert het portaal het zelf opnieuw; u ziet hoeveel er binnen is en hoe lang het nog duurt.
+- **Tabblad per ongeluk dicht?** Open Bestanden opnieuw en kies hetzelfde bestand: de upload gaat
+  verder waar hij was. Een onafgemaakte upload staat boven het uploadvak en wordt na een week
+  zonder voortgang vanzelf weggegooid.
+- **Houd het tabblad open** en laat de computer niet slapen tot de upload klaar is. Met *Pauzeren*
+  onderbreekt u hem.
+- **Kiezen uit de opslagmap** is voor een bestand dat al op de server staat, bijvoorbeeld na
+  ontkoppelen. Daaronder kunt u bestanden die aan geen enkele jaargang hangen definitief
+  verwijderen.
 
 ### Controle
 

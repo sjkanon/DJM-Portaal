@@ -12,9 +12,9 @@ Reken op een kwartier werk, plus de tijd die het uploaden van de video kost.
 
 Loop deze lijst even af. Het scheelt achteraf zoeken.
 
-- [ ] **Staat de video helemaal op de server?** Een half geüploade video van 8 GB ziet er in
-      een bestandslijst precies zo uit als een hele. Vergelijk de bestandsgrootte op de server
-      met die op uw eigen computer — die twee getallen moeten exact gelijk zijn.
+- [ ] **Staat de video op deze computer?** U uploadt hem via de browser. Staat hij op een
+      usb-schijf, kopieer hem dan eerst naar de computer zelf, of laat de schijf aangesloten tot
+      de upload klaar is.
 - [ ] **Speelt de video af?** Open het bestand op uw eigen computer voordat u het uploadt.
 - [ ] **Is het bestandsformaat MP4 (H.264)?** Dat speelt op vrijwel elk apparaat af. MKV en MOV
       werken ook, maar geven vaker gedoe bij deelnemers.
@@ -24,36 +24,7 @@ Loop deze lijst even af. Het scheelt achteraf zoeken.
 
 ---
 
-## Stap 1 — De video op de server zetten
-
-De videobestanden gaan **niet** via de browser naar het portaal: die zijn daar te groot voor.
-Gebruik SFTP, bijvoorbeeld met [FileZilla](https://filezilla-project.org/) of WinSCP.
-
-1. Verbind met de server met de SFTP-gegevens die u van de beheerder hebt gekregen.
-2. Ga naar de opslagmap. Welke map dat is, staat in **Beheer → Instellingen** vermeld bij de
-   opslaglocatie; vaak is dat `/var/djm-opslag`.
-3. Maak daar een **map met het jaartal**, bijvoorbeeld `2027`.
-4. Zet het videobestand in die map.
-
-U krijgt dan bijvoorbeeld:
-
-```
-/var/djm-opslag/
-├── 2025/
-│   └── musical-2025.mp4
-├── 2026/
-│   └── musical-2026.mp4
-└── 2027/
-    └── musical-2027.mp4
-```
-
-Controleer na afloop in FileZilla of de bestandsgrootte op de server klopt. Bij een afgebroken
-upload: verwijder het halve bestand en begin opnieuw — een deelnemer die een halve video
-downloadt, merkt dat pas na een uur wachten.
-
----
-
-## Stap 2 — Jaargang aanmaken
+## Stap 1 — Jaargang aanmaken
 
 1. Log in op **Beheer** en ga naar **Jaargangen**.
 2. Klik op **Nieuwe jaargang** en vul in:
@@ -64,33 +35,47 @@ downloadt, merkt dat pas na een uur wachten.
    - **Gepubliceerd:** laat dit voorlopig **uit** staan. Zo kunt u eerst rustig alles klaarzetten.
 3. Opslaan.
 
-Publiceer de jaargang pas nadat u stap 3 en de test hebt gedaan.
+Publiceer de jaargang pas nadat u stap 2 en de test hebt gedaan.
 
 ---
 
-## Stap 3 — Het bestand koppelen
+## Stap 2 — De video uploaden
 
-Het portaal weet nu dat er een jaargang 2027 is, maar nog niet welk bestand daarbij hoort.
-
-1. Ga naar **Beheer → Bestanden**.
-2. Kies de jaargang **2027**.
-3. Kies het bestand dat u in stap 1 hebt geüpload; het portaal leest de opslagmap uit.
-4. Vul in:
+1. Ga naar **Beheer → Bestanden** en kies de jaargang **2027**.
+2. Sleep de video in het vak **Video uploaden**, of kies hem met de knop.
+3. Vul in:
    - **Titel:** wat de deelnemer op de downloadknop ziet, bijvoorbeeld
      `Volledige registratie (Full HD)`.
-   - **Bestandsnaam:** de naam waaronder de video op de computer van de deelnemer wordt
+   - **Downloadnaam:** de naam waaronder de video op de computer van de deelnemer wordt
      opgeslagen, bijvoorbeeld `DJM Annie 2027.mp4`. Hier mogen wél spaties in.
-5. Opslaan.
 
-Het portaal bepaalt zelf de bestandsgrootte. **Controleer of die klopt** met wat u in stap 1
-hebt gezien. Staat er een veel te klein getal, dan is het bestand niet compleet geüpload.
+   Dat kan ook tijdens het uploaden, en later nog aanpassen kan altijd.
+4. Klik op **Uploaden**.
+
+U ziet hoeveel er al binnen is, hoe snel het gaat en hoe lang het nog duurt. Een video van 8 GB
+is met een gewone thuisverbinding al gauw een paar uur onderweg.
+
+- **Houd het tabblad open** en laat de computer niet in slaap vallen. In een ander tabblad verder
+  werken kan gewoon.
+- **Valt de verbinding weg?** Dan hoeft u niets te doen: het portaal probeert het zelf opnieuw.
+- **Tabblad toch dicht, of de computer uit?** Open **Bestanden** opnieuw, kies dezelfde jaargang
+  en hetzelfde bestand. De upload gaat verder waar hij was. Een onafgemaakte upload die een week
+  stilligt, wordt vanzelf weggegooid.
+
+Is de upload klaar, dan ververst de pagina en staat de video bij **Gekoppelde bestanden**. Een
+half bestand komt daar nooit te staan: de video wordt pas gekoppeld als hij compleet is. Kijk voor
+de zekerheid nog even in **Beheer → Controle**; daar hoort *in orde* te staan.
 
 U kunt meerdere bestanden aan één jaar koppelen, bijvoorbeeld een versie in hoge kwaliteit en
 een kleinere versie voor wie een trage verbinding heeft.
 
+> **Staat de video al op de server?** Bijvoorbeeld omdat de technisch beheerder hem rechtstreeks
+> heeft neergezet. Kies hem dan bij **Kiezen uit de opslagmap** en klik op **Koppelen aan deze
+> jaargang**.
+
 ---
 
-## Stap 4 — E-mailadressen importeren
+## Stap 3 — E-mailadressen importeren
 
 Nu bepaalt u wie deze jaargang mag downloaden.
 
@@ -142,7 +127,7 @@ toegangsrechten uit de database.
 
 **Het videobestand zelf blijft op de schijf staan.** Dat is met opzet: een verkeerde klik mag
 geen video van 8 GB wissen die misschien nergens anders meer staat. Wilt u de ruimte echt
-vrijmaken, verwijder het bestand dan handmatig via SFTP uit de opslagmap.
+vrijmaken, verwijder het bestand dan in **Beheer → Bestanden**, bij *Niet-gekoppelde bestanden opruimen*.
 
 Wilt u alleen dat niemand er meer bij kan, gebruik dan liever *depubliceren* of *Verloopt op*.
 
@@ -152,10 +137,9 @@ Wilt u alleen dat niemand er meer bij kan, gebruik dan liever *depubliceren* of 
 
 | Stap | Waar | Wat |
 |---|---|---|
-| 1 | SFTP | Video in een map met het jaartal, bijvoorbeeld `2027/` |
-| 2 | Beheer → Jaargangen | Jaargang 2027 aanmaken, nog niet publiceren |
-| 3 | Beheer → Bestanden | Bestand koppelen, bestandsgrootte controleren |
-| 4 | Beheer → Toegang | Eerst uw eigen adres, testen, dan de hele lijst |
+| 1 | Beheer → Jaargangen | Jaargang 2027 aanmaken, nog niet publiceren |
+| 2 | Beheer → Bestanden | Video uploaden; hij wordt na afloop meteen gekoppeld |
+| 3 | Beheer → Toegang | Eerst uw eigen adres, testen, dan de hele lijst |
 
 Loopt u vast? De technische details staan in [INSTALLATIE.md](INSTALLATIE.md), onder
 *Probleemoplossing*.

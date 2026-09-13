@@ -241,22 +241,9 @@ admin_start('Overzicht', 'Welkom terug, ' . (string)$beheerder['naam'] . '.');
         <i class="bi bi-stars me-1"></i>Snel een nieuw jaar toevoegen
     </h2>
     <div class="row g-3">
-        <div class="col-md-6 col-xl-3">
+        <div class="col-md-4">
             <div class="d-flex gap-2">
                 <span class="badge rounded-pill text-bg-secondary align-self-start">1</span>
-                <div>
-                    <div class="fw-semibold">Video klaarzetten</div>
-                    <p class="text-muted small mb-2">
-                        Zet het videobestand via SFTP in de opslagmap. Dat is de aanbevolen route
-                        voor grote bestanden; ze hoeven dan niet door de browser.
-                    </p>
-                    <code class="pad"><?= h(opslag_pad()) ?></code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6 col-xl-3">
-            <div class="d-flex gap-2">
-                <span class="badge rounded-pill text-bg-secondary align-self-start">2</span>
                 <div>
                     <div class="fw-semibold">Jaargang aanmaken</div>
                     <p class="text-muted small mb-2">Jaar, titel en de zichtbaarheidsperiode vastleggen.</p>
@@ -266,21 +253,21 @@ admin_start('Overzicht', 'Welkom terug, ' . (string)$beheerder['naam'] . '.');
                 </div>
             </div>
         </div>
-        <div class="col-md-6 col-xl-3">
+        <div class="col-md-4">
             <div class="d-flex gap-2">
-                <span class="badge rounded-pill text-bg-secondary align-self-start">3</span>
+                <span class="badge rounded-pill text-bg-secondary align-self-start">2</span>
                 <div>
-                    <div class="fw-semibold">Bestand koppelen</div>
-                    <p class="text-muted small mb-2">Kies het bestand uit de opslagmap en geef het een downloadnaam.</p>
+                    <div class="fw-semibold">Video uploaden</div>
+                    <p class="text-muted small mb-2">Sleep de video in het uploadvak, ook als hij vele gigabytes groot is. Na afloop is hij meteen gekoppeld.</p>
                     <a class="btn btn-sm btn-outline-secondary" href="<?= h(url('admin/bestanden.php')) ?>">
-                        <i class="bi bi-film me-1"></i>Bestanden
+                        <i class="bi bi-cloud-arrow-up me-1"></i>Bestanden
                     </a>
                 </div>
             </div>
         </div>
-        <div class="col-md-6 col-xl-3">
+        <div class="col-md-4">
             <div class="d-flex gap-2">
-                <span class="badge rounded-pill text-bg-secondary align-self-start">4</span>
+                <span class="badge rounded-pill text-bg-secondary align-self-start">3</span>
                 <div>
                     <div class="fw-semibold">E-mailadressen importeren</div>
                     <p class="text-muted small mb-2">Plak de lijst van dat jaar; alleen die adressen krijgen toegang.</p>
