@@ -223,7 +223,8 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet �
                 <div class="col-md-6">
                     <h3 class="h6">Beheerder van de vereniging</h3>
                     <ul class="mb-0">
-                        <li>Een beheeraccount op eigen naam (<a href="#beheerders">hoofdstuk 5</a>). Deel geen accounts.</li>
+                        <li>Een beheeraccount op eigen naam: een andere beheerder voegt u toe via Beheer › Beheerders
+                            (<a href="#beheerders">hoofdstuk 5</a>). Deel geen accounts.</li>
                         <li>SFTP-gegevens voor de opslagmap.</li>
                         <li>Het adres van het portaal en van <code>/admin/</code>.</li>
                         <li>Een contactadres bij <a href="<?= h(url('admin/instellingen.php')) ?>#portaal">Instellingen → Portaal</a>
@@ -430,6 +431,18 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet �
                     'bijschrift' => 'Inloggen: geldigheid van codes, limieten, sessieduur en bewaartermijn. De standaardwaarden zijn bewust gekozen; wijzig ze alleen als u weet waarom.',
                 ]); ?>
             </div>
+
+            <div class="djm-hl-scherm djm-sectie" id="scherm-beheerders" data-scherm="beheerders.php">
+                <?php handleiding_scherm_kop('beheerders.php', 'Beheerders'); ?>
+                <p class="djm-hl-tekst">Wie er in het beheer mag. Voeg iemand toe met naam en e-mailadres: die krijgt een
+                    uitnodiging en kiest daarin zelf een wachtwoord. Per beheerder ziet u wanneer die het laatst inlogde en
+                    of er nog een link openstaat, en kunt u een nieuwe link sturen of het account uitschakelen. Meer in
+                    <a href="#beheerders">hoofdstuk 5</a>.</p>
+                <?php handleiding_figuur('beheer-beheerders', 'Lijst van beheerders met het formulier om er een toe te voegen', [
+                    'adres' => '/admin/beheerders.php',
+                    'bijschrift' => 'Jan heeft zijn uitnodiging nog niet gebruikt; tot wanneer de link werkt, staat erbij. Een uitgeschakeld account staat onderaan en is met één klik weer in te schakelen.',
+                ]); ?>
+            </div>
         </section>
 
         <!-- ═══ 4 ═══════════════════════════════════════════════════════ -->
@@ -456,14 +469,29 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet �
 
         <!-- ═══ 5 ═══════════════════════════════════════════════════════ -->
         <section class="kaart p-4 mb-4 djm-sectie" id="beheerders">
-            <?php handleiding_kop(5, 'Beheerders toevoegen, resetten en uitschakelen', ['technisch']); ?>
-            <div class="alert alert-warning djm-hl-tekst">
-                <strong>Hier is (nog) geen scherm voor.</strong> Beheerders beheert u niet in het portaal, en er is geen
-                "wachtwoord vergeten". Alle beheerders hebben dezelfde rechten. Deze handelingen vragen toegang tot de
-                server.
+            <?php handleiding_kop(5, 'Beheerders toevoegen, resetten en uitschakelen', ['vereniging', 'technisch']); ?>
+            <div class="djm-hl-tekst">
+                <p>Dit gaat via <a href="<?= h(url('admin/beheerders.php')) ?>">Beheer › Beheerders</a>. Alle beheerders
+                    hebben dezelfde rechten.</p>
+                <ul>
+                    <li><strong>Toevoegen:</strong> vul naam en e-mailadres in. De nieuwe beheerder krijgt een e-mail en kiest
+                        daarin zelf een wachtwoord van minimaal 12 tekens. De link is 72 uur geldig en werkt één keer.
+                        Niemand anders ziet of kent het wachtwoord.</li>
+                    <li><strong>Wachtwoord vergeten:</strong> klik op de inlogpagina van het beheer op <em>Wachtwoord
+                        vergeten?</em>. De link is 60 minuten geldig. Een andere beheerder kan hem ook sturen met
+                        <strong>Resetlink sturen</strong>; hij gaat altijd naar het adres van de beheerder zelf.</li>
+                    <li><strong>Uitschakelen:</strong> werkt direct, ook als die persoon op dat moment is ingelogd, en maakt
+                        een openstaande link ongeldig. Uw eigen account kunt u niet uitschakelen, zodat er altijd iemand
+                        overblijft. Verwijderen kan niet: zo blijft het logboek te herleiden.</li>
+                </ul>
+                <p class="mb-0">Elke handeling staat in het logboek onder <em>Inloggen</em>, met wie hem deed.</p>
             </div>
 
-            <h3 class="h6 mt-4">Toevoegen of wachtwoord resetten, via de installatiewizard</h3>
+            <h3 class="h6 mt-4">Als niemand er meer in komt</h3>
+            <p class="djm-hl-tekst">Werkt de e-mail niet (bijvoorbeeld door een verlopen client secret) en weet geen enkele
+                beheerder zijn wachtwoord nog, dan kan alleen de technisch beheerder helpen, via de server.</p>
+
+            <h3 class="h6 mt-4">Via de installatiewizard</h3>
             <ol class="djm-hl-tekst">
                 <li>Staat <code>setup.php</code> niet meer op de server, zet hem dan tijdelijk terug.</li>
                 <li>Maak in de projectmap een leeg bestand <code>setup.toegestaan</code> aan.</li>
@@ -602,7 +630,7 @@ SELECT naam, email, actief, laatst_ingelogd_op FROM beheerders;</pre>
                 <li><div><strong>Instellingen → Testen → Testmail versturen</strong><span>Naar uw eigen adres.</span></div></li>
                 <li><div><strong>Logboek → E-mail</strong><span>De foutmelding bij de laatste mislukte mail.</span></div></li>
                 <li><div><strong><code>logs/</code> op de server</strong><span>Het applicatie- en foutlogboek.</span></div></li>
-                <li><div><strong>Formulier doet niets?</strong><span>Controleer <code>APP_URL</code> in <code>.env</code>: die moet exact het adres zijn waarop het portaal draait, of leeg.</span></div></li>
+                <li><div><strong>Formulier doet niets?</strong><span>Controleer <code>APP_URL</code> in <code>.env</code>: die moet exact het adres zijn waarop het portaal draait. Leeg mag ook, maar dan verstuurt <em>Wachtwoord vergeten?</em> geen link.</span></div></li>
             </ol>
 
             <h3 class="h6 mt-4">Back-ups</h3>

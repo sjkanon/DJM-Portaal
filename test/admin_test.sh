@@ -25,7 +25,7 @@ haal()   { curl -s -b "$KOEKJES" -c "$KOEKJES" "$@"; }
 status() { curl -s -o /dev/null -w '%{http_code}' -b "$KOEKJES" -c "$KOEKJES" "$@"; }
 csrf()   { printf '%s' "$1" | grep -o 'name="csrf_token" value="[^"]*"' | head -1 | cut -d'"' -f4; }
 
-PAGINAS="index.php jaargangen.php bestanden.php bestandscontrole.php toegang.php deelnemers.php logboek.php instellingen.php handleiding.php"
+PAGINAS="index.php jaargangen.php bestanden.php bestandscontrole.php toegang.php deelnemers.php logboek.php beheerders.php instellingen.php handleiding.php"
 
 echo "── Testbeheerder klaarzetten ───────────────────────────────"
 docker compose exec -T web php -r '

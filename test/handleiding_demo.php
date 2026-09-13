@@ -43,6 +43,24 @@ $pdo->prepare('INSERT INTO beheerders (naam, email, wachtwoord_hash, rol, actief
     ->execute([':n' => 'Secretariaat DJM', ':e' => 'beheer@example.nl',
                ':w' => password_hash('EenHeelLangWachtwoord123', PASSWORD_DEFAULT), ':r' => 'eigenaar']);
 
+// Voor Beheer › Beheerders: iemand met een openstaande uitnodiging en een
+// uitgeschakeld account, zodat het scherm meer laat zien dan één regel.
+require_once '/app/includes/beheerder_helper.php';
+$beheerderZetten = $pdo->prepare('INSERT INTO beheerders (naam, email, wachtwoord_hash, rol, actief, laatst_ingelogd_op)
+                                  VALUES (:n, :e, :w, :r, :a, :l)
+                                  ON DUPLICATE KEY UPDATE naam = VALUES(naam), actief = VALUES(actief),
+                                      laatst_ingelogd_op = VALUES(laatst_ingelogd_op)');
+foreach ([
+    ['Jan de Vries', 'jan.devries@example.nl', 1, null],
+    ['Oud-bestuurslid', 'oud.bestuur@example.nl', 0, date('Y-m-d H:i:s', strtotime('-8 months'))],
+] as [$naam, $adres, $actief, $laatst]) {
+    $beheerderZetten->execute([':n' => $naam, ':e' => $adres, ':w' => password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT),
+                               ':r' => 'beheerder', ':a' => $actief, ':l' => $laatst]);
+}
+$jan = (int)$pdo->query("SELECT id FROM beheerders WHERE email = 'jan.devries@example.nl'")->fetchColumn();
+beheerder_link_maken($jan, 'uitnodiging');
+beheerder_links_intrekken((int)$pdo->query("SELECT id FROM beheerders WHERE email = 'oud.bestuur@example.nl'")->fetchColumn());
+
 // ─── Jaargangen ──────────────────────────────────────────────────────────────
 $jaargang = [];
 foreach ([

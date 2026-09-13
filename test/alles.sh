@@ -27,6 +27,7 @@ KOP "Inlogcodes";              docker compose exec -T web php /app/test/mailinst
                                docker compose exec -T web php /app/test/otp_test.php || MISLUKT=$((MISLUKT+1))
 KOP "Publieke flow";           bash e2e.sh        || MISLUKT=$((MISLUKT+1))
 KOP "Beheerdersgedeelte";      bash admin_test.sh || MISLUKT=$((MISLUKT+1))
+KOP "Beheerders en wachtwoorden"; bash beheerders_test.sh || MISLUKT=$((MISLUKT+1))
 # Securityheaders, afgeschermde paden en de beveiligingshelpers, gemeten aan de
 # draaiende servers in plaats van aan de broncode.
 KOP "Beveiliging";             bash beveiliging.sh || MISLUKT=$((MISLUKT+1))

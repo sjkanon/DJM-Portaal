@@ -28,6 +28,7 @@ function admin_menu(): array
         'toegang.php'     => ['Toegang',     'bi-person-check'],
         'deelnemers.php'  => ['Deelnemers',  'bi-people'],
         'logboek.php'     => ['Logboek',     'bi-journal-text'],
+        'beheerders.php'  => ['Beheerders',  'bi-shield-lock'],
         'instellingen.php' => ['Instellingen', 'bi-gear'],
     ];
 }
@@ -87,8 +88,10 @@ function admin_start(string $titel, string $subtitel = ''): void
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="<?= h(url('index.php')) ?>" target="_blank">
-                            <i class="bi bi-box-arrow-up-right me-1"></i>Portaal
+                        <!-- Net als Handleiding: tussen xl en xxl alleen het icoon, zodat de
+                             portaalnaam links niet tot een paar letters wordt afgekapt. -->
+                        <a class="nav-link" href="<?= h(url('index.php')) ?>" target="_blank" title="Portaal">
+                            <i class="bi bi-box-arrow-up-right"></i><span class="ms-1 d-xl-none d-xxl-inline">Portaal</span>
                         </a>
                     </li>
                     <li class="nav-item">

@@ -148,6 +148,7 @@ async function verstuur(pagina, formSelector) {
     await ga(b, 'admin/logboek.php?tab=logins');           await schiet(b, 'beheer-logboek-logins', { vol: false });
     await ga(b, 'admin/logboek.php?tab=mails');            await schiet(b, 'beheer-logboek-mails', { vol: false });
     await ga(b, 'admin/logboek.php?tab=downloads');        await schiet(b, 'beheer-logboek-downloads', { vol: false });
+    await ga(b, 'admin/beheerders.php');                   await schiet(b, 'beheer-beheerders', { vol: false });
     await ga(b, 'admin/instellingen.php');
     for (const id of ['portaal', 'email', 'inloggen', 'sjablonen', 'testen']) {
         await element(b, `#${id}`, `beheer-instellingen-${id}`);

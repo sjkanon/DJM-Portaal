@@ -63,7 +63,8 @@ echo ""
 echo "── Beheerpagina's: autorisatie aanwezig ────────────────────"
 VOOR=$PROBLEMEN
 for f in admin/*.php; do
-    case "$(basename "$f")" in login.php|logout.php) continue;; esac
+    # De pagina's rond het wachtwoord zijn juist bedoeld voor wie niet is ingelogd.
+    case "$(basename "$f")" in login.php|logout.php|wachtwoord_vergeten.php|wachtwoord_instellen.php) continue;; esac
     grep -q "vereis_beheerder()" "$f" || melden "$f: roept vereis_beheerder() niet aan"
 done
 [ "$PROBLEMEN" -eq "$VOOR" ] && echo "  ✓ elke beheerpagina eist een beheerderssessie"

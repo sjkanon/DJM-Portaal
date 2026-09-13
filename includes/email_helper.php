@@ -921,3 +921,58 @@ class GraphMailer
         return $value;
     }
 }
+
+/**
+ * Link waarmee een beheerder zelf een wachtwoord kiest: bij een nieuw account
+ * (uitnodiging) of na "wachtwoord vergeten" (reset). Geen instelbaar sjabloon:
+ * deze mail gaat alleen naar beheerders.
+ *
+ * @param string $geldig bijvoorbeeld "60 minuten"
+ * @param string $door   naam van de beheerder die de link verstuurt; mag leeg zijn
+ */
+function verstuur_beheerder_link_mail(
+    string $email,
+    string $naam,
+    string $link,
+    string $doel,
+    string $geldig,
+    string $door = '',
+    array &$fouten = []
+): bool {
+    $portaal     = portaal_naam();
+    $uitnodiging = $doel === 'uitnodiging';
+    $groet       = 'Beste ' . ($naam !== '' ? $naam : 'beheerder') . ',';
+
+    if ($uitnodiging) {
+        $onderwerp = 'Uw beheerdersaccount voor ' . $portaal;
+        $tekst = $groet . "\n\n"
+            . ($door !== '' ? $door . ' heeft' : 'Er is') . ' een beheerdersaccount voor u aangemaakt'
+            . ' in ' . $portaal . ".\n\n"
+            . 'Kies via de knop hieronder zelf een wachtwoord. De link is ' . $geldig . " geldig en werkt één keer.\n\n"
+            . 'Daarna logt u in op ' . url('admin/login.php') . ' met dit e-mailadres en uw wachtwoord.';
+        $knoptekst = 'Wachtwoord kiezen';
+        $soort     = 'beheerder_uitnodiging';
+    } else {
+        $onderwerp = 'Nieuw wachtwoord voor ' . $portaal;
+        $tekst = $groet . "\n\n"
+            . 'Er is gevraagd om het wachtwoord van uw beheerdersaccount bij ' . $portaal . ' opnieuw in te stellen'
+            . ($door !== '' ? ', door ' . $door : '') . ".\n\n"
+            . 'Kies via de knop hieronder een nieuw wachtwoord. De link is ' . $geldig . " geldig en werkt één keer.\n\n"
+            . 'Heeft u dit niet aangevraagd? Dan kunt u deze e-mail negeren: uw huidige wachtwoord blijft gewoon werken.';
+        $knoptekst = 'Nieuw wachtwoord kiezen';
+        $soort     = 'wachtwoord_reset';
+    }
+
+    $knop = '<div style="margin:8px 0 20px;text-align:center;">'
+        . '<a href="' . h($link) . '" style="display:inline-block;padding:12px 26px;'
+        . 'background:' . h(branding_kleur())
+        . ';color:' . h(branding_tekstkleur()) . ';text-decoration:none;'
+        . 'border-radius:8px;font-weight:600;">' . h($knoptekst) . '</a></div>'
+        . '<p style="margin:0 0 16px;color:#6b7280;font-size:12px;line-height:1.5;">'
+        . 'Werkt de knop niet? Kopieer dan deze link naar uw browser:<br>'
+        . '<span style="word-break:break-all;color:#374151;">' . h($link) . '</span></p>';
+
+    $html = mail_html_omhulsel($onderwerp, $tekst, $knop);
+
+    return verstuur_mail($email, $naam, $onderwerp, $html, $soort, $fouten);
+}

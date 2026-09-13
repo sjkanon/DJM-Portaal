@@ -60,7 +60,8 @@ Wie alleen het jaarlijkse werk doet, heeft genoeg aan hoofdstuk 1 tot en met 5 e
 Loop deze lijst na bij elke overdracht. Deel wachtwoorden via een wachtwoordmanager, niet per
 mail of WhatsApp.
 
-- [ ] **Beheeraccount in het portaal** op eigen naam (zie hoofdstuk 4). Deel geen account.
+- [ ] **Beheeraccount in het portaal** op eigen naam: een andere beheerder voegt u toe via
+      **Beheer → Beheerders** (zie hoofdstuk 4). Deel geen account.
 - [ ] **SFTP-gegevens** voor de opslagmap, en het pad van die map.
 - [ ] **Adres van het portaal** en van het beheer (`https://…/admin/`).
 - [ ] **Contactadres** dat deelnemers in het portaal zien (**Beheer → Instellingen → Portaal**)
@@ -162,16 +163,38 @@ op e-mailadres en datum. Logregels ouder dan de bewaartermijn ruimt de dagelijks
 Wijzig de instellingen onder *Inloggen* alleen als u weet waarom. De standaardwaarden zijn
 bewust gekozen.
 
+### Beheerders
+
+Wie er in het beheer mag. Voeg iemand toe met naam en e-mailadres: die krijgt een uitnodiging
+en kiest daarin zelf een wachtwoord. Per beheerder ziet u wanneer die het laatst inlogde en of
+er nog een link openstaat, en kunt u een nieuwe link sturen of het account uitschakelen. Zie
+hoofdstuk 4.
+
 ---
 
 ## 4. Beheerders toevoegen, resetten en uitschakelen
 
-> **Let op:** er is (nog) geen scherm voor beheerdersaccounts in het portaal. `setup.php` noemt
-> "Beheer → Beheerders", maar die pagina bestaat niet. Alle beheerders hebben dezelfde rechten.
-> Er is ook geen "wachtwoord vergeten"-functie. Onderstaande handelingen vragen daarom toegang tot
-> de server en worden gedaan door de technisch beheerder.
+Dit gaat via **Beheer → Beheerders**. Alle beheerders hebben dezelfde rechten.
 
-### Een beheerder toevoegen (of een wachtwoord resetten)
+- **Toevoegen:** vul naam en e-mailadres in. De nieuwe beheerder krijgt een e-mail en kiest
+  daarin zelf een wachtwoord van minimaal 12 tekens. De link is 72 uur geldig en werkt één
+  keer. Niemand anders ziet of kent het wachtwoord.
+- **Wachtwoord vergeten:** klik op de inlogpagina van het beheer op *Wachtwoord vergeten?*.
+  De link is 60 minuten geldig. Een andere beheerder kan hem ook versturen met **Resetlink
+  sturen**; hij gaat altijd naar het adres van de beheerder zelf. De pagina zegt nooit of een
+  adres bekend is, en per uur kunnen er maar een paar links worden aangevraagd. Dit werkt
+  alleen als `APP_URL` in `.env` staat; de installatiewizard zet hem er altijd in.
+- **Uitschakelen:** werkt direct, ook als die persoon op dat moment is ingelogd, en maakt een
+  openstaande link ongeldig. Uw eigen account kunt u niet uitschakelen, zodat er altijd iemand
+  overblijft. Verwijderen kan niet: zo blijft het logboek te herleiden.
+
+Elke handeling staat in **Logboek → Inloggen** (`admin_toegevoegd`, `admin_link`, `admin_reset`,
+`admin_wachtwoord`, `admin_uitgeschakeld`, `admin_ingeschakeld`), met wie hem deed.
+
+### Als niemand er meer in komt
+
+Werkt de e-mail niet (bijvoorbeeld door een verlopen client secret) en weet geen enkele
+beheerder zijn wachtwoord nog, dan kan alleen de technisch beheerder helpen, via de server.
 
 Via de installatiewizard:
 
@@ -202,7 +225,7 @@ UPDATE beheerders SET wachtwoord_hash = '<hash van hierboven>' WHERE email = 'na
 Het e-mailadres moet in kleine letters. Laat het wachtwoord daarna niet in de shellgeschiedenis
 staan (`history -d` of de terminal sluiten).
 
-### Een beheerder uitschakelen
+### Uitschakelen in de database
 
 ```sql
 UPDATE beheerders SET actief = 0 WHERE email = 'naam@example.nl';
@@ -300,7 +323,8 @@ Kijk bij **Deelnemers → [adres]** naar de inlogpogingen en downloads (tijdstip
 4. **Logboek → E-mail**: de foutmelding bij de laatste mislukte mail.
 5. `logs/` in de projectmap: het applicatie- en foutlogboek.
 6. Werkt het formulier helemaal niet (pagina ververst, niets gebeurt)? Controleer `APP_URL` in
-   `.env`, zie [ARCHITECTUUR.md](ARCHITECTUUR.md), "Let op bij installatie".
+   `.env`, zie [ARCHITECTUUR.md](ARCHITECTUUR.md), "Let op bij installatie". Laat hem niet leeg:
+   zonder `APP_URL` verstuurt *Wachtwoord vergeten?* van het beheer geen link.
 
 De foutentabel voor Microsoft Graph staat in [GRAPH-SETUP.md](GRAPH-SETUP.md), hoofdstuk 8;
 de overige probleemoplossing in [INSTALLATIE.md](INSTALLATIE.md), hoofdstuk 11.
