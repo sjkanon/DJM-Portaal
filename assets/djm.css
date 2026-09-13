@@ -136,9 +136,19 @@ body {
     padding-bottom: .6rem;
 }
 
+/* Het logo is vrij te uploaden en kan elk formaat hebben; in de balk krijgt het
+   een vaste hoogte. */
 .djm-portaal-nav .navbar-brand img {
-    max-height: 40px;
+    height: 34px;
+    max-width: 50vw;
     width: auto;
+    object-fit: contain;
+}
+
+@media (max-width: 575.98px) {
+    .djm-portaal-nav .navbar-brand img {
+        height: 30px;
+    }
 }
 
 .djm-portaal-gebruiker {
