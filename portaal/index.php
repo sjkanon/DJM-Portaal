@@ -16,85 +16,89 @@ vereis_installatie();
 $deelnemer  = vereis_deelnemer();
 $deelnemerId = (int)$deelnemer['id'];
 $jaargangen = deelnemer_jaargangen($deelnemerId);
+$email      = (string)$deelnemer['email'];
 
-pagina_start('Uw video\'s');
+portaal_start(
+    'Uw video\'s',
+    $email,
+    $jaargangen
+        ? 'Het gaat om grote bestanden van meerdere gigabytes. Download ze bij voorkeur op een snelle, '
+          . 'vaste verbinding. Valt een download halverwege weg? Start hem dan opnieuw — hij wordt '
+          . 'hervat op het punt waar hij was gebleven.'
+        : ''
+);
 ?>
-
-<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 pb-3 mb-4 border-bottom">
-    <div class="small text-secondary text-break">
-        <i class="bi bi-person-circle me-1"></i>
-        Ingelogd als <span class="fw-semibold"><?= h((string)$deelnemer['email']) ?></span>
-    </div>
-    <!-- Uitloggen wijzigt de sessie en gaat daarom via POST met een CSRF-token;
-         zie de toelichting boven in logout.php. -->
-    <form method="post" action="<?= h(url('logout.php')) ?>" class="m-0">
-        <?= csrf_field() ?>
-        <button type="submit" class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-box-arrow-right me-1"></i>Uitloggen
-        </button>
-    </form>
-</div>
 
 <?php if (!$jaargangen): ?>
 
-    <div class="text-center py-4">
+    <section class="kaart p-4 p-md-5 text-center">
         <i class="bi bi-camera-reels fs-1 text-secondary opacity-50"></i>
-        <h1 class="h5 mt-3">Er staan op dit moment geen video's voor u klaar.</h1>
+        <h2 class="h5 mt-3">Er staan op dit moment geen video's voor u klaar.</h2>
         <p class="text-secondary small mb-2">
             Klopt dat niet? Neem dan contact met ons op, dan kijken wij het na.
-            Vermeld daarbij het e-mailadres waarmee u bent ingelogd.
+            Vermeld daarbij het e-mailadres waarmee u bent ingelogd
+            (<span class="fw-semibold text-break"><?= h($email) ?></span>).
         </p>
         <?php toon_contact(); ?>
-    </div>
+    </section>
 
 <?php else: ?>
 
-    <p class="text-secondary small">
-        Het gaat om grote bestanden van meerdere gigabytes. Downloaden gaat het prettigst
-        op een snelle, vaste verbinding en met voldoende vrije ruimte op uw computer.
-        Valt de download halverwege weg? Start hem dan gewoon opnieuw &mdash; hij wordt
-        hervat op het punt waar hij was gebleven.
-    </p>
-
-    <?php foreach ($jaargangen as $jaargang): ?>
-        <section class="mb-4 pb-1">
-            <h2 class="h4 mb-1">
-                <span class="fw-bold"><?= h((string)$jaargang['jaar']) ?></span>
-                &middot; <?= h((string)$jaargang['titel']) ?>
-            </h2>
-
-            <?php if (trim((string)($jaargang['omschrijving'] ?? '')) !== ''): ?>
-                <p class="text-secondary small mb-3">
-                    <?= nl2br(h((string)$jaargang['omschrijving'])) ?>
-                </p>
-            <?php endif; ?>
-
-            <?php if (!$jaargang['bestanden']): ?>
-                <div class="alert alert-info py-2 small mb-0">
-                    De video wordt binnenkort toegevoegd.
-                </div>
-            <?php else: ?>
-                <div class="list-group">
-                    <?php foreach ($jaargang['bestanden'] as $bestand): ?>
-                        <div class="list-group-item d-flex flex-wrap align-items-center justify-content-between gap-3">
-                            <div>
-                                <div class="fw-semibold"><?= h((string)$bestand['titel']) ?></div>
-                                <div class="small text-secondary">
-                                    <?= h(formatteer_bytes((int)$bestand['bytes'])) ?>
-                                </div>
+    <!-- Eén kaart per jaargang, nieuwste eerst. Het raster zet er zoveel naast
+         elkaar als er passen; een enkele jaargang krijgt de volle breedte. -->
+    <div class="djm-jaargangen">
+        <?php foreach ($jaargangen as $jaargang):
+            $aantal = count($jaargang['bestanden']);
+            $totaal = array_sum(array_map(static fn(array $b): int => (int)$b['bytes'], $jaargang['bestanden']));
+            ?>
+            <section class="kaart djm-jaargang">
+                <div class="djm-jaargang-kop">
+                    <span class="djm-jaargang-jaar"><?= h((string)$jaargang['jaar']) ?></span>
+                    <div class="min-w-0">
+                        <h2 class="h5 fw-semibold mb-0 text-break"><?= h((string)$jaargang['titel']) ?></h2>
+                        <?php if ($aantal > 0): ?>
+                            <div class="small text-secondary">
+                                <?= $aantal === 1 ? '1 video' : $aantal . ' video\'s' ?>
+                                &middot; <?= h(formatteer_bytes($totaal)) ?>
                             </div>
-                            <a class="btn btn-djm djm-actie"
-                               href="<?= h(download_link((int)$bestand['id'], $deelnemerId)) ?>">
-                                <i class="bi bi-download me-1"></i>Downloaden
-                            </a>
-                        </div>
-                    <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
                 </div>
-            <?php endif; ?>
-        </section>
-    <?php endforeach; ?>
+
+                <?php if (trim((string)($jaargang['omschrijving'] ?? '')) !== ''): ?>
+                    <p class="text-secondary small mb-0">
+                        <?= nl2br(h((string)$jaargang['omschrijving'])) ?>
+                    </p>
+                <?php endif; ?>
+
+                <?php if (!$jaargang['bestanden']): ?>
+                    <div class="alert alert-info py-2 small mb-0">
+                        De video wordt binnenkort toegevoegd.
+                    </div>
+                <?php else: ?>
+                    <div class="djm-bestanden">
+                        <?php foreach ($jaargang['bestanden'] as $bestand): ?>
+                            <div class="djm-bestand">
+                                <div class="djm-bestand-icoon"><i class="bi bi-film"></i></div>
+                                <div class="djm-bestand-naam min-w-0">
+                                    <div class="fw-semibold text-break"><?= h((string)$bestand['titel']) ?></div>
+                                    <div class="small text-secondary">
+                                        <?= h(formatteer_bytes((int)$bestand['bytes'])) ?>
+                                    </div>
+                                </div>
+                                <a class="btn btn-djm text-nowrap"
+                                   href="<?= h(download_link((int)$bestand['id'], $deelnemerId)) ?>">
+                                    <i class="bi bi-download me-1"></i>Downloaden
+                                </a>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </section>
+        <?php endforeach; ?>
+    </div>
 
 <?php endif; ?>
 
 <?php
-pagina_eind();
+portaal_eind();
