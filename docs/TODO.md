@@ -113,14 +113,72 @@ zetten als er iets te onderzoeken valt.
 
 ## 5. Hardening: opslagmap buiten de webroot
 
-`OPSLAG_PAD` is leeg, dus de video's staan in de documentroot
-(`~/dvd.deventerjeugdmusical.nl/opslag/`). Ze zijn afgeschermd — rechtstreeks opvragen geeft 403,
-ook per videoformaat getest — maar dat leunt op `.htaccess` en op de Plesk-instelling *Serve static
-files directly by nginx* die uit moet blijven. Eén vinkje verkeerd en de hele videobibliotheek staat
-publiek.
+**Dit is op 14 september 2026 één keer echt misgegaan.** Niet theoretisch meer.
 
-Robuuster: de map naast `httpdocs` zetten en `OPSLAG_PAD` invullen. Let op dat het `alias`-pad in de
-nginx-richtlijn (zie hieronder) dan mee moet veranderen.
+`OPSLAG_PAD` is leeg, dus de video's staan in de documentroot
+(`~/dvd.deventerjeugdmusical.nl/opslag/`). Dat leunt op `.htaccess`, en dus op de Plesk-instelling
+*Serve static files directly by nginx* die uit moet blijven: staat die aan, dan levert nginx `.mp4`
+rechtstreeks uit en komt het verzoek nooit bij Apache aan.
+
+### Wat er gebeurde
+
+De zelftest van 14 september 13:41 meldde de opslagmap als bereikbaar voor `.mp4`, `.mkv`, `.avi`
+en `.zip` — en níet voor `.bin`, `.mov`, `.m4v` en `.webm`. Dat verschil is de hele diagnose: de
+eerste vier zaten in de extensielijst van nginx, de rest viel door naar Apache. Terug te zien in de
+logs:
+
+```
+proxy_access_ssl_log  13:41:27  GET /opslag/zelftest/…-proef.mp4   200 12    ← nginx leverde uit
+access_ssl_log        13:41:27  GET /opslag/zelftest/…-proef.mov   403 5722  ← Apache weigerde
+access_ssl_log        13:42:40  GET /opslag/zelftest/…-proef.mp4   403 5722  ← weer dicht
+```
+
+Het gat stond open tussen 11:06 en 13:41 (om 11:05:59 gaf de echte video nog 403 via Apache).
+*Serve static files directly by nginx* stond aan; Sjoerd heeft het vinkje na de melding van de
+zelftest uitgezet, waarna het om 13:42:40 weer dicht was. **Niemand is erdoor naar binnen gegaan:**
+het nginx-log van die dag loopt vanaf 03:42 en bevat in dat hele venster geen enkel
+`/opslag/`-verzoek behalve de proefbestandjes van de zelftest zelf. De echte video's zijn alleen via
+`download.php` opgehaald.
+
+Twee dingen om te onthouden: de oude zelftest probeerde alleen `.bin` en zag dit dus niet — de
+extensielus (`ZELFTEST_PROBEER_EXTENSIES`) is er precies hierom, en die heeft zich meteen
+terugbetaald. En: de instelling kan zonder waarschuwing weer aan.
+
+### De echte oplossing
+
+De map naast de documentroot zetten en `OPSLAG_PAD` invullen. Dan kan geen enkel vinkje in Plesk de
+video's meer publiek maken.
+
+```bash
+# 1. In Plesk eerst het alias-pad omzetten (Apache & nginx Settings → Additional nginx directives):
+#      alias /var/www/vhosts/deventerjeugdmusical.nl/djm-opslag/;
+# 2. Daarna over SSH — mv binnen hetzelfde bestandssysteem is een hernoeming, dus direct klaar:
+mv ~/dvd.deventerjeugdmusical.nl/opslag ~/djm-opslag
+sed -i 's|^OPSLAG_PAD=.*|OPSLAG_PAD="/var/www/vhosts/deventerjeugdmusical.nl/djm-opslag"|' \
+    ~/dvd.deventerjeugdmusical.nl/.env
+```
+
+Let op:
+
+- **Tussen stap 1 en 2 mislukken nieuwe downloads.** Lopende downloads niet: `mv` binnen hetzelfde
+  bestandssysteem raakt geopende bestanden niet. Doe het dus achter elkaar, niet met een uur ertussen.
+- **`open_basedir` moet de nieuwe map toelaten.** Plesk zet die standaard op de webspace-root
+  (`/var/www/vhosts/deventerjeugdmusical.nl`), dus een map dáár direct onder is goed; de domeinmap
+  zelf als grens zou het breken. Niet na te lezen zonder root — controleer het achteraf aan
+  Beheer › Instellingen (ziet de opslagmap) en Beheer › Controle (ziet beide video's).
+- **Kopiëren in plaats van verplaatsen kan niet:** de opslag is 14 GB en er is 16 GB vrij.
+- Daarna de zelftest draaien. Die hoort dan te melden dat de opslagmap buiten de webroot staat.
+
+**Stand op 14 september:** bewust nog niet uitgevoerd — de map is nu dicht en het verplaatsen
+onderbreekt kort de downloads. Doen op een moment dat er niemand aan het ophalen is.
+
+### Overweging voor daarna
+
+De zelftest vindt dit alleen als iemand hem draait. De nachtelijke taak (`cron_opschonen.php`) zou
+`zelftest_directe_toegang()` kunnen meenemen en bij een 200 een waarschuwing in `logs/app.log` en op
+het beheeroverzicht kunnen zetten. Dan valt een omgezet vinkje binnen een dag op in plaats van bij
+de volgende handmatige controle. Pas zinvol zolang de opslagmap in de documentroot staat; daarna is
+het een goedkoop vangnet voor het geval iemand `OPSLAG_PAD` weer leeghaalt.
 
 ---
 

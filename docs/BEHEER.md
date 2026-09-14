@@ -178,7 +178,9 @@ Pas als u daar bevestigt, gaat er iets de deur uit.
 
 Let op bij de groep *nog niet compleet opgehaald*: levert de webserver de video's uit (X-Accel of
 X-Sendfile), dan weet het portaal niet hoe ver iemand kwam en vallen die mensen in deze groep
-terwijl ze de video gewoon hebben. Stap 2 zegt erbij om hoeveel van hen het gaat.
+terwijl ze de video gewoon hebben. Stap 2 zegt erbij om hoeveel van hen het gaat. **Open daarom
+eerst Logboek → Downloads**: wijst `WEBSERVER_LOG` naar het log van de webserver, dan haalt dat
+scherm de ontbrekende aantallen alsnog op en schrijft ze weg, en klopt de groep daarna wél.
 
 ### Logboek
 

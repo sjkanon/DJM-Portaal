@@ -435,7 +435,11 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet �
                         Levert de webserver de video's uit (X-Accel of X-Sendfile — zie
                         <a href="#scherm-logboek">Logboek &rsaquo; Downloads</a>), dan komt er geen byte langs het
                         portaal en weet het dus niet hoe ver iemand kwam. Die mensen vallen dan in deze groep terwijl
-                        ze de video gewoon compleet hebben. Stap 2 zegt erbij om hoeveel van hen het gaat.</p>
+                        ze de video gewoon compleet hebben. Stap 2 zegt erbij om hoeveel van hen het gaat.
+                        <strong>Open daarom eerst <a href="#scherm-logboek">Logboek &rsaquo; Downloads</a></strong>:
+                        wijst <code class="pad">WEBSERVER_LOG</code> naar het log van de webserver, dan haalt dat
+                        scherm de ontbrekende aantallen alsnog op en schrijft ze weg — en klopt de groep hier
+                        daarna wél.</p>
                 </div>
                 <?php handleiding_figuur('beheer-bericht', 'Een bericht schrijven aan een groep deelnemers', [
                     'adres' => '/admin/bericht.php',
