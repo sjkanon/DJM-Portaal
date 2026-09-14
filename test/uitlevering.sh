@@ -102,6 +102,27 @@ route() {
     local gebruikt; gebruikt=$(php_db "echo (string)db()->query('SELECT methode FROM download_log ORDER BY id DESC LIMIT 1')->fetchColumn();")
     toets "afgehandeld via $verwachte_methode" "$verwachte_methode" "$gebruikt"
 
+    # Het logboek moet eerlijk zijn over wat het weet. Levert de webserver uit,
+    # dan komt er geen byte langs PHP: dat heet "webserver", niet "afgerond".
+    # De sleutel maakt de regel later terugvindbaar in het log van die webserver.
+    # Kijk naar de regel van de vólledige download, niet naar de laatste: daarna
+    # kwamen nog een deelverzoek en een onmogelijk bereik langs.
+    local boekhouding
+    boekhouding=$(php_db "\$r = db()->query('SELECT reden, LENGTH(COALESCE(sleutel, \"\")) AS s
+                                              FROM download_log
+                                             WHERE bytes_verzonden > 0 OR reden = \"webserver\"
+                                             ORDER BY id DESC LIMIT 1')->fetch();
+                          echo \$r['reden'], ' ', (int)\$r['s'];")
+    if [ "$verwachte_methode" = "php" ]; then
+        toets "logboek: zelf gemeten, met sleutel" "voltooid 16" "$boekhouding"
+        # Een onmogelijk bereik levert niets op, maar moet de regel wél afsluiten.
+        # Anders blijft hij op 'bezig' staan en lijkt hij eeuwig te lopen.
+        toets "onmogelijk bereik sluit de logregel af" "afgewezen" \
+            "$(php_db "echo (string)db()->query('SELECT reden FROM download_log ORDER BY id DESC LIMIT 1')->fetchColumn();")"
+    else
+        toets "logboek: niet gemeten, met sleutel" "webserver 16" "$boekhouding"
+    fi
+
     rm -f "$jar"
 }
 

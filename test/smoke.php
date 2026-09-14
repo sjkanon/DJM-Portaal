@@ -159,6 +159,133 @@ if (is_file('/app/includes/download_helper.php')) {
     echo "  – includes/download_helper.php nog niet aanwezig, overgeslagen\n";
 }
 
+echo "\n── Webserverlog uitlezen ───────────────────────────────────\n";
+if (is_file('/app/includes/webserverlog_helper.php')) {
+    require_once '/app/includes/webserverlog_helper.php';
+
+    // Een echte regel zoals nginx hem schrijft bij een X-Accel-download.
+    $sig = str_repeat('7a', 32);
+    $regel = '91.183.202.84 - - [14/Sep/2026:11:46:14 +0200] "GET /download.php?b=1&t=1789422010&s='
+        . $sig . ' HTTP/2.0" 200 6998877816 "-" "Mozilla/5.0"';
+    $uit = webserverlog_regel_ontleden($regel);
+    toets('sleutel uit de logregel', substr($sig, 0, 16), $uit['sleutel'] ?? '');
+    toets('status uit de logregel', 200, $uit['status'] ?? 0);
+    toets('bytes uit de logregel', 6998877816, $uit['bytes'] ?? 0);
+
+    // HTTP/1.1 en HEAD moeten ook herkend worden.
+    toets('HEAD wordt herkend', 206, (webserverlog_regel_ontleden(
+        '1.2.3.4 - - [14/Sep/2026:11:46:14 +0200] "HEAD /download.php?b=2&s=' . $sig
+        . ' HTTP/1.1" 206 100 "-" "-"'
+    )['status'] ?? 0));
+
+    // Alles wat geen downloadregel is, moet stil overgeslagen worden.
+    foreach ([
+        'gewone pagina'      => '1.2.3.4 - - [x] "GET /portaal/index.php HTTP/1.1" 200 12244 "-" "-"',
+        'zonder handtekening' => '1.2.3.4 - - [x] "GET /download.php?b=1 HTTP/1.1" 200 10 "-" "-"',
+        'rommel'             => 'dit is geen logregel',
+        'lege regel'         => '',
+    ] as $naam => $onzin) {
+        toets_waar('overgeslagen: ' . $naam, webserverlog_regel_ontleden($onzin) === null);
+    }
+
+    // Zoeken in een echt bestand, inclusief optellen van een hervatte download.
+    $tijdelijk = tempnam(sys_get_temp_dir(), 'djmlog');
+    $a = str_repeat('a1', 32);
+    $b = str_repeat('b2', 32);
+    file_put_contents($tijdelijk, implode("\n", [
+        '1.2.3.4 - - [x] "GET /download.php?b=1&s=' . $a . ' HTTP/2.0" 200 1000 "-" "-"',
+        '1.2.3.4 - - [x] "GET /download.php?b=1&s=' . $a . ' HTTP/2.0" 206 2500 "-" "-"',
+        '5.6.7.8 - - [x] "GET /download.php?b=2&s=' . $b . ' HTTP/2.0" 200 777 "-" "-"',
+        '9.9.9.9 - - [x] "GET /portaal/index.php HTTP/2.0" 200 12244 "-" "-"',
+    ]) . "\n");
+    putenv('WEBSERVER_LOG=' . $tijdelijk);
+    $_ENV['WEBSERVER_LOG'] = $tijdelijk;
+
+    toets_waar('log wordt gevonden', webserverlog_beschikbaar());
+    $gevonden = webserverlog_zoeken([substr($a, 0, 16), substr($b, 0, 16)]);
+    toets('hervatte download wordt opgeteld', 3500, $gevonden[substr($a, 0, 16)]['bytes'] ?? 0);
+    toets('tweede sleutel apart gevonden', 777, $gevonden[substr($b, 0, 16)]['bytes'] ?? 0);
+    toets('onbekende sleutel levert niets', 0, count(webserverlog_zoeken([str_repeat('c', 16)])));
+
+    // Een echte logboekregel verrijken: van "niet gemeten" naar een getal.
+    require_once '/app/includes/download_helper.php';
+    download_log_kolommen();
+    db()->exec("DELETE FROM download_log WHERE bestandsnaam = 'verrijktest.mp4'");
+    $maak = static function (string $sleutel) use ($bestandId, $deelnemer): int {
+        db()->prepare(
+            "INSERT INTO download_log (deelnemer_id, bestand_id, bestandsnaam, methode,
+                                       bytes_verzonden, afgerond, reden, sleutel)
+             VALUES (:d, :b, 'verrijktest.mp4', 'xaccel', 0, 0, 'webserver', :s)"
+        )->execute([':d' => (int)$deelnemer['id'], ':b' => $bestandId, ':s' => $sleutel]);
+        return (int)db()->lastInsertId();
+    };
+    $lees = static function (int $id): string {
+        $r = db()->prepare('SELECT bytes_verzonden, afgerond, reden FROM download_log WHERE id = :i');
+        $r->execute([':i' => $id]);
+        $rij = $r->fetch();
+        return $rij['bytes_verzonden'] . ' ' . $rij['afgerond'] . ' ' . $rij['reden'];
+    };
+
+    putenv('WEBSERVER_LOG=' . $tijdelijk);
+    $_ENV['WEBSERVER_LOG'] = $tijdelijk;
+
+    // Het log meldt 3500 bytes (1000 + 2500) voor sleutel $a.
+    $volId = $maak(substr($a, 0, 16));
+    webserverlog_verrijken([
+        ['id' => $volId, 'reden' => 'webserver', 'sleutel' => substr($a, 0, 16), 'bestand_bytes' => 3500],
+    ]);
+    toets('volledige download uit het log', '3500 1 voltooid', $lees($volId));
+
+    $halfId = $maak(substr($b, 0, 16));       // log meldt 777 van 5000
+    webserverlog_verrijken([
+        ['id' => $halfId, 'reden' => 'webserver', 'sleutel' => substr($b, 0, 16), 'bestand_bytes' => 5000],
+    ]);
+    toets('halve download uit het log', '777 0 client_gestopt', $lees($halfId));
+
+    // Twee keer hetzelfde bestand volledig ophalen mag geen dubbele grootte geven.
+    $capId = $maak(substr($a, 0, 16));
+    webserverlog_verrijken([
+        ['id' => $capId, 'reden' => 'webserver', 'sleutel' => substr($a, 0, 16), 'bestand_bytes' => 2000],
+    ]);
+    toets('nooit meer dan de bestandsgrootte', '2000 1 voltooid', $lees($capId));
+
+    // Zonder noemer valt er niets te concluderen: dan blijft de regel met rust.
+    $geenId = $maak(substr($a, 0, 16));
+    webserverlog_verrijken([
+        ['id' => $geenId, 'reden' => 'webserver', 'sleutel' => substr($a, 0, 16), 'bestand_bytes' => 0],
+    ]);
+    toets('zonder bestandsgrootte blijft het ongemeten', '0 0 webserver', $lees($geenId));
+
+    // Twee keer op dezelfde knop geklikt: twee regels, dezelfde sleutel. De
+    // rijen komen nieuwste eerst binnen, en die hoort het getal te krijgen.
+    $oudId   = $maak(substr($a, 0, 16));
+    $nieuwId = $maak(substr($a, 0, 16));
+    webserverlog_verrijken([
+        ['id' => $nieuwId, 'reden' => 'webserver', 'sleutel' => substr($a, 0, 16), 'bestand_bytes' => 3500],
+        ['id' => $oudId,   'reden' => 'webserver', 'sleutel' => substr($a, 0, 16), 'bestand_bytes' => 3500],
+    ]);
+    toets('bij een dubbele sleutel wint de nieuwste', '3500 1 voltooid', $lees($nieuwId));
+    toets('en de oudere blijft ongemeten', '0 0 webserver', $lees($oudId));
+
+    // Wat buiten de bewaartermijn van het log valt, zoeken we niet meer op.
+    $stofId = $maak(substr($a, 0, 16));
+    webserverlog_verrijken([
+        ['id' => $stofId, 'reden' => 'webserver', 'sleutel' => substr($a, 0, 16),
+         'bestand_bytes' => 3500, 'gestart_op' => date('Y-m-d H:i:s', time() - 30 * 86400)],
+    ]);
+    toets('regels van een maand oud blijven met rust', '0 0 webserver', $lees($stofId));
+
+    db()->exec("DELETE FROM download_log WHERE bestandsnaam = 'verrijktest.mp4'");
+
+    putenv('WEBSERVER_LOG=/bestaat/niet');
+    $_ENV['WEBSERVER_LOG'] = '/bestaat/niet';
+    toets_waar('onleesbaar log is gewoon uit', !webserverlog_beschikbaar());
+    toets('en levert geen fout op', 0, count(webserverlog_zoeken([substr($a, 0, 16)])));
+    @unlink($tijdelijk);
+} else {
+    echo "  – includes/webserverlog_helper.php nog niet aanwezig, overgeslagen\n";
+}
+
 echo "\n── Beheerder ───────────────────────────────────────────────\n";
 $pdo->prepare('INSERT INTO beheerders (naam, email, wachtwoord_hash, rol) VALUES (:n, :e, :w, :r)
                ON DUPLICATE KEY UPDATE wachtwoord_hash = VALUES(wachtwoord_hash)')

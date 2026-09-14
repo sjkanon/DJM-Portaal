@@ -6,6 +6,28 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
 
 ### Beheer
 
+- **Nieuw: Beheer › Bericht.** Een eigen bericht aan een groep deelnemers, in uw eigen woorden —
+  voor wat niet in een sjabloon past, zoals een storing die verholpen is. Kies de groep (*nog niet
+  compleet opgehaald*, *nooit ingelogd*, of iedereen met toegang), schrijf onderwerp en tekst met
+  `{naam}`, `{jaar}`, `{portaal_naam}`, `{url}` en `{contact}` erin, en stuur hem eerst naar uzelf.
+  Daarna een bevestigingsstap die zegt om hoeveel adressen het gaat en hoe het bericht er bij de
+  eerste ontvanger uitziet; pas dáár gaat er iets de deur uit, in blokken van 25. Ieder krijgt een
+  eigen mail, geblokkeerde deelnemers worden overgeslagen en hetzelfde onderwerp gaat binnen 24 uur
+  niet twee keer naar hetzelfde adres — een dubbele klik of een herladen levert dus geen tweede mail
+  op. Alles staat in Logboek › E-mail als soort `bericht`. Bij de groep *nog niet compleet
+  opgehaald* zegt de bevestigingsstap erbij hoeveel van die mensen een download begonnen die het
+  portaal niet kón meten, omdat de webserver hem uitleverde: die hebben de video misschien gewoon.
+  Geen databasewijziging.
+- **Ook meten als de webserver uitlevert.** Bij X-Accel of X-Sendfile komt er geen byte langs het
+  portaal, dus stond elke regel op *niet gemeten*. De webserver noteert het wél in zijn toegangslog,
+  en de handtekening uit de downloadlink staat in die regel — die is per link uniek, dus de
+  koppeling is exact en niet een gok op tijdstip en IP-adres. Wijst `WEBSERVER_LOG` in `.env` naar
+  dat log, dan haalt Beheer › Logboek › Downloads de aantallen alsnog op zodra u het tabblad opent,
+  en schrijft ze weg: eenmalig werk, waarna logrotatie niet meer uitmaakt. Op Plesk wordt
+  `../logs/<site>/proxy_access_ssl_log` vanzelf geprobeerd. Het moet het log van de vóórste
+  webserver zijn: staat nginx voor Apache, dan bevat Apaches log alleen het lege antwoord waarmee
+  PHP de uitlevering doorgaf. Niet ingesteld of onleesbaar? Dan blijft het bij *niet gemeten*, zonder
+  fout. Nieuwe kolom `download_log.sleutel`; bestaande installaties krijgen hem vanzelf.
 - **Het downloadlogboek zegt nu ook waaróm een download stopte.** Per regel een uitkomst:
   *voltooid*, *verbinding verbroken*, *server brak af*, *bezig* of *niet gemeten*. Die laatste twee
   zijn er niet voor de sier: *bezig* betekent dat de voortgang tijdens het downloaden wordt

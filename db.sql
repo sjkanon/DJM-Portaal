@@ -137,6 +137,10 @@ CREATE TABLE IF NOT EXISTS download_log (
     -- webserver. Alleen de PHP-uitlevering kan dit vaststellen; bij X-Accel en
     -- X-Sendfile levert de webserver uit en weten wij het niet ('webserver').
     reden          VARCHAR(24) NULL,
+    -- Begin van de handtekening uit de downloadlink. Uniek per link, en hij
+    -- staat ook in het log van de webserver: daarmee is achteraf op te zoeken
+    -- hoeveel bytes de webserver verstuurde als hij zelf uitleverde.
+    sleutel        CHAR(16) NULL,
     gestart_op     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     KEY idx_deelnemer (deelnemer_id),
@@ -148,7 +152,7 @@ CREATE TABLE IF NOT EXISTS mail_log (
     id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     ontvanger     VARCHAR(190) NOT NULL,
     onderwerp     VARCHAR(255) NOT NULL,
-    soort         VARCHAR(40) NOT NULL DEFAULT 'inlogcode',  -- inlogcode | uitnodiging | test
+    soort         VARCHAR(40) NOT NULL DEFAULT 'inlogcode',  -- inlogcode | uitnodiging | bericht | test
     status        VARCHAR(20) NOT NULL DEFAULT 'verzonden',  -- verzonden | mislukt
     methode       VARCHAR(20) NULL,                          -- graph | smtp
     foutmelding   TEXT NULL,

@@ -122,8 +122,11 @@ $methode = download_methode();
 
 // Een HEAD is de vraag of hervatten kan, niet het ophalen zelf; die hoort niet
 // als download in het logboek.
+// De handtekening gaat mee het logboek in. Levert de webserver zelf uit, dan is
+// dat later de sleutel om in zijn log op te zoeken hoeveel bytes er echt over de
+// lijn gingen — zie includes/webserverlog_helper.php.
 $logId = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'HEAD'
     ? 0
-    : download_loggen($bestand, $deelnemer, $methode);
+    : download_loggen($bestand, $deelnemer, $methode, $handtekening);
 
 download_uitleveren($bestand, $absoluutPad, $methode, $logId);

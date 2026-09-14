@@ -27,6 +27,7 @@ function admin_menu(): array
         'bestandscontrole.php' => ['Controle', 'bi-hdd-stack'],
         'toegang.php'     => ['Toegang',     'bi-person-check'],
         'deelnemers.php'  => ['Deelnemers',  'bi-people'],
+        'bericht.php'     => ['Bericht',     'bi-megaphone'],
         'logboek.php'     => ['Logboek',     'bi-journal-text'],
         'beheerders.php'  => ['Beheerders',  'bi-shield-lock'],
         'instellingen.php' => ['Instellingen', 'bi-gear'],

@@ -153,6 +153,33 @@ Zoeken op e-mailadres, en per deelnemer:
 - **Verwijderen (AVG):** wist de deelnemer, alle toegang, tokens en openstaande codes. Het
   downloadlogboek blijft bewaard als verantwoording. Dit is niet terug te draaien.
 
+### Bericht
+
+Een eigen bericht aan een groep deelnemers, in uw eigen woorden. Voor wat niet in een sjabloon
+past: een storing die verholpen is, een gewijzigde datum, een uitleg over het downloaden. De
+uitnodiging en de herinnering staan bij **Toegang**; dit scherm is voor de rest.
+
+In **stap 1** schrijft u onderwerp en tekst en kiest u de groep: *wie de video nog niet compleet
+heeft opgehaald*, *wie nog nooit heeft ingelogd*, of *iedereen met toegang tot deze jaargang*. In
+**stap 2** ziet u om hoeveel mensen het gaat en hoe het bericht er bij de eerste ontvanger uitziet.
+Pas als u daar bevestigt, gaat er iets de deur uit.
+
+- **Stuur het eerst naar uzelf** met *Eerst naar mijzelf sturen*: dezelfde mail naar uw eigen adres,
+  zonder dat er iets naar deelnemers gaat.
+- In de tekst kunt u `{naam}`, `{jaar}`, `{portaal_naam}`, `{url}` en `{contact}` gebruiken.
+  `{contact}` is het contactadres uit **Instellingen**. Onder aan elke mail uit het portaal staat
+  dat er niet op geantwoord kan worden, dus zet altijd een adres in de tekst waar mensen wél
+  terechtkunnen.
+- Iedere ontvanger krijgt een eigen mail; niemand ziet andermans adres. Geblokkeerde deelnemers
+  krijgen nooit een bericht, en hetzelfde onderwerp gaat binnen 24 uur niet twee keer naar hetzelfde
+  adres — een dubbele klik levert dus geen tweede mail op.
+- Alles staat in **Logboek → E-mail** als soort `bericht`. Wat u verstuurt, staat de volgende keer
+  alvast weer in het formulier.
+
+Let op bij de groep *nog niet compleet opgehaald*: levert de webserver de video's uit (X-Accel of
+X-Sendfile), dan weet het portaal niet hoe ver iemand kwam en vallen die mensen in deze groep
+terwijl ze de video gewoon hebben. Stap 2 zegt erbij om hoeveel van hen het gaat.
+
 ### Logboek
 
 Drie tabbladen: **inlogpogingen**, **verstuurde e-mail** (met foutmelding als verzenden
@@ -184,9 +211,22 @@ Bovenaan staat een blok dat de vraag beantwoordt *waar gaat het mis?*
 Dat blok overrulet de losse regels: staat er tien keer *verbinding verbroken* op precies dezelfde
 plek, dan waren dat niet tien bezoekers die toevallig tegelijk afhaakten.
 
-Meten kan alleen als het portaal zelf uitlevert. Staat `DELIVERY_MODE` op `xaccel` of `xsendfile`,
-dan doet de webserver het werk — sneller en robuuster, maar alles staat op *niet gemeten*. Zet hem
-tijdelijk op `php` als u wilt onderzoeken waar downloads stranden.
+Levert de webserver uit (`DELIVERY_MODE` op `xaccel` of `xsendfile`), dan komt er geen byte langs
+het portaal en staat een regel eerst op *niet gemeten*. De webserver noteert het wél in zijn eigen
+toegangslog: wijst `WEBSERVER_LOG` in `.env` daarnaar, dan haalt het portaal die aantallen alsnog op
+zodra u het downloadtabblad opent, en schrijft het ze weg. Op Plesk wordt
+`../logs/<site>/proxy_access_ssl_log` vanzelf geprobeerd.
+
+Twee dingen om te weten:
+
+- Het moet het log van de **voorste** webserver zijn. Staat nginx voor Apache, dan is
+  `proxy_access_ssl_log` het goede bestand; in `access_ssl_log` staat alleen het lege antwoord
+  waarmee PHP de uitlevering doorgaf (een kilobyte of zes).
+- Een download die nog loopt staat ook op *niet gemeten*: de webserver schrijft zijn regel pas als
+  hij klaar is. Blijft hij er daarna op staan, dan was er geen regel te vinden.
+
+Lukt het uitlezen niet, dan blijft `DELIVERY_MODE` op `php` zetten de zekere weg: dan levert het
+portaal zelf uit en meet het elke byte.
 
 ### Instellingen
 
@@ -287,6 +327,7 @@ SELECT naam, email, actief, laatst_ingelogd_op FROM beheerders;
 |---|---|---|---|
 | Elk jaar, na de voorstelling | Nieuwe jaargang: video uploaden, koppelen, adressen importeren | Vereniging | [NIEUW-JAAR.md](NIEUW-JAAR.md) |
 | Een paar weken na de uitnodiging | Herinnering sturen aan wie nog niet heeft opgehaald | Vereniging | **Toegang → Herinnering versturen** |
+| Na een storing die opgelost is | Deelnemers laten weten dat het weer werkt | Vereniging | **Bericht** |
 | Na elke nieuwe video | Controleren of alle bestanden er (heel) staan | Vereniging | **Controle** |
 | Maandelijks | Blik op het Overzicht: waarschuwingen? mislukte mails? | Vereniging | **Overzicht**, **Logboek → E-mail** |
 | Ruim vóór de vervaldatum | **Client secret vernieuwen**, anders stopt het inloggen | Technisch | [GRAPH-SETUP.md](GRAPH-SETUP.md), hoofdstuk 2 |

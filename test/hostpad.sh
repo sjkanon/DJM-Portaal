@@ -26,4 +26,14 @@ hostpad() {
     fi
 }
 
-export MSYS2_ARG_CONV_EXCL='/app;/verse;/shots;/usr/src/app;/var/www'
+# Ook formulierwaarden die op een pad lijken moeten met rust gelaten worden.
+# `XACCEL_PREFIX=/beveiligd/` werd anders `XACCEL_PREFIX=C:/Program Files/Git/beveiligd/`,
+# waarna de installatiewizard hem terecht weigerde en zwijgend niets opsloeg —
+# vijfentwintig testfouten die niets met de code te maken hadden. Let op: voor
+# zo'n `VAR=/pad`-argument moet de uitsluiting de naam mét isgelijkteken zijn;
+# alleen het pad in de lijst zetten helpt niet, want msys vergelijkt met het
+# hele argument.
+#
+# /tmp staat er bewust níét tussen: curl krijgt zijn cookiejar juist als
+# Windows-pad aangereikt.
+export MSYS2_ARG_CONV_EXCL='/app;/verse;/shots;/usr/src/app;/var/www;XACCEL_PREFIX=;OPSLAG_PAD='

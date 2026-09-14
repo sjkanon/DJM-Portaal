@@ -72,8 +72,17 @@ services:
       PHP_CLI_SERVER_WORKERS: "4"
     ports:
       - "8128:8080"
+    # De kopie gaat bewust zónder opslag/ en .git. Een verse installatie heeft
+    # geen video's nodig, en die map loopt in de praktijk vol: na het maken van
+    # de schermafdrukken staat er zestien gigabyte aan demomateriaal in. Met een
+    # gewone `cp -a /app /verse` kopieerde deze container dat bij elke start
+    # opnieuw, werd hij niet op tijd bereikbaar, en viel niet alleen de verse
+    # installatie om maar ook alles daarna — op een gedropte database, dus op
+    # iets dat niets met de code te maken had.
     command: >
-      sh -c "rm -rf /verse && cp -a /app /verse && rm -rf /verse/.git &&
+      sh -c "rm -rf /verse; mkdir -p /verse/opslag;
+             tar -C /app --exclude=./opslag --exclude=./.git -cf - . | tar -C /verse -xf - &&
+             chmod -R u+rwX /verse &&
              rm -f /verse/.env /verse/.env.backup-* /verse/setup.toegestaan &&
              php -S 0.0.0.0:8080 -t /verse"
 

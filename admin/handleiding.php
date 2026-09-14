@@ -142,6 +142,7 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet �
                 <a href="#nieuw-jaar">De video van dit jaar online zetten<small>Hoofdstuk 4</small></a>
                 <a href="#vraag-geen-code">Een ouder helpen die geen code krijgt<small>Hoofdstuk 7</small></a>
                 <a href="#scherm-toegang">Zien wie de video nog niet heeft<small>Toegang → ophaalstatus</small></a>
+                <a href="#scherm-bericht">Iedereen iets laten weten<small>Bericht → eigen tekst</small></a>
                 <a href="#beheerders">Iemand beheerder maken<small>Hoofdstuk 5</small></a>
                 <a href="#storing">Uitzoeken waarom niemand kan inloggen<small>Hoofdstuk 8</small></a>
                 <a href="#overdracht">Het beheer overdragen<small>Hoofdstuk 2</small></a>
@@ -397,6 +398,54 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet �
                 </div>
             </div>
 
+            <div class="djm-hl-scherm djm-sectie" id="scherm-bericht" data-scherm="bericht.php">
+                <?php handleiding_scherm_kop('bericht.php', 'Bericht'); ?>
+                <div class="djm-hl-tekst">
+                    <p>Een eigen bericht aan een groep deelnemers, in uw eigen woorden. Voor wat niet in een
+                        sjabloon past: een storing die verholpen is, een gewijzigde datum, een uitleg over het
+                        downloaden. De uitnodiging en de herinnering staan bij
+                        <a href="#scherm-toegang">Toegang</a>; dit scherm is voor de rest.</p>
+                    <p>Het gaat in twee stappen. In <strong>stap 1</strong> schrijft u het onderwerp en de tekst en
+                        kiest u de groep:</p>
+                    <ul>
+                        <li><em>Iedereen die de video nog niet compleet heeft opgehaald</em> — de mensen bij wie het
+                            waarschijnlijk misging;</li>
+                        <li><em>Iedereen die nog nooit heeft ingelogd</em>;</li>
+                        <li><em>Iedereen met toegang tot deze jaargang</em>.</li>
+                    </ul>
+                    <p>In <strong>stap 2</strong> ziet u hoeveel mensen dat zijn en hoe het bericht er bij de eerste
+                        ontvanger uitziet. Pas als u daar bevestigt, gaat er iets de deur uit. Geblokkeerde
+                        deelnemers krijgen nooit een bericht, en hetzelfde onderwerp gaat binnen 24 uur niet twee
+                        keer naar hetzelfde adres — zodat een dubbele klik of een herladen geen tweede mail
+                        oplevert.</p>
+                    <p><strong>Stuur het eerst naar uzelf.</strong> De knop <em>Eerst naar mijzelf sturen</em> stuurt
+                        precies dezelfde mail naar uw eigen adres, zonder dat er iets naar deelnemers gaat. Zo ziet u
+                        de opmaak en de plaatshouders voordat u het echt verstuurt.</p>
+                    <p>In de tekst kunt u <code class="pad">{naam}</code>, <code class="pad">{jaar}</code>,
+                        <code class="pad">{portaal_naam}</code>, <code class="pad">{url}</code> en
+                        <code class="pad">{contact}</code> gebruiken; die worden per ontvanger ingevuld.
+                        <code class="pad">{contact}</code> is het contactadres uit
+                        <a href="#scherm-instellingen">Instellingen</a>. Onder aan elke mail uit het portaal staat
+                        dat er niet op geantwoord kan worden, dus zet altijd een adres in de tekst waar mensen wél
+                        terechtkunnen. Iedere ontvanger krijgt een eigen mail; niemand ziet andermans adres.</p>
+                    <p>Elk verstuurd bericht staat in <a href="#scherm-logboek">Logboek &rsaquo; E-mail</a> als soort
+                        <code class="pad">bericht</code>, met de foutmelding erbij als het misging. Wat u verstuurt,
+                        staat de volgende keer alvast weer in het formulier.</p>
+                    <p class="mb-0"><strong>Eén waarschuwing bij de groep "nog niet compleet opgehaald".</strong>
+                        Levert de webserver de video's uit (X-Accel of X-Sendfile — zie
+                        <a href="#scherm-logboek">Logboek &rsaquo; Downloads</a>), dan komt er geen byte langs het
+                        portaal en weet het dus niet hoe ver iemand kwam. Die mensen vallen dan in deze groep terwijl
+                        ze de video gewoon compleet hebben. Stap 2 zegt erbij om hoeveel van hen het gaat.</p>
+                </div>
+                <?php handleiding_figuur('beheer-bericht', 'Een bericht schrijven aan een groep deelnemers', [
+                    'adres' => '/admin/bericht.php',
+                    'bijschrift' => 'Stap 1: de tekst, de groep en de plaatshouders. Er gaat hier nog niets de deur uit.',
+                ]); ?>
+                <?php handleiding_figuur('beheer-bericht-bevestigen', 'Bevestigingsstap voor een bericht', [
+                    'bijschrift' => 'Stap 2: hoeveel mensen het zijn, en hoe het bericht er bij de eerste ontvanger uitziet.',
+                ]); ?>
+            </div>
+
             <div class="djm-hl-scherm djm-sectie" id="scherm-logboek" data-scherm="logboek.php">
                 <?php handleiding_scherm_kop('logboek.php', 'Logboek'); ?>
                 <p class="djm-hl-tekst">Drie tabbladen: <strong>inloggen</strong>, <strong>e-mail</strong> (met de
@@ -434,11 +483,15 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet �
                     (<code>proxy_buffering off;</code>). Dat blok overrulet de losse regels: staat er tien keer
                     <em>verbinding verbroken</em> op precies dezelfde plek, dan waren dat niet tien bezoekers die
                     toevallig tegelijk afhaakten.</p>
-                <p class="djm-hl-tekst small text-muted">Meten kan alleen als het portaal zelf uitlevert. Staat
-                    <code>DELIVERY_MODE</code> in <code>.env</code> op <code>xaccel</code> of <code>xsendfile</code>,
-                    dan doet de webserver het werk — sneller en robuuster, maar het portaal ziet niet hoe ver iemand
-                    kwam en alles staat op <em>niet gemeten</em>. Wilt u het onderzoeken, zet hem dan tijdelijk op
-                    <code>php</code>.</p>
+                <p class="djm-hl-tekst small text-muted">Levert de webserver uit (<code>DELIVERY_MODE</code> op
+                    <code>xaccel</code> of <code>xsendfile</code>), dan komt er geen byte langs het portaal en staat
+                    een regel eerst op <em>niet gemeten</em>. De webserver noteert het wél in zijn eigen toegangslog:
+                    wijst <code>WEBSERVER_LOG</code> in <code>.env</code> daarnaar, dan haalt het portaal die
+                    aantallen alsnog op zodra u dit tabblad opent. Het moet het log van de <strong>voorste</strong>
+                    webserver zijn — staat nginx voor Apache, dan is dat <code>proxy_access_ssl_log</code>. Een
+                    download die nog loopt staat er ook zo bij: de webserver schrijft zijn regel pas als hij klaar is.
+                    Lukt het uitlezen niet, dan is <code>DELIVERY_MODE</code> op <code>php</code> zetten de zekere
+                    weg.</p>
                 <?php handleiding_figuur('beheer-logboek-mails', 'Het maillogboek', [
                     'adres' => '/admin/logboek.php?tab=mails',
                     'bijschrift' => 'Het eerste wat u opent als een ouder zegt geen mail te krijgen. Een mail die niet verstuurd kon worden, staat hier als "mislukt", met de foutmelding erbij.',
