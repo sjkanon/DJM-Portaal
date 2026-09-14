@@ -6,6 +6,13 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
 
 ### Beheer
 
+- **Het downloadlogboek zegt nu wáár het misgaat.** Per regel een balkje met hoe ver die download
+  kwam ("31% van 7,02 GB") in plaats van alleen het aantal verzonden bytes, en bovenaan een blok dat
+  de afgebroken downloads naast elkaar legt. Stoppen ze elke keer ergens anders, dan is het de
+  verbinding van de bezoeker en is hervatten het antwoord. Stoppen er drie of meer binnen een tiende
+  van elkaar, dan kleurt het blok rood: dat is een grens op de server, met de nginx-buffergrens als
+  eerste verdachte en de instellingen die dat verhelpen erbij. Bij X-Accel of X-Sendfile meet het
+  portaal de bytes niet zelf; het blok zegt er dan bij dat die regels altijd als afgerond tellen.
 - **Video's uploaden via de browser, ook van vele gigabytes.** Beheer › Bestanden heeft een
   uploadvak: sleep de video erin en hij gaat in stukken naar de server, met voortgang, snelheid en
   resterende tijd. Valt de verbinding weg, dan probeert het portaal het zelf opnieuw; is het tabblad
@@ -53,6 +60,37 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
   schermafdrukken opnieuw met voorbeeldgegevens. De afspraak staat in `docs/ARCHITECTUUR.md`.
 
 ### Portaal
+
+- **Geen `index.php` meer in plaats van de video.** Een downloadlink was vijf minuten geldig en
+  stuurde daarna door naar het overzicht; browsers en downloadmanagers bewaarden díe pagina dan als
+  bestand, en de deelnemer hield een `index.php` van vier kilobyte over. Dat trof iedereen die een
+  tabblad even liet openstaan, en vooral iedereen die een onderbroken download van meerdere
+  gigabytes de volgende dag hervatte. Een link is nu **twaalf uur** geldig, en is hij tóch verlopen,
+  dan geeft het portaal er vanzelf een verse voor in de plaats — de download begint of hervat dan
+  gewoon. `download.php` stuurt sowieso nooit meer door naar een gewone pagina: fouten zijn nu een
+  foutstatus met een leesbare uitleg, zodat een downloadprogramma ziet dat het mislukt is in plaats
+  van de pagina op te slaan.
+- **De sessie hoeft niet meer te blijven bestaan.** Duurde een download langer dan de sessie, dan
+  strandde het hervatten op de inlogpagina. Wie *onthoud dit apparaat* heeft aangevinkt, wordt nu
+  ook op het downloadeindpunt zelf weer ingelogd.
+- **Hervatten plakt geen twee versies aan elkaar.** De uitlevering stuurt `ETag` en `Last-Modified`
+  mee en controleert `If-Range`: is de video na het onderbreken vervangen, dan begint de download
+  opnieuw in plaats van door te gaan waar hij was. `HEAD` — waarmee downloadmanagers vragen of
+  hervatten kan — wordt netjes beantwoord en telt niet als download in het logboek.
+- **Downloads stranden niet meer op één gigabyte.** Staat er een nginx vóór Apache — op Plesk is dat
+  de standaard — dan schrijft die het antwoord eerst naar een tijdelijk bestand en stopt hij na
+  `proxy_max_temp_file_size` (standaard 1 GB) met lezen. De verbinding sneuvelde daar
+  (`upstream prematurely closed connection` in het nginx-log) en de deelnemer hield precies één
+  gigabyte van een video van zeven over. De uitlevering stuurt nu `X-Accel-Buffering: no` mee, zodat
+  nginx deze ene reactie ongebufferd doorgeeft — zonder dat er iets aan de server hoeft te
+  veranderen.
+- **Nooit meer een half bestand door compressie of buffering.** Comprimeerde de server de uitvoer
+  alsnog (onder PHP-FPM deden de regels in `.htaccess` niets), dan klopte de aangekondigde lengte
+  niet en kapte de browser de video af. De uitlevering zet dat nu zelf uit. Is het bestand op schijf
+  een andere grootte dan in de database staat, dan is de schijf leidend en komt er een regel in
+  `logs/app.log`.
+- **Grote bestanden gaan in blokken van 256 KB** in plaats van 8 KB de deur uit. Bij een video van
+  4 GB scheelt dat een half miljoen rondjes door de uitleverlus; het geheugengebruik blijft gelijk.
 
 - **Het portaal is schermvullend, met een navigatiebalk.** Inloggen, de inlogcode en het
   overzicht hebben nu dezelfde opbouw: een balk in de merkkleur met het logo, een kop met de

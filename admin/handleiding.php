@@ -193,6 +193,10 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet �
                     directe link te openen: elke download loopt via het portaal, dat eerst controleert of de bezoeker is
                     ingelogd en toegang heeft. Beheerders loggen apart in op <code>/admin/</code>, met e-mailadres en
                     wachtwoord.</p>
+                <p>De downloadknop levert een <strong>ondertekende link van twaalf uur</strong> op, die alleen werkt voor
+                    dit ene bestand en deze ene deelnemer — doorsturen naar iemand anders heeft dus geen zin. Is hij
+                    verlopen, dan geeft het portaal er vanzelf een nieuwe voor in de plaats en gaat de download gewoon
+                    door. Een onderbroken download is te hervatten, ook een dag later en ook met een downloadmanager.</p>
             </div>
 
             <h3 class="h6 mt-4">De onderdelen</h3>
@@ -399,6 +403,17 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet �
                     foutmelding als versturen mislukte) en <strong>downloads</strong> (hoeveel er verzonden is en of de
                     download is afgerond). Filter op adres en datum. Oude regels ruimt de nachtelijke taak zelf op, na de
                     bewaartermijn uit de instellingen.</p>
+                <p class="djm-hl-tekst">Bij <strong>Downloads</strong> staat per regel hoe ver iemand gekomen is — een
+                    balkje met het percentage van de bestandsgrootte — en bovenaan een blok dat de vraag beantwoordt
+                    <em>waar gaat het mis?</em> Stoppen de afgebroken downloads elke keer ergens anders, dan ligt het aan
+                    de verbinding van de bezoeker en is hervatten het antwoord. Stoppen ze allemaal <strong>rond
+                    hetzelfde punt</strong>, dan zit er een grens op de server; het blok kleurt dan rood en noemt de
+                    meest voorkomende oorzaak: een nginx die vóór Apache staat en na één gigabyte stopt met lezen
+                    (<code>proxy_buffering off;</code>). Dat is werk voor de technisch beheerder.</p>
+                <p class="djm-hl-tekst small text-muted">Let op: alleen bij de PHP-uitlevering telt het portaal de bytes
+                    zelf. Draait de uitlevering via X-Accel of X-Sendfile, dan doet de webserver het werk en ziet het
+                    portaal niet waar een download strandde; die regels tellen altijd als afgerond. Het blok zegt dat er
+                    dan bij.</p>
                 <?php handleiding_figuur('beheer-logboek-mails', 'Het maillogboek', [
                     'adres' => '/admin/logboek.php?tab=mails',
                     'bijschrift' => 'Het eerste wat u opent als een ouder zegt geen mail te krijgen. Een mail die niet verstuurd kon worden, staat hier als "mislukt", met de foutmelding erbij.',
@@ -408,7 +423,7 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet �
                         <?php handleiding_figuur('beheer-logboek-logins', 'Logboek met inlogpogingen', ['bijschrift' => 'Inlogpogingen.']); ?>
                     </div>
                     <div class="col-md-6">
-                        <?php handleiding_figuur('beheer-logboek-downloads', 'Logboek met downloads', ['bijschrift' => 'Downloads, met verzonden bytes en of ze zijn afgerond.']); ?>
+                        <?php handleiding_figuur('beheer-logboek-downloads', 'Logboek met downloads', ['bijschrift' => 'Downloads, met hoe ver elke download kwam en bovenaan de analyse van waar het misgaat.']); ?>
                     </div>
                 </div>
             </div>
@@ -598,6 +613,21 @@ SELECT naam, email, actief, laatst_ingelogd_op FROM beheerders;</pre>
                 </div>
             </details>
             <details class="djm-hl-vraag">
+                <summary>"Ik heb een <code>index.php</code> gedownload in plaats van de video"</summary>
+                <div>
+                    <p>Dat kon gebeuren in oudere versies. Een downloadlink was toen vijf minuten geldig; klikte iemand
+                        later, of hervatte de browser een download van gisteren, dan stuurde het portaal door naar het
+                        overzicht — en de browser bewaarde <em>die pagina</em> als bestand. Nu is een link
+                        <strong>twaalf uur</strong> geldig en geeft het portaal bij een verlopen link vanzelf een nieuwe
+                        af, zodat de download gewoon begint of hervat wordt. Laat het bestandje van een paar kilobyte
+                        weggooien en opnieuw op <strong>Downloaden</strong> klikken.</p>
+                    <p>Gebeurt het toch nog, schakel dan de technisch beheerder in: in <code>logs/app.log</code> staat
+                        dan een regel over een downloadlink die meteen weer werd afgekeurd. Dat betekent dat de
+                        serverklok niet gelijkloopt of dat er twee servers met een verschillende <code>APP_KEY</code>
+                        draaien.</p>
+                </div>
+            </details>
+            <details class="djm-hl-vraag">
                 <summary>"De download stopt halverwege" of "de video is kapot"</summary>
                 <div>
                     <ol>
@@ -605,7 +635,11 @@ SELECT naam, email, actief, laatst_ingelogd_op FROM beheerders;</pre>
                         <li><a href="<?= h(url('admin/logboek.php?tab=downloads')) ?>">Logboek → Downloads</a>: stopt het bij
                             iedereen rond hetzelfde punt, dan is het een serverinstelling (technisch beheerder). Verschilt
                             het per keer, dan ligt het meestal aan de verbinding van de ouder.</li>
-                        <li>Adviseer een stabiele verbinding. Downloads zijn te hervatten, ook met een downloadmanager.</li>
+                        <li>Adviseer een stabiele verbinding. Downloads zijn te hervatten, ook met een downloadmanager —
+                            laat de onderbroken download <em>hervatten</em> in plaats van opnieuw starten.</li>
+                        <li>Staat er in <code>logs/app.log</code> een regel
+                            <code>bestandsgrootte wijkt af van de database</code>, dan is het bestand op schijf een ander
+                            dan bij het koppelen: opnieuw uploaden en opnieuw koppelen.</li>
                     </ol>
                 </div>
             </details>

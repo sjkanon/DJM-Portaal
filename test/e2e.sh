@@ -53,7 +53,9 @@ bevat_niet "geen waarschuwingen op de pagina" "Warning:" "$HOME_HTML"
 echo ""
 echo "── Afscherming zonder sessie ───────────────────────────────"
 toets "portaal stuurt door naar inloggen" "302" "$(status "$BASIS/portaal/index.php")"
-toets "download stuurt door naar inloggen" "302" "$(status "$BASIS/download.php?b=1")"
+# Geen omleiding maar een 403: een downloadprogramma zou de inlogpagina achter
+# een omleiding gewoon als bestand bewaren.
+toets "download weigert zonder sessie" "403" "$(status "$BASIS/download.php?b=1")"
 toets "beheer stuurt door naar inloggen" "302" "$(status "$BASIS/admin/index.php")"
 
 echo ""
@@ -126,10 +128,36 @@ if [ -n "$LINK" ]; then
     ONMOGELIJK=$(curl -s -D - -o /dev/null -b "$KOEKJES" -H "Range: bytes=99999999-" "$BASIS/$LINK")
     toets "onbereikbaar bereik geeft 416" "416" "$(printf '%s' "$ONMOGELIJK" | head -1 | grep -o '[0-9]\{3\}')"
 
+    HEADONLY=$(curl -s -I -b "$KOEKJES" "$BASIS/$LINK")
+    toets "HEAD geeft 200" "200" "$(printf '%s' "$HEADONLY" | head -1 | grep -o '[0-9]\{3\}')"
+    bevat "HEAD noemt de volledige lengte" "Content-Length: 32768" "$HEADONLY"
+
+    echo ""
+    echo "── Verlopen downloadlink ───────────────────────────────────"
+    # Het tabblad stond al uren open, of de browser hervat een download van
+    # gisteren. Zo'n link mag nooit een HTML-pagina opleveren: browsers en
+    # downloadmanagers bewaren die gewoon als bestand, en dan vindt de deelnemer
+    # een 'index.php' van vier kilobyte in plaats van zijn video.
+    VERLOPEN=$(printf '%s' "$LINK" | sed 's/&t=[0-9]*/\&t=1/')
+    OUD_KOP=$(curl -s -D - -o /dev/null -b "$KOEKJES" "$BASIS/$VERLOPEN")
+    toets "verlopen link stuurt door" "302" "$(printf '%s' "$OUD_KOP" | head -1 | grep -o '[0-9]\{3\}')"
+    bevat "naar een verse downloadlink" "Location:" "$OUD_KOP"
+    bevat "en niet naar het overzicht" "download.php?b=" "$(printf '%s' "$OUD_KOP" | grep -i '^location:')"
+
+    VERS_KOP=$(curl -s -L -D - -o /tmp/djm-vernieuwd.bin -b "$KOEKJES" "$BASIS/$VERLOPEN")
+    bevat "de video komt alsnog als bijlage" "attachment" "$VERS_KOP"
+    toets "en is compleet" "32768" "$(stat -c%s /tmp/djm-vernieuwd.bin)"
+    bevat_niet "geen HTML in het gedownloade bestand" "<!DOCTYPE" "$(head -c 200 /tmp/djm-vernieuwd.bin)"
+
+    # De rem op de lus: een link die zichzelf net vernieuwd zou hebben, wordt
+    # niet nóg eens doorgestuurd.
+    toets "vernieuwde link stuurt niet opnieuw door" "410" \
+        "$(status "$BASIS/$VERLOPEN&v=$(date +%s)")"
+
     echo ""
     echo "── Download van een ander ──────────────────────────────────"
     ANDER=$(curl -s -o /dev/null -w '%{http_code}' "$BASIS/$LINK")
-    toets "zonder sessie geen download" "302" "$ANDER"
+    toets "zonder sessie geen download" "403" "$ANDER"
 else
     echo "  ✗ geen downloadlink gevonden in het portaal"; FOUT=$((FOUT+1))
 fi

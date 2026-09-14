@@ -11,30 +11,79 @@
  * Bestandspaden komen nooit uit gebruikersinvoer: id -> database ->
  * opslag_absoluut_pad(). Deze module krijgt het bestand altijd al gecontroleerd
  * binnen.
+ *
+ * Eén regel geldt voor het hele downloadpad: een verzoek om een bestand krijgt
+ * óf bytes van dat bestand, óf een foutstatus — nooit een HTML-pagina met
+ * status 200, en nooit een omleiding naar een gewone pagina. Een browser of
+ * downloadmanager bewaart zo'n pagina namelijk gewoon op schijf, en dan vindt
+ * de deelnemer een bestand van vier kilobyte met de naam index.php in zijn
+ * downloadmap in plaats van de video.
  */
 
 if (!function_exists('db')) {
     require_once dirname(__DIR__) . '/config.php';
 }
 
-/** Blokgrootte voor de PHP-uitlevering. */
-const DOWNLOAD_BLOK = 8192;
+/**
+ * Blokgrootte voor de PHP-uitlevering: 256 KB.
+ *
+ * Bij 8 KB gaat een bestand van 4 GB in een half miljoen rondjes door de lus,
+ * elk met een eigen fread(), echo en flush(). Dat kost merkbaar processortijd
+ * zonder dat er iets tegenover staat; het geheugengebruik blijft ook bij 256 KB
+ * verwaarloosbaar, want er staat nooit meer dan één blok in het geheugen.
+ */
+const DOWNLOAD_BLOK = 262144;
+
+/**
+ * Hoe lang een ondertekende downloadlink geldig blijft: twaalf uur.
+ *
+ * Dit stond op vijf minuten, en dat is te kort voor waar het portaal voor
+ * bedoeld is: bestanden van meerdere gigabytes, die uren kunnen lopen en soms
+ * een dag later hervat worden. Verloopt de link tóch, dan is dat geen fout —
+ * download.php geeft dan een verse link af. De echte toegangscontrole is en
+ * blijft de sessie plus deelnemer_bestand(); de handtekening is de tweede laag
+ * die een gekopieerde link waardeloos maakt voor iemand anders.
+ */
+const DOWNLOAD_LINK_GELDIG = 43200;
 
 // ─── Ondertekende downloadlinks ──────────────────────────────────────────────
 
 /**
- * Bouwt een kortlevende, ondertekende downloadlink (5 minuten geldig).
+ * Bouwt een ondertekende downloadlink.
  *
  * De handtekening is een extra laag naast de sessie: hij bindt de link aan één
  * deelnemer en één bestand, zodat een gekopieerde link bij iemand anders niets
  * doet en een oude link uit de browsergeschiedenis vanzelf waardeloos wordt.
+ *
+ * @param bool $vernieuwd Zet v=<nu>: deze link is zojuist door download.php in
+ *                        de plaats van een verlopen link gegeven. Wordt hij
+ *                        meteen daarna alsnog afgekeurd, dan is er iets
+ *                        structureel mis (de serverklok loopt terug, of twee
+ *                        servers achter dezelfde naam hebben een verschillende
+ *                        APP_KEY) en stopt download.php in plaats van nóg eens
+ *                        door te sturen. Zonder die rem zou dat een oneindige
+ *                        lus worden. Het is een tijdstip en geen vlaggetje,
+ *                        want ook een vernieuwde link mag over twaalf uur
+ *                        gewoon opnieuw vernieuwd worden.
  */
-function download_link(int $bestandId, int $deelnemerId): string
+function download_link(int $bestandId, int $deelnemerId, bool $vernieuwd = false): string
 {
-    $vervalt      = time() + 300;
+    $vervalt      = time() + DOWNLOAD_LINK_GELDIG;
     $handtekening = hash_hmac('sha256', "$bestandId|$deelnemerId|$vervalt", app_key());
 
-    return url('download.php') . '?b=' . $bestandId . '&t=' . $vervalt . '&s=' . $handtekening;
+    return url('download.php') . '?b=' . $bestandId . '&t=' . $vervalt . '&s=' . $handtekening
+        . ($vernieuwd ? '&v=' . time() : '');
+}
+
+/**
+ * Is deze link net vernieuwd? Dan heeft nóg een keer vernieuwen geen zin.
+ * Twee minuten speling, ruim genoeg voor een trage verbinding.
+ */
+function download_link_net_vernieuwd(string $v): bool
+{
+    $moment = (int)$v;
+
+    return $moment > 0 && abs(time() - $moment) < 120;
 }
 
 /**
@@ -196,6 +245,43 @@ function download_content_headers(array $bestand, string $absoluutPad, int $groo
     header('Cache-Control: private, no-store');
 }
 
+/**
+ * Kenmerk van deze versie van het bestand: grootte plus wijzigingsmoment.
+ *
+ * Een downloadmanager die hervat, stuurt dit terug in If-Range. Klopt het niet
+ * meer — de beheerder heeft het bestand vervangen of opnieuw geüpload — dan mag
+ * hij niet verdergaan waar hij gebleven was, want dan plakt hij twee
+ * verschillende video's aan elkaar en is het eindresultaat onafspeelbaar.
+ *
+ * @return array{0: string, 1: int} het etag (mét aanhalingstekens) en de mtime
+ */
+function download_kenmerk(string $absoluutPad, int $grootte): array
+{
+    $gewijzigd = (int)@filemtime($absoluutPad);
+
+    return ['"' . dechex($grootte) . '-' . dechex(max(0, $gewijzigd)) . '"', $gewijzigd];
+}
+
+/**
+ * Mag er hervat worden? Zonder If-Range wel; mét If-Range alleen als het
+ * kenmerk nog klopt.
+ */
+function download_if_range_geldig(string $etag, int $gewijzigd): bool
+{
+    $ifRange = trim((string)($_SERVER['HTTP_IF_RANGE'] ?? ''));
+    if ($ifRange === '') {
+        return true;
+    }
+    if ($ifRange[0] === '"' || str_starts_with($ifRange, 'W/')) {
+        return ltrim($ifRange, 'W/') === $etag;
+    }
+
+    // Geen etag maar een datum: die moet precies het wijzigingsmoment zijn.
+    $datum = strtotime($ifRange);
+
+    return $datum !== false && $gewijzigd > 0 && $datum === $gewijzigd;
+}
+
 /** Codeert elk padsegment afzonderlijk; de slashes blijven staan. */
 function download_pad_coderen(string $relatiefPad): string
 {
@@ -203,6 +289,46 @@ function download_pad_coderen(string $relatiefPad): string
     $segmenten   = array_map('rawurlencode', explode('/', $relatiefPad));
 
     return implode('/', $segmenten);
+}
+
+/**
+ * Zet alle compressie en buffering uit die tussen fread() en de netwerkkaart
+ * kan zitten.
+ *
+ * Comprimeert de server de uitvoer alsnog, dan klopt de aangekondigde
+ * Content-Length niet met wat er over de lijn gaat. De browser kapt af op het
+ * aangekondigde aantal bytes en de deelnemer houdt een halve, onafspeelbare
+ * video over. De regels in .htaccess dekken alleen mod_php; onder PHP-FPM doen
+ * ze niets, vandaar dat het hier nog eens gebeurt.
+ */
+function download_compressie_uit(): void
+{
+    @ini_set('zlib.output_compression', '0');
+    @ini_set('output_buffering', '0');
+    @ini_set('implicit_flush', '1');
+
+    if (function_exists('apache_setenv')) {
+        @apache_setenv('no-gzip', '1');
+        @apache_setenv('dont-vary', '1');
+    }
+}
+
+/**
+ * Vraagt een nginx die vóór ons staat om deze ene reactie niet te bufferen.
+ *
+ * Op hostingpanelen als Plesk staat nginx als proxy voor Apache. Met de
+ * standaardinstellingen schrijft hij het antwoord eerst naar een tijdelijk
+ * bestand, en bij `proxy_max_temp_file_size 1024m` stopt hij na één gigabyte met
+ * lezen. PHP loopt dan vast op een volle buffer, de webserver verbreekt de
+ * verbinding — in het nginx-log `upstream prematurely closed connection` — en de
+ * deelnemer houdt precies één gigabyte van een video van zeven over. Deze header
+ * zet de buffering voor dit antwoord uit, zonder dat er iets aan de
+ * serverinstellingen hoeft te veranderen. Staat er geen nginx voor, dan is het
+ * een header die niemand leest.
+ */
+function download_buffering_uit(): void
+{
+    header('X-Accel-Buffering: no');
 }
 
 // ─── Uitlevering ─────────────────────────────────────────────────────────────
@@ -214,21 +340,36 @@ function download_pad_coderen(string $relatiefPad): string
  */
 function download_uitleveren(array $bestand, string $absoluutPad, string $methode, ?int $logId = null): void
 {
-    $grootte = (int)@filesize($absoluutPad);
+    $grootte  = (int)@filesize($absoluutPad);
+    $verwacht = (int)($bestand['bytes'] ?? 0);
+
     if ($grootte <= 0) {
-        $grootte = (int)($bestand['bytes'] ?? 0);
+        $grootte = $verwacht;
+    } elseif ($verwacht > 0 && $grootte !== $verwacht) {
+        // Wat op schijf staat is leidend — kondigen we meer bytes aan dan we
+        // hebben, dan wacht de browser eindeloos op de rest en blijft het
+        // bestand onafgerond. Wel melden: dit betekent dat het bestand na het
+        // koppelen is vervangen of maar half is overgezet. Beheer ›
+        // Bestandscontrole laat hetzelfde zien.
+        app_log('bestandsgrootte wijkt af van de database', [
+            'bestand_id' => (int)($bestand['id'] ?? 0),
+            'op_schijf'  => $grootte,
+            'database'   => $verwacht,
+        ]);
     }
 
     if ($methode === 'xaccel') {
         $prefix = rtrim(env('XACCEL_PREFIX', '/beveiligd/'), '/');
         header('X-Accel-Redirect: ' . $prefix . '/' . download_pad_coderen((string)($bestand['pad'] ?? '')));
         download_content_headers($bestand, $absoluutPad, $grootte);
-        // Accept-Ranges en de daadwerkelijke bytes laat nginx zelf afhandelen.
+        // Accept-Ranges, Content-Length en de daadwerkelijke bytes laat nginx
+        // zelf afhandelen; hij vervangt onze Content-Length door de echte.
         exit;
     }
 
     if ($methode === 'xsendfile') {
         header('X-Sendfile: ' . $absoluutPad);
+        download_buffering_uit();
         download_content_headers($bestand, $absoluutPad, $grootte);
         // mod_xsendfile honoreert Range-verzoeken wel, maar kondigt dat niet aan.
         // Zonder deze header gaan downloadmanagers ervan uit dat hervatten niet
@@ -254,14 +395,29 @@ function download_uitleveren_php(array $bestand, string $absoluutPad, int $groot
     while (ob_get_level()) {
         ob_end_clean();
     }
+    download_compressie_uit();
+    download_buffering_uit();
     set_time_limit(0);
     ignore_user_abort(true);
 
+    [$etag, $gewijzigd] = download_kenmerk($absoluutPad, $grootte);
+
     header('Accept-Ranges: bytes');
+    header('ETag: ' . $etag);
+    if ($gewijzigd > 0) {
+        header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $gewijzigd) . ' GMT');
+    }
 
     $start = 0;
     $eind  = $grootte > 0 ? $grootte - 1 : 0;
     $range = trim((string)($_SERVER['HTTP_RANGE'] ?? ''));
+
+    // Hervatten op een bestand dat inmiddels vervangen is: negeer het bereik en
+    // stuur de hele, nieuwe video. Beter opnieuw beginnen dan twee versies aan
+    // elkaar geplakt.
+    if ($range !== '' && !download_if_range_geldig($etag, $gewijzigd)) {
+        $range = '';
+    }
 
     if ($range !== '') {
         // Alleen één enkele bereikaanvraag: bytes=start-eind, bytes=start- of
@@ -298,6 +454,13 @@ function download_uitleveren_php(array $bestand, string $absoluutPad, int $groot
     $lengte = $grootte > 0 ? ($eind - $start + 1) : 0;
 
     download_content_headers($bestand, $absoluutPad, $lengte);
+
+    // Downloadmanagers vragen eerst met HEAD of hervatten kan; ze willen alleen
+    // de headers. Onder PHP-FPM zou de rest van deze functie de bytes gewoon
+    // meesturen.
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'HEAD') {
+        exit;
+    }
 
     $handvat = @fopen($absoluutPad, 'rb');
     if ($handvat === false) {
