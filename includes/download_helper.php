@@ -164,33 +164,47 @@ function bestand_mime(string $pad, string $standaard): string
 // ─── Logboek ─────────────────────────────────────────────────────────────────
 
 /**
- * Zorgt dat download_log de kolom `reden` heeft.
+ * Zorgt dat download_log de kolommen `reden` en `sleutel` heeft.
  *
  * `db.sql` draait alleen bij de installatie, dus een portaal dat al draaide
- * krijgt de kolom hier. Lukt dat niet — bijvoorbeeld omdat de databasegebruiker
- * geen ALTER mag — dan gaat het loggen gewoon door zonder die kolom; een
- * logboek mag nooit een download tegenhouden.
+ * krijgt ze hier. Lukt dat niet — bijvoorbeeld omdat de databasegebruiker geen
+ * ALTER mag — dan gaat het loggen gewoon door zonder; een logboek mag nooit een
+ * download tegenhouden, en een beheerscherm mag er al helemaal niet op omvallen.
+ *
+ * Roep dit aan vóór elke query die deze kolommen noemt, óók vanuit het beheer.
+ * Het downloadtabblad viel ooit om omdat de migratie alleen in het downloadpad
+ * zat: op een bestaande installatie ontstond de kolom dan pas bij de eerste
+ * download, en tot die tijd was juist het scherm stuk waarmee je downloads
+ * onderzoekt.
  */
-function download_log_reden_kolom(): bool
+function download_log_kolommen(): bool
 {
     static $aanwezig = null;
     if ($aanwezig !== null) {
         return $aanwezig;
     }
+
+    $nodig = [
+        'reden'   => 'ALTER TABLE download_log ADD COLUMN reden VARCHAR(24) NULL AFTER afgerond',
+        'sleutel' => 'ALTER TABLE download_log ADD COLUMN sleutel CHAR(16) NULL AFTER reden',
+    ];
+
     try {
         $stmt = db()->prepare(
-            "SELECT COUNT(*) FROM information_schema.columns
-              WHERE table_schema = DATABASE()
-                AND table_name = 'download_log'
-                AND column_name = 'reden'"
+            "SELECT column_name FROM information_schema.columns
+              WHERE table_schema = DATABASE() AND table_name = 'download_log'"
         );
         $stmt->execute();
-        if ((int)$stmt->fetchColumn() === 0) {
-            db()->exec('ALTER TABLE download_log ADD COLUMN reden VARCHAR(24) NULL AFTER afgerond');
+        $bestaand = array_map('strtolower', $stmt->fetchAll(PDO::FETCH_COLUMN));
+
+        foreach ($nodig as $kolom => $sql) {
+            if (!in_array($kolom, $bestaand, true)) {
+                db()->exec($sql);
+            }
         }
         $aanwezig = true;
     } catch (Throwable $e) {
-        app_log('kolom reden toevoegen aan download_log mislukt', ['fout' => $e->getMessage()]);
+        app_log('kolommen toevoegen aan download_log mislukt', ['fout' => $e->getMessage()]);
         $aanwezig = false;
     }
 
@@ -202,23 +216,25 @@ function download_log_reden_kolom(): bool
  * Geeft 0 terug als loggen mislukt; een kapot logboek mag een download niet
  * tegenhouden.
  */
-function download_loggen(array $bestand, ?array $deelnemer, string $methode): int
+function download_loggen(array $bestand, ?array $deelnemer, string $methode, string $handtekening = ''): int
 {
     // Bij xaccel/xsendfile neemt de webserver de uitlevering over. Wij zien dan
     // geen enkele byte voorbijkomen en kunnen dus niet zeggen hoe ver iemand
     // kwam. Dat noteren we ook zo, in plaats van de volle grootte te doen alsof:
     // een logboek dat gokt, is erger dan een logboek dat "niet gemeten" zegt.
+    // Het webserverlog weet het wél, en de sleutel hieronder maakt die regel
+    // later terugvindbaar (zie includes/webserverlog_helper.php).
     $doorWebserver = $methode !== 'php';
-    $metReden      = download_log_reden_kolom();
+    $metReden      = download_log_kolommen();
 
     $sql = 'INSERT INTO download_log
                 (deelnemer_id, bestand_id, jaargang_id, email, bestandsnaam,
                  ip, user_agent, methode, bytes_verzonden, afgerond'
-        . ($metReden ? ', reden' : '') . ')
+        . ($metReden ? ', reden, sleutel' : '') . ')
             VALUES
                 (:deelnemer, :bestand, :jaargang, :email, :bestandsnaam,
                  :ip, :ua, :methode, :bytes, :afgerond'
-        . ($metReden ? ', :reden' : '') . ')';
+        . ($metReden ? ', :reden, :sleutel' : '') . ')';
 
     $waarden = [
         ':deelnemer'    => $deelnemer !== null ? (int)$deelnemer['id'] : null,
@@ -234,6 +250,11 @@ function download_loggen(array $bestand, ?array $deelnemer, string $methode): in
     ];
     if ($metReden) {
         $waarden[':reden'] = $doorWebserver ? 'webserver' : 'bezig';
+        // Alleen het begin van de handtekening: genoeg om de regel in het
+        // webserverlog terug te vinden, te weinig om er iets mee te vervalsen.
+        $waarden[':sleutel'] = preg_match('/^[0-9a-f]{16,}$/', $handtekening)
+            ? substr($handtekening, 0, 16)
+            : null;
     }
 
     try {
@@ -260,7 +281,7 @@ function download_log_bijwerken(?int $logId, int $bytesVerzonden, bool $afgerond
     if ($logId === null || $logId <= 0) {
         return;
     }
-    $metReden = download_log_reden_kolom();
+    $metReden = download_log_kolommen();
 
     $sql = 'UPDATE download_log
                SET bytes_verzonden = :bytes, afgerond = :afgerond'
@@ -485,14 +506,14 @@ function download_uitleveren_php(array $bestand, string $absoluutPad, int $groot
         // bytes=-laatste_n. Meervoudige bereiken (met komma's) ondersteunen we
         // bewust niet; downloadmanagers vallen dan terug op één bereik.
         if (!preg_match('/^bytes=(\d*)-(\d*)$/', $range, $m) || ($m[1] === '' && $m[2] === '')) {
-            download_range_afwijzen($grootte);
+            download_range_afwijzen($grootte, $logId);
         }
 
         if ($m[1] === '') {
             // bytes=-n : de laatste n bytes.
             $laatste = (int)$m[2];
             if ($laatste <= 0) {
-                download_range_afwijzen($grootte);
+                download_range_afwijzen($grootte, $logId);
             }
             $start = max(0, $grootte - $laatste);
             $eind  = $grootte - 1;
@@ -505,7 +526,7 @@ function download_uitleveren_php(array $bestand, string $absoluutPad, int $groot
         }
 
         if ($grootte <= 0 || $start > $eind || $start >= $grootte) {
-            download_range_afwijzen($grootte);
+            download_range_afwijzen($grootte, $logId);
         }
 
         http_response_code(206);
@@ -526,6 +547,7 @@ function download_uitleveren_php(array $bestand, string $absoluutPad, int $groot
     $handvat = @fopen($absoluutPad, 'rb');
     if ($handvat === false) {
         app_log('bestand kon niet geopend worden', ['pad' => $absoluutPad]);
+        download_log_bijwerken($logId, 0, false, 'server_gestopt');
         http_response_code(500);
         exit;
     }
@@ -584,9 +606,17 @@ function download_uitleveren_php(array $bestand, string $absoluutPad, int $groot
     exit;
 }
 
-/** Ongeldige of onbereikbare Range: 416 met het toegestane bereik. */
-function download_range_afwijzen(int $grootte): void
+/**
+ * Ongeldige of onbereikbare Range: 416 met het toegestane bereik.
+ *
+ * De logregel is al aangemaakt voordat we hier komen, dus die moet nog worden
+ * afgesloten. Zonder dat blijft hij op `bezig` staan, en `bezig` hoort te
+ * betekenen "deze download loopt op dit moment" — niet "hier is ooit iets
+ * misgegaan en niemand heeft het opgeruimd".
+ */
+function download_range_afwijzen(int $grootte, ?int $logId = null): void
 {
+    download_log_bijwerken($logId, 0, false, 'afgewezen');
     http_response_code(416);
     header('Content-Range: bytes */' . $grootte);
     exit;

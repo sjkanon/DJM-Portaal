@@ -10,6 +10,7 @@
 
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/download_helper.php';
+require_once dirname(__DIR__) . '/includes/webserverlog_helper.php';
 require_once __DIR__ . '/includes/layout.php';
 
 vereis_installatie();
@@ -95,6 +96,10 @@ function download_reden_label(?string $reden): array
             return ['niet gemeten', 'secondary',
                 'De webserver leverde dit bestand uit (X-Accel of X-Sendfile). Het portaal ziet dan '
                 . 'geen bytes voorbijkomen en kan niet zeggen hoe ver de bezoeker kwam.'];
+        case 'afgewezen':
+            return ['afgewezen', 'secondary',
+                'De browser vroeg een stuk van het bestand op dat niet bestaat. Dat gebeurt bij een '
+                . 'hervatpoging op een bestand dat inmiddels kleiner is; er is niets verstuurd.'];
         case 'bezig':
             return ['bezig', 'info',
                 'Loopt nog, of het proces is afgeschoten zonder zich af te melden. '
@@ -263,6 +268,13 @@ $isDownloads = $tab === 'downloads';
 $selectie    = $isDownloads ? 'l.*, b.bytes AS bestand_bytes' : 'l.*';
 $joinSql     = $isDownloads ? ' LEFT JOIN jaargang_bestanden b ON b.id = l.bestand_id' : '';
 
+// Vóór de eerste query die `reden` of `sleutel` aanraakt: een portaal dat al
+// draaide voordat die kolommen bestonden, krijgt ze hier. Lukt de ALTER niet —
+// de databasegebruiker mag het niet — dan laten we de uitsplitsing per reden
+// weg in plaats van de hele pagina te laten vallen. Een logboek dat je niet
+// kunt openen is het ergste dat er is als je iets aan het uitzoeken bent.
+$metReden = $isDownloads && download_log_kolommen();
+
 $stmt = db()->prepare(
     'SELECT ' . $selectie . ' FROM ' . $tabel . ' l' . $joinSql . '
      WHERE ' . $waarSql . '
@@ -275,15 +287,25 @@ $rijen = $stmt->fetchAll();
 // ─── Downloads: waar gaat het mis? ───────────────────────────────────────────
 $downloadCijfers = null;
 $downloadKnelpunt = null;
+$verrijktAantal   = 0;
 
 if ($isDownloads) {
-    // Een portaal dat al draaide voordat de kolom `reden` bestond, krijgt hem
-    // hier. Lukt dat niet — de databasegebruiker mag geen ALTER — dan laten we
-    // de uitsplitsing weg in plaats van de hele pagina te laten vallen: een
-    // logboek dat je niet kunt openen is het ergste dat er is als je iets aan
-    // het uitzoeken bent.
-    $metReden = download_log_reden_kolom();
+    // Leverde de webserver uit, dan zag het portaal geen byte — maar de
+    // webserver noteerde in zijn eigen log wél hoeveel hij verstuurde. Dat halen
+    // we hier op voor de regels op dit scherm en schrijven we weg, zodat het
+    // eenmalig werk is en latere logrotatie niet meer uitmaakt. Gebeurt dit vóór
+    // de cijfers hieronder, dan kloppen die meteen.
+    $verrijkt = webserverlog_verrijken($rijen);
+    foreach ($rijen as $i => $rij) {
+        $id = (int)$rij['id'];
+        if (isset($verrijkt[$id])) {
+            $rijen[$i] = array_merge($rij, $verrijkt[$id]);
+            $verrijktAantal++;
+        }
+    }
+}
 
+if ($isDownloads) {
     $redenTellers = $metReden
         ? ",
                 SUM(CASE WHEN l.reden = 'client_gestopt' THEN 1 ELSE 0 END) AS verbroken,
@@ -548,9 +570,24 @@ admin_start('Logboek', 'Inlogpogingen, verstuurde e-mail en downloads');
                         Daarnaast <strong><?= (int)$dlOngemeten ?></strong> download(s) waarbij de webserver
                         uitleverde (X-Accel of X-Sendfile). Die zijn <em>niet mislukt</em> — het portaal kan
                         alleen niet zien hoe ver ze kwamen, want er kwam geen byte langs. Ze tellen hierboven
-                        dan ook niet mee. Wilt u het wél weten, zet dan <code>DELIVERY_MODE</code> in
-                        <code>.env</code> op <code>php</code>: dan levert het portaal zelf uit en meet het
-                        elke byte.
+                        dan ook niet mee.
+                        <?php if (webserverlog_beschikbaar()): ?>
+                            Een download die nog loopt, staat er ook zo bij: het webserverlog krijgt zijn regel
+                            pas als hij klaar is. Blijft hij daarna op <em>niet gemeten</em> staan, dan was er
+                            geen regel te vinden.
+                        <?php else: ?>
+                            Wilt u het wél weten, dan zijn er twee wegen: <code>WEBSERVER_LOG</code> in
+                            <code>.env</code> naar het toegangslog van de webserver laten wijzen — dan haalt
+                            het portaal de aantallen daar op — of <code>DELIVERY_MODE</code> op <code>php</code>
+                            zetten, waarna het portaal zelf uitlevert en elke byte meet.
+                        <?php endif; ?>
+                    </p>
+                <?php endif; ?>
+                <?php if ($verrijktAantal > 0): ?>
+                    <p class="mb-1 text-muted">
+                        <i class="bi bi-journal-check me-1"></i>
+                        Van <strong><?= (int)$verrijktAantal ?></strong> regel(s) is zojuist uit het
+                        webserverlog opgehaald hoeveel er verstuurd is.
                     </p>
                 <?php endif; ?>
                 <?php if ($downloadKnelpunt !== null):
