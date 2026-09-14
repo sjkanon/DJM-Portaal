@@ -26,6 +26,7 @@ includes/otp.php            codes genereren, versturen, verifiëren, throttling
 includes/email_helper.php   GraphMailer + SimpleMailer + mailsjablonen
 includes/toegang_helper.php wie mag welke jaargang / welk bestand
 includes/download_helper.php uitlevering: X-Accel / X-Sendfile / PHP-stream
+includes/webserverlog_helper.php achteraf uitlezen hoeveel de webserver verstuurde
 includes/uitlevering_helper.php serverconfig tonen + de uitlevering echt uitproberen
 includes/layout.php         portaal_start() / portaal_eind() voor het portaal
 includes/beheerder_helper.php  rem op pogingen, links om een wachtwoord te kiezen
@@ -34,6 +35,7 @@ admin/includes/layout.php   admin_start() / admin_eind() / admin_login_start()
 admin/bestanden.php         video uploaden, bestanden koppelen en opruimen
 admin/upload.php            JSON-eindpunt voor de upload in delen (admin/assets/upload.js)
 admin/bestandscontrole.php  controle: staan alle gekoppelde bestanden er nog?
+admin/bericht.php           vrije tekst naar een groep deelnemers, met voorbeeld en bevestiging
 admin/handleiding.php       handleiding voor beheerders, met schermafdrukken
 admin/beheerders.php        beheerders toevoegen, links sturen, uit- en inschakelen
 admin/wachtwoord_vergeten.php  resetlink aanvragen (zonder sessie)
@@ -101,7 +103,7 @@ nooit zelf uit `$_SERVER`: alleen deze functie weet of `X-Forwarded-For` te vert
 
 **download_helper.php:** `download_link()`, `download_link_net_vernieuwd()`,
 `download_handtekening_geldig()`, `download_methode()`, `bestand_mime()`,
-`download_log_reden_kolom()`, `download_loggen()`, `download_log_bijwerken()`,
+`download_log_kolommen()`, `download_loggen()`, `download_log_bijwerken()`,
 `download_content_headers()`, `download_kenmerk()`, `download_if_range_geldig()`,
 `download_pad_coderen()`, `download_compressie_uit()`, `download_buffering_uit()`,
 `download_uitleveren()`, `download_uitleveren_php()`, `download_range_afwijzen()`.
@@ -115,6 +117,17 @@ ook een afgeschoten proces laat zien hoe ver iemand kwam. Let op de grens van wa
 stopt met lezen ziet er hetzelfde uit als een bezoeker die afhaakt. Het beheerscherm lost dat
 op met het patroon: stops die zich om één punt verzamelen zijn de infrastructuur, verspreide
 stops zijn de bezoekers.
+
+**webserverlog_helper.php:** `webserverlog_paden()`, `webserverlog_beschikbaar()`,
+`webserverlog_regel_ontleden()`, `webserverlog_zoeken()`, `webserverlog_verrijken()`.
+Levert de webserver zelf uit, dan meet PHP niets — maar de webserver noteert per verzoek hoeveel
+hij verstuurde. `download_log.sleutel` (de eerste zestien tekens van de handtekening uit de
+downloadlink) staat ook in die logregel en is per link uniek, dus de koppeling is exact en niet
+een gok op tijdstip en IP. Het beheerscherm haalt de aantallen op voor de regels die het toont en
+schrijft ze weg, zodat het eenmalig werk is en latere logrotatie niet meer uitmaakt. Het pad komt
+uit `WEBSERVER_LOG`; ontbreekt dat, dan wordt de Plesk-indeling geprobeerd. Het moet het log van de
+vóórste webserver zijn: staat nginx voor Apache, dan bevat Apaches log alleen het lege antwoord
+waarmee PHP de uitlevering doorgaf. Alles hierin is optioneel en mag nooit een fout opleveren.
 Een link is `DOWNLOAD_LINK_GELDIG` (twaalf uur) geldig; verloopt hij, dan geeft `download.php`
 er een verse voor in de plaats in plaats van een fout te tonen, want de echte autorisatie is de
 sessie plus `deelnemer_bestand()`. De PHP-uitlevering stuurt `ETag` en `Last-Modified` mee en

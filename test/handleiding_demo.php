@@ -34,6 +34,9 @@ foreach ([
     'smtp_gebruikersnaam' => '', 'smtp_wachtwoord' => '',
     'email_van_adres' => 'noreply@example.nl', 'email_van_naam' => 'Deventer Jeugd Musical',
     'portaal_ingeschakeld' => '1',
+    // Waar {contact} in een bericht naar verwijst; zonder dit weigert
+    // Beheer › Bericht een tekst met {contact} erin.
+    'contact_email' => 'secretariaat@example.nl',
 ] as $sleutel => $waarde) {
     instelling_opslaan($sleutel, $waarde);
 }

@@ -22,6 +22,14 @@ Twee dingen om vooraf te weten:
 
 - De testharnas is sinds 14 september Windows-proof (`test/hostpad.sh`). Draait het toch mis met
   `Could not open input file`, dan wordt `hostpad()` ergens niet gebruikt bij een `docker run -v`.
+- **`python3` moet écht Python zijn.** Op Windows staat in `WindowsApps` een `python3` die alleen
+  "Python was not found" afdrukt en verder niets doet. `command -v python3` vindt hem, dus de
+  scripts denken dat het goed zit. Gevolg: `e2e.sh` en `beheerders_test.sh` kunnen de inlogcode niet
+  uit Mailpit halen en alles daarna valt om, en `audit.sh` slaat de controle op named parameters
+  over. Controleer vóór een volle run `python3 -c "print(1)"`; staat de Store-stub in de weg, zet
+  hem dan uit bij Instellingen › Apps › Geavanceerde app-instellingen › App-uitvoeringsaliassen.
+- Draai de onderdelen ook eens los (`bash test/admin_test.sh`). Een sectie die in `alles.sh` omvalt
+  maar los slaagt, is vrijwel altijd de volgorde of de omgeving, niet de code.
 - Loopt er een eerdere run vast, ruim dan op met `docker compose down -v` in `test/`. Een
   afgebroken `installatie.sh` laat een gedropte database en een half gevulde `vers`-container
   achter, en dan faalt alles erna op iets dat niets met de code te maken heeft.

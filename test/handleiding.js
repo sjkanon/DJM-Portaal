@@ -143,6 +143,19 @@ async function verstuur(pagina, formSelector) {
         }
     }
 
+    // Bericht: stap 1, daarna de bevestigingsstap en meteen annuleren — er mag
+    // in de testomgeving natuurlijk niets echt de deur uit.
+    await ga(b, `admin/bericht.php?jaargang=${J}`);
+    await schiet(b, 'beheer-bericht', { hoog: 1000, vol: false });
+    if (await b.$('form:has(input[value="voorbeeld"])')) {
+        await verstuur(b, 'form:has(input[value="voorbeeld"])');
+        await element(b, '#bevestigen', 'beheer-bericht-bevestigen');
+        const stop = await b.$('button[value="annuleren"]');
+        if (stop) {
+            await Promise.all([b.waitForNavigation({ waitUntil: 'networkidle0' }).catch(() => {}), stop.click()]);
+        }
+    }
+
     await ga(b, 'admin/deelnemers.php');                   await schiet(b, 'beheer-deelnemers', { hoog: 900, vol: false });
     await ga(b, `admin/deelnemers.php?id=${DEELNEMER}`);   await schiet(b, 'beheer-deelnemer');
     await ga(b, 'admin/logboek.php?tab=logins');           await schiet(b, 'beheer-logboek-logins', { vol: false });
