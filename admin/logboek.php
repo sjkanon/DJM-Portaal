@@ -9,6 +9,7 @@
  */
 
 require_once dirname(__DIR__) . '/config.php';
+require_once dirname(__DIR__) . '/includes/download_helper.php';
 require_once __DIR__ . '/includes/layout.php';
 
 vereis_installatie();
@@ -276,14 +277,26 @@ $downloadCijfers = null;
 $downloadKnelpunt = null;
 
 if ($isDownloads) {
-    $cijferStmt = db()->prepare(
-        "SELECT COUNT(*) AS aantal,
-                SUM(CASE WHEN l.afgerond = 1 THEN 1 ELSE 0 END) AS afgerond,
-                SUM(CASE WHEN l.methode = 'php' THEN 1 ELSE 0 END) AS gemeten,
+    // Een portaal dat al draaide voordat de kolom `reden` bestond, krijgt hem
+    // hier. Lukt dat niet — de databasegebruiker mag geen ALTER — dan laten we
+    // de uitsplitsing weg in plaats van de hele pagina te laten vallen: een
+    // logboek dat je niet kunt openen is het ergste dat er is als je iets aan
+    // het uitzoeken bent.
+    $metReden = download_log_reden_kolom();
+
+    $redenTellers = $metReden
+        ? ",
                 SUM(CASE WHEN l.reden = 'client_gestopt' THEN 1 ELSE 0 END) AS verbroken,
                 SUM(CASE WHEN l.reden = 'server_gestopt' THEN 1 ELSE 0 END) AS serverfout,
                 SUM(CASE WHEN l.reden = 'bezig' THEN 1 ELSE 0 END) AS bezig,
-                SUM(CASE WHEN l.reden = 'webserver' THEN 1 ELSE 0 END) AS ongemeten
+                SUM(CASE WHEN l.reden = 'webserver' THEN 1 ELSE 0 END) AS ongemeten"
+        : '';
+
+    $cijferStmt = db()->prepare(
+        "SELECT COUNT(*) AS aantal,
+                SUM(CASE WHEN l.afgerond = 1 THEN 1 ELSE 0 END) AS afgerond,
+                SUM(CASE WHEN l.methode = 'php' THEN 1 ELSE 0 END) AS gemeten"
+        . $redenTellers . "
            FROM download_log l
           WHERE " . $waarSql
     );
