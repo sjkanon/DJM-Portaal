@@ -41,6 +41,12 @@ foreach ([
     instelling_opslaan($sleutel, $waarde);
 }
 
+// Beheer › Bericht opent met het laatst verstuurde bericht. Stond daar nog iets
+// uit een eerdere testrun, dan belandt díe tekst in de schermafdruk; weg ermee,
+// zodat de handleiding de standaardtekst laat zien.
+$pdo->exec("DELETE FROM instellingen WHERE sleutel IN ('bericht_laatste_onderwerp', 'bericht_laatste_tekst')");
+instellingen(true);
+
 $pdo->prepare('INSERT INTO beheerders (naam, email, wachtwoord_hash, rol, actief) VALUES (:n, :e, :w, :r, 1)
                ON DUPLICATE KEY UPDATE wachtwoord_hash = VALUES(wachtwoord_hash), actief = 1')
     ->execute([':n' => 'Secretariaat DJM', ':e' => 'beheer@example.nl',

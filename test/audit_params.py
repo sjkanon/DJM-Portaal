@@ -10,6 +10,13 @@ import re
 import sys
 from pathlib import Path
 
+# De vinkjes en streepjes hieronder zijn geen ASCII. Op Windows staat de console
+# standaard op cp1252 en laat print() de hele controle klappen op het ✓ — een
+# geslaagde controle die zich als een fout meldt. Vandaar: uitvoer altijd UTF-8.
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 AANROEP = re.compile(r'\b(?:prepare|query|exec)\s*\(', re.I)
 
 

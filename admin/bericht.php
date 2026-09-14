@@ -305,10 +305,10 @@ if ($jaargang === null && $jaargangen) {
     $gekozenId = (int)$jaargang['id'];
 }
 
-function bericht_terug_link(): string
+/** Terug naar dit scherm, met de gekozen jaargang erbij. */
+function bericht_terug_link(int $jaargangId): string
 {
-    global $gekozenId;
-    return url('admin/bericht.php') . '?jaargang=' . (int)$gekozenId;
+    return url('admin/bericht.php') . '?jaargang=' . $jaargangId;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -329,7 +329,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($actie === 'annuleren') {
         unset($_SESSION['bericht_voorbeeld']);
         flash('info', 'Het bericht is afgebroken. Er is niets verstuurd.');
-        header('Location: ' . bericht_terug_link());
+        header('Location: ' . bericht_terug_link($gekozenId));
         exit;
     }
 
@@ -340,12 +340,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $opdracht = $_SESSION['bericht_voorbeeld'] ?? null;
         if (!is_array($opdracht) || (int)($opdracht['jaargang_id'] ?? 0) !== (int)$jaargang['id']) {
             flash('danger', 'Het voorbeeld is verlopen of hoort bij een andere jaargang. Begin opnieuw.');
-            header('Location: ' . bericht_terug_link());
+            header('Location: ' . bericht_terug_link($gekozenId));
             exit;
         }
         if (!mail_geconfigureerd()) {
             flash('danger', 'De e-mailinstellingen zijn nog niet compleet; er is niets verstuurd.');
-            header('Location: ' . bericht_terug_link());
+            header('Location: ' . bericht_terug_link($gekozenId));
             exit;
         }
 
@@ -362,7 +362,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$ontvangers) {
             flash('info', 'Er bleven geen adressen over om te mailen. Er is niets verstuurd.');
-            header('Location: ' . bericht_terug_link());
+            header('Location: ' . bericht_terug_link($gekozenId));
             exit;
         }
 
@@ -412,7 +412,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             . ' Zie Logboek > E-mail voor alle details.'
         );
 
-        header('Location: ' . bericht_terug_link());
+        header('Location: ' . bericht_terug_link($gekozenId));
         exit;
     }
 
@@ -421,14 +421,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($fout) {
         $_SESSION['bericht_concept'] = $invoer;
         flash('danger', implode(' ', $fout));
-        header('Location: ' . bericht_terug_link());
+        header('Location: ' . bericht_terug_link($gekozenId));
         exit;
     }
 
     if (!mail_geconfigureerd()) {
         $_SESSION['bericht_concept'] = $invoer;
         flash('danger', 'De e-mailinstellingen zijn nog niet compleet; er kan niets worden verstuurd.');
-        header('Location: ' . bericht_terug_link());
+        header('Location: ' . bericht_terug_link($gekozenId));
         exit;
     }
 
@@ -451,7 +451,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ? 'Het bericht is naar ' . $beheerder['email'] . ' gestuurd. Er ging niets naar deelnemers.'
                 : 'De testmail kon niet worden verstuurd' . ($fouten ? ': ' . implode(' | ', $fouten) : '.')
         );
-        header('Location: ' . bericht_terug_link());
+        header('Location: ' . bericht_terug_link($gekozenId));
         exit;
     }
 
@@ -467,7 +467,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             unset($_SESSION['bericht_voorbeeld']);
             $_SESSION['bericht_concept'] = $invoer;
             flash('info', 'Er valt niemand in deze groep. Er is niets te versturen.');
-            header('Location: ' . bericht_terug_link());
+            header('Location: ' . bericht_terug_link($gekozenId));
             exit;
         }
 
@@ -486,11 +486,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
         unset($_SESSION['bericht_concept']);
 
-        header('Location: ' . bericht_terug_link() . '#bevestigen');
+        header('Location: ' . bericht_terug_link($gekozenId) . '#bevestigen');
         exit;
     }
 
-    header('Location: ' . bericht_terug_link());
+    header('Location: ' . bericht_terug_link($gekozenId));
     exit;
 }
 
