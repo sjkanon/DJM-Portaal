@@ -133,6 +133,10 @@ CREATE TABLE IF NOT EXISTS download_log (
     methode        VARCHAR(20) NULL,               -- xaccel | xsendfile | php
     bytes_verzonden BIGINT UNSIGNED NOT NULL DEFAULT 0,
     afgerond       TINYINT(1) NOT NULL DEFAULT 0,
+    -- Waaróm hij stopte: bezig | voltooid | client_gestopt | server_gestopt |
+    -- webserver. Alleen de PHP-uitlevering kan dit vaststellen; bij X-Accel en
+    -- X-Sendfile levert de webserver uit en weten wij het niet ('webserver').
+    reden          VARCHAR(24) NULL,
     gestart_op     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     KEY idx_deelnemer (deelnemer_id),

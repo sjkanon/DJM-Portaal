@@ -6,6 +6,7 @@
 # knop "Uitproberen" zit, zodat die dezelfde routes dekt als deze test zelf.
 set -u
 cd "$(dirname "$0")"
+. ./hostpad.sh
 GOED=0; FOUT=0
 
 toets() {

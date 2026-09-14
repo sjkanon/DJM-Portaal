@@ -7,6 +7,7 @@
 # wél als omgevingsvariabele, en die winnen van .env — die merken hier niets van.
 set -u
 cd "$(dirname "$0")"
+. ./hostpad.sh
 BASIS=http://localhost:8128
 PROJECT=$(cd .. && pwd)
 J=$(mktemp); GOED=0; FOUT=0

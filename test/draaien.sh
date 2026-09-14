@@ -2,6 +2,7 @@
 # Start MariaDB, draait de rooktest en (optioneel) de HTTP-test.
 set -u
 cd "$(dirname "$0")"
+. ./hostpad.sh
 
 docker compose up -d db >/dev/null 2>&1
 echo "Wachten op de database..."

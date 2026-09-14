@@ -7,6 +7,7 @@
 # weggevallen verbinding en een ververst tabblad halverwege.
 set -u
 cd "$(dirname "$0")"
+. ./hostpad.sh
 GOED=0; FOUT=0
 JAAR=2029
 WERK=$(mktemp -d)
@@ -192,7 +193,7 @@ echo ""
 echo "── In een echte browser ────────────────────────────────────"
 php_db "db()->exec('DELETE FROM aanvraag_limiet');" >/dev/null
 if docker run --rm --network test_default \
-        -v "$(pwd)/upload_browser.js":/usr/src/app/upload_browser.js:ro \
+        -v "$(hostpad "$PWD/upload_browser.js")":/usr/src/app/upload_browser.js:ro \
         -e BASIS=http://web:8080 -e JAARGANG="$JAARGANG_ID" \
         -w /usr/src/app --entrypoint node \
         zenika/alpine-chrome:with-puppeteer upload_browser.js; then

@@ -2,6 +2,7 @@
 # Maakt schermafdrukken van portaal en beheer met een echte browsersessie.
 set -u
 cd "$(dirname "$0")"
+. ./hostpad.sh
 UIT=${1:-/tmp/djm-shots}
 mkdir -p "$UIT"
 
@@ -16,8 +17,8 @@ db()->exec("DELETE FROM aanvraag_limiet");
 curl -s -X DELETE http://localhost:8125/api/v1/messages >/dev/null 2>&1
 
 docker run --rm --network test_default \
-    -v "$(pwd)/schermafdrukken.js":/usr/src/app/schermafdrukken.js:ro \
-    -v "$UIT":/shots \
+    -v "$(hostpad "$PWD/schermafdrukken.js")":/usr/src/app/schermafdrukken.js:ro \
+    -v "$(hostpad "$UIT")":/shots \
     -e BASIS=http://web:8080 \
     -w /usr/src/app \
     --entrypoint node \

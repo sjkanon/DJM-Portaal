@@ -1,6 +1,7 @@
 # Bewust ongeëscapete uitvoer. Formaat: bestand:variabele  # reden
 # Elke regel hier is met de hand nagelopen; voeg niets toe zonder toelichting.
 admin/instellingen.php:$heeftGraphSecret   # ternary over twee vaste teksten, geen invoer
+admin/instellingen.php:$status             # HTTP-status uit de Graph-diagnose, een paar regels hoger al (int) gecast
 admin/jaargangen.php:$aantalDeelnemers     # jaargang_aantal_deelnemers() geeft een int terug
 setup.php:$uitleg                          # bewust HTML; dynamische delen gaan bij de aanroep door h()
 setup.php:$opties['uitleg']                # idem: de hint bij een veld of keuzelijst mag <code> bevatten
