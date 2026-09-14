@@ -9,6 +9,7 @@
 # handleiding_demo.php). `bash test/alles.sh` zet de gewone testgegevens terug.
 set -euo pipefail
 cd "$(dirname "$0")"
+. ./hostpad.sh
 DOEL="$(cd .. && pwd)/assets/handleiding"
 
 docker compose up -d db mail web >/dev/null 2>&1
@@ -28,8 +29,8 @@ chmod 777 "$TIJDELIJK"
 trap 'rm -rf "$TIJDELIJK"' EXIT
 
 docker run --rm --network test_default \
-    -v "$(pwd)/handleiding.js":/usr/src/app/handleiding.js:ro \
-    -v "$TIJDELIJK":/shots \
+    -v "$(hostpad "$PWD/handleiding.js")":/usr/src/app/handleiding.js:ro \
+    -v "$(hostpad "$TIJDELIJK")":/shots \
     -e BASIS=http://web:8080 -e MAILPIT=http://mail:8025 \
     -e J2026="$J2026" -e OUDER="$OUDER" -e DEELNEMER="$DEELNEMER" \
     -w /usr/src/app --entrypoint node \

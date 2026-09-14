@@ -3,6 +3,7 @@
 # tegen een echte MariaDB en een echte SMTP-server (Mailpit).
 set -u
 cd "$(dirname "$0")"
+. ./hostpad.sh
 BASIS=http://localhost:8123
 KOEKJES=$(mktemp)
 GOED=0; FOUT=0

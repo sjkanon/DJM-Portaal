@@ -5,6 +5,7 @@
 # het bestand is hetzelfde te bewijzen zonder het netwerk vol te trekken.
 set -u
 cd "$(dirname "$0")"
+. ./hostpad.sh
 GOED=0; FOUT=0
 GROOT=5368709120                       # 5 GiB
 BESTAND=../opslag/2028/musical-2028.mp4

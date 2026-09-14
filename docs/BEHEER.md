@@ -159,11 +159,21 @@ Drie tabbladen: **inlogpogingen**, **verstuurde e-mail** (met foutmelding als ve
 mislukte) en **downloads** (met hoeveel er is verzonden en of de download is afgerond). Filter
 op e-mailadres en datum. Logregels ouder dan de bewaartermijn ruimt de dagelijkse taak zelf op.
 
-Het tabblad **Downloads** toont per regel hoe ver iemand kwam (een balkje met het percentage van
-de bestandsgrootte) en bovenaan een blok dat de vraag beantwoordt *waar gaat het mis?*
+Het tabblad **Downloads** toont per regel **hoe ver** iemand kwam (een balkje met het percentage
+van de bestandsgrootte) en **waarom** het stopte:
 
-- Stoppen de afgebroken downloads elke keer **ergens anders**, dan ligt het aan de verbinding van
-  de bezoeker. Antwoord: hervatten, niet opnieuw beginnen.
+| Uitkomst | Betekenis |
+|---|---|
+| **voltooid** | Alle bytes verstuurd. |
+| **verbinding verbroken** | De verbinding viel weg. Dat kan de bezoeker zijn, maar ook iets ertussen — het portaal ziet alleen dát hij wegviel. |
+| **server brak af** | Onze kant stopte: leesfout, tijdslimiet, afgeschoten proces. Werk voor de technisch beheerder. |
+| **bezig** | Loopt nog (de voortgang wordt tijdens het downloaden bijgewerkt), of het proces is afgeschoten zonder zich af te melden. Kijk naar het tijdstip. |
+| **niet gemeten** | De webserver leverde uit (X-Accel of X-Sendfile); er kwam geen byte langs het portaal. |
+
+Bovenaan staat een blok dat de vraag beantwoordt *waar gaat het mis?*
+
+- Stoppen de afgebroken downloads elke keer **ergens anders**, dan ligt het aan de verbindingen van
+  de bezoekers. Antwoord: hervatten, niet opnieuw beginnen.
 - Stoppen ze allemaal **rond hetzelfde punt**, dan zit er een grens op de server. Het blok kleurt
   rood en noemt de meest voorkomende oorzaak: een nginx die vóór Apache staat en na één gigabyte
   stopt met lezen (in het webserverlog: `upstream prematurely closed connection`). Oplossing:
@@ -171,9 +181,12 @@ de bestandsgrootte) en bovenaan een blok dat de vraag beantwoordt *waar gaat het
   uitlevering op X-Sendfile of X-Accel zetten. Zie [INSTALLATIE.md](INSTALLATIE.md) hoofdstuk 11
   en 7b — werk voor de technisch beheerder.
 
-Alleen bij de PHP-uitlevering telt het portaal de bytes zelf. Bij X-Accel of X-Sendfile doet de
-webserver het werk en ziet het portaal niet waar een download strandde; die regels tellen altijd
-als afgerond. Het blok vermeldt dat.
+Dat blok overrulet de losse regels: staat er tien keer *verbinding verbroken* op precies dezelfde
+plek, dan waren dat niet tien bezoekers die toevallig tegelijk afhaakten.
+
+Meten kan alleen als het portaal zelf uitlevert. Staat `DELIVERY_MODE` op `xaccel` of `xsendfile`,
+dan doet de webserver het werk — sneller en robuuster, maar alles staat op *niet gemeten*. Zet hem
+tijdelijk op `php` als u wilt onderzoeken waar downloads stranden.
 
 ### Instellingen
 

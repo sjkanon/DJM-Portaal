@@ -4,6 +4,7 @@
 # verraadt welke adressen bestaan.
 set -u
 cd "$(dirname "$0")"
+. ./hostpad.sh
 BASIS=http://localhost:8123
 MAILPIT=http://localhost:8125
 BEHEER=$(mktemp); NIEUW=$(mktemp); LOS=$(mktemp)

@@ -4,6 +4,7 @@
 # stuurt uitnodigingen; een geïmporteerde ouder logt daarna in en downloadt.
 set -u
 cd "$(dirname "$0")"
+. ./hostpad.sh
 BASIS=http://localhost:8123
 BEHEER=$(mktemp); OUDER=$(mktemp)
 GOED=0; FOUT=0

@@ -35,6 +35,15 @@ if (!function_exists('db')) {
 const DOWNLOAD_BLOK = 262144;
 
 /**
+ * Hoe vaak de voortgang naar het logboek gaat: elke 64 MB.
+ *
+ * Vaak genoeg om bij een afgebroken download te zien hoe ver iemand kwam, en
+ * zeldzaam genoeg om er geen database mee te belasten: bij een video van 7 GB
+ * zijn het een kleine honderd kleine updates, verdeeld over een paar minuten.
+ */
+const DOWNLOAD_VOORTGANG = 67108864;
+
+/**
  * Hoe lang een ondertekende downloadlink geldig blijft: twaalf uur.
  *
  * Dit stond op vijf minuten, en dat is te kort voor waar het portaal voor
@@ -155,40 +164,80 @@ function bestand_mime(string $pad, string $standaard): string
 // ─── Logboek ─────────────────────────────────────────────────────────────────
 
 /**
+ * Zorgt dat download_log de kolom `reden` heeft.
+ *
+ * `db.sql` draait alleen bij de installatie, dus een portaal dat al draaide
+ * krijgt de kolom hier. Lukt dat niet — bijvoorbeeld omdat de databasegebruiker
+ * geen ALTER mag — dan gaat het loggen gewoon door zonder die kolom; een
+ * logboek mag nooit een download tegenhouden.
+ */
+function download_log_reden_kolom(): bool
+{
+    static $aanwezig = null;
+    if ($aanwezig !== null) {
+        return $aanwezig;
+    }
+    try {
+        $stmt = db()->prepare(
+            "SELECT COUNT(*) FROM information_schema.columns
+              WHERE table_schema = DATABASE()
+                AND table_name = 'download_log'
+                AND column_name = 'reden'"
+        );
+        $stmt->execute();
+        if ((int)$stmt->fetchColumn() === 0) {
+            db()->exec('ALTER TABLE download_log ADD COLUMN reden VARCHAR(24) NULL AFTER afgerond');
+        }
+        $aanwezig = true;
+    } catch (Throwable $e) {
+        app_log('kolom reden toevoegen aan download_log mislukt', ['fout' => $e->getMessage()]);
+        $aanwezig = false;
+    }
+
+    return $aanwezig;
+}
+
+/**
  * Schrijft de start van een download weg en geeft het logboek-id terug.
  * Geeft 0 terug als loggen mislukt; een kapot logboek mag een download niet
  * tegenhouden.
  */
 function download_loggen(array $bestand, ?array $deelnemer, string $methode): int
 {
-    $grootte = (int)($bestand['bytes'] ?? 0);
-
-    // Bij xaccel/xsendfile neemt de webserver de uitlevering over en zien wij
-    // niet hoeveel er daadwerkelijk over de lijn ging. We noteren dan de volle
-    // bestandsgrootte en markeren de regel meteen als afgerond; alleen de
-    // PHP-methode werkt deze twee kolommen achteraf echt bij.
+    // Bij xaccel/xsendfile neemt de webserver de uitlevering over. Wij zien dan
+    // geen enkele byte voorbijkomen en kunnen dus niet zeggen hoe ver iemand
+    // kwam. Dat noteren we ook zo, in plaats van de volle grootte te doen alsof:
+    // een logboek dat gokt, is erger dan een logboek dat "niet gemeten" zegt.
     $doorWebserver = $methode !== 'php';
+    $metReden      = download_log_reden_kolom();
+
+    $sql = 'INSERT INTO download_log
+                (deelnemer_id, bestand_id, jaargang_id, email, bestandsnaam,
+                 ip, user_agent, methode, bytes_verzonden, afgerond'
+        . ($metReden ? ', reden' : '') . ')
+            VALUES
+                (:deelnemer, :bestand, :jaargang, :email, :bestandsnaam,
+                 :ip, :ua, :methode, :bytes, :afgerond'
+        . ($metReden ? ', :reden' : '') . ')';
+
+    $waarden = [
+        ':deelnemer'    => $deelnemer !== null ? (int)$deelnemer['id'] : null,
+        ':bestand'      => (int)($bestand['id'] ?? 0) ?: null,
+        ':jaargang'     => (int)($bestand['jaargang_id'] ?? 0) ?: null,
+        ':email'        => $deelnemer !== null ? substr((string)$deelnemer['email'], 0, 190) : null,
+        ':bestandsnaam' => substr((string)($bestand['bestandsnaam'] ?? ''), 0, 255),
+        ':ip'           => client_ip_bin(),
+        ':ua'           => client_user_agent(),
+        ':methode'      => $methode,
+        ':bytes'        => 0,
+        ':afgerond'     => 0,
+    ];
+    if ($metReden) {
+        $waarden[':reden'] = $doorWebserver ? 'webserver' : 'bezig';
+    }
 
     try {
-        db()->prepare(
-            'INSERT INTO download_log
-                 (deelnemer_id, bestand_id, jaargang_id, email, bestandsnaam,
-                  ip, user_agent, methode, bytes_verzonden, afgerond)
-             VALUES
-                 (:deelnemer, :bestand, :jaargang, :email, :bestandsnaam,
-                  :ip, :ua, :methode, :bytes, :afgerond)'
-        )->execute([
-            ':deelnemer'    => $deelnemer !== null ? (int)$deelnemer['id'] : null,
-            ':bestand'      => (int)($bestand['id'] ?? 0) ?: null,
-            ':jaargang'     => (int)($bestand['jaargang_id'] ?? 0) ?: null,
-            ':email'        => $deelnemer !== null ? substr((string)$deelnemer['email'], 0, 190) : null,
-            ':bestandsnaam' => substr((string)($bestand['bestandsnaam'] ?? ''), 0, 255),
-            ':ip'           => client_ip_bin(),
-            ':ua'           => client_user_agent(),
-            ':methode'      => $methode,
-            ':bytes'        => $doorWebserver ? $grootte : 0,
-            ':afgerond'     => $doorWebserver ? 1 : 0,
-        ]);
+        db()->prepare($sql)->execute($waarden);
 
         return (int)db()->lastInsertId();
     } catch (Throwable $e) {
@@ -198,25 +247,37 @@ function download_loggen(array $bestand, ?array $deelnemer, string $methode): in
 }
 
 /**
- * Werkt een logregel bij na afloop van een PHP-uitlevering.
+ * Werkt een logregel bij: tijdens de uitlevering de voortgang, aan het eind de
+ * uitkomst.
+ *
  * Een download kan een uur duren; de databaseverbinding kan dan verlopen zijn,
  * dus dit mag nooit een fatale fout opleveren.
+ *
+ * @param string $reden bezig | voltooid | client_gestopt | server_gestopt
  */
-function download_log_bijwerken(?int $logId, int $bytesVerzonden, bool $afgerond): void
+function download_log_bijwerken(?int $logId, int $bytesVerzonden, bool $afgerond, string $reden = 'bezig'): void
 {
     if ($logId === null || $logId <= 0) {
         return;
     }
+    $metReden = download_log_reden_kolom();
+
+    $sql = 'UPDATE download_log
+               SET bytes_verzonden = :bytes, afgerond = :afgerond'
+        . ($metReden ? ', reden = :reden' : '') . '
+             WHERE id = :id';
+
+    $waarden = [
+        ':bytes'    => max(0, $bytesVerzonden),
+        ':afgerond' => $afgerond ? 1 : 0,
+        ':id'       => $logId,
+    ];
+    if ($metReden) {
+        $waarden[':reden'] = $reden;
+    }
+
     try {
-        db()->prepare(
-            'UPDATE download_log
-                SET bytes_verzonden = :bytes, afgerond = :afgerond
-              WHERE id = :id'
-        )->execute([
-            ':bytes'    => max(0, $bytesVerzonden),
-            ':afgerond' => $afgerond ? 1 : 0,
-            ':id'       => $logId,
-        ]);
+        db()->prepare($sql)->execute($waarden);
     } catch (Throwable $e) {
         app_log('download_log bijwerken mislukt', ['fout' => $e->getMessage(), 'id' => $logId]);
     }
@@ -473,19 +534,53 @@ function download_uitleveren_php(array $bestand, string $absoluutPad, int $groot
         fseek($handvat, $start);
     }
 
-    $verzonden = 0;
+    $verzonden    = 0;
+    $sindsLaatste = 0;
+    $leesfout     = false;
+
     while ($verzonden < $lengte && !feof($handvat) && !connection_aborted()) {
         $blok = fread($handvat, (int)min(DOWNLOAD_BLOK, $lengte - $verzonden));
         if ($blok === false || $blok === '') {
+            // Het bestand houdt eerder op dan de grootte belooft, of de schijf
+            // geeft een fout. Dat ligt hoe dan ook aan onze kant.
+            $leesfout = true;
             break;
         }
         echo $blok;
         flush();
-        $verzonden += strlen($blok);
+        $verzonden    += strlen($blok);
+        $sindsLaatste += strlen($blok);
+
+        // Tussentijds wegschrijven hoe ver we zijn. Zonder dit staat er tijdens
+        // een download van een uur nog niets in het logboek, en blijft er bij
+        // een proces dat halverwege wordt afgeschoten "0 bytes" staan — precies
+        // in het geval dat je wilt onderzoeken.
+        if ($sindsLaatste >= DOWNLOAD_VOORTGANG) {
+            download_log_bijwerken($logId, $verzonden, false, 'bezig');
+            $sindsLaatste = 0;
+        }
     }
     fclose($handvat);
 
-    download_log_bijwerken($logId, $verzonden, $verzonden >= $lengte);
+    // Waarom stopte het? Dit is het verschil tussen "de ouder heeft een slechte
+    // verbinding" en "onze server knipt downloads af", en dat scheelt een
+    // beheerder een middag zoeken.
+    if ($verzonden >= $lengte) {
+        $reden = 'voltooid';
+    } elseif (connection_aborted()) {
+        $reden = 'client_gestopt';        // browser dicht, netwerk weg, geannuleerd
+    } else {
+        $reden = 'server_gestopt';        // leesfout, tijdslimiet, afgebroken proces
+    }
+    if ($leesfout) {
+        app_log('uitlevering brak af op een leesfout', [
+            'bestand_id' => (int)($bestand['id'] ?? 0),
+            'verzonden'  => $verzonden,
+            'verwacht'   => $lengte,
+        ]);
+    }
+
+    download_log_bijwerken($logId, $verzonden, $verzonden >= $lengte, $reden);
     exit;
 }
 

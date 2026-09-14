@@ -70,6 +70,41 @@ function logboek_link(array $extra = []): string
 }
 
 /**
+ * Label en kleur bij de reden waarom een download stopte.
+ *
+ * Let op de bewoording bij `client_gestopt`: PHP merkt alleen dát de verbinding
+ * wegviel, niet wie hem verbrak. Een bezoeker die afsluit en een proxy die
+ * stopt met lezen zien er van binnenuit hetzelfde uit. Daarom "verbinding
+ * verbroken" en niet "bezoeker stopte" — het blok bovenaan de tabel wijst het
+ * verschil aan.
+ */
+function download_reden_label(?string $reden): array
+{
+    switch ((string)$reden) {
+        case 'voltooid':
+            return ['voltooid', 'success', 'Alle bytes zijn verstuurd.'];
+        case 'client_gestopt':
+            return ['verbinding verbroken', 'warning',
+                'De verbinding viel weg voordat het bestand op was. Dat kan de bezoeker zijn, '
+                . 'maar ook iets tussen ons en de bezoeker in.'];
+        case 'server_gestopt':
+            return ['server brak af', 'danger',
+                'Onze kant stopte: een leesfout op de schijf, een tijdslimiet of een afgeschoten proces.'];
+        case 'webserver':
+            return ['niet gemeten', 'secondary',
+                'De webserver leverde dit bestand uit (X-Accel of X-Sendfile). Het portaal ziet dan '
+                . 'geen bytes voorbijkomen en kan niet zeggen hoe ver de bezoeker kwam.'];
+        case 'bezig':
+            return ['bezig', 'info',
+                'Loopt nog, of het proces is afgeschoten zonder zich af te melden. '
+                . 'Kijk naar het tijdstip.'];
+        default:
+            return ['onbekend', 'light',
+                'Van vóór het bijhouden van de reden.'];
+    }
+}
+
+/**
  * Zoekt in de afgebroken downloads naar één plek waar ze allemaal stranden.
  *
  * Een download die afbreekt doordat iemand zijn laptop dichtklapt of door een
@@ -244,7 +279,11 @@ if ($isDownloads) {
     $cijferStmt = db()->prepare(
         "SELECT COUNT(*) AS aantal,
                 SUM(CASE WHEN l.afgerond = 1 THEN 1 ELSE 0 END) AS afgerond,
-                SUM(CASE WHEN l.methode = 'php' THEN 1 ELSE 0 END) AS gemeten
+                SUM(CASE WHEN l.methode = 'php' THEN 1 ELSE 0 END) AS gemeten,
+                SUM(CASE WHEN l.reden = 'client_gestopt' THEN 1 ELSE 0 END) AS verbroken,
+                SUM(CASE WHEN l.reden = 'server_gestopt' THEN 1 ELSE 0 END) AS serverfout,
+                SUM(CASE WHEN l.reden = 'bezig' THEN 1 ELSE 0 END) AS bezig,
+                SUM(CASE WHEN l.reden = 'webserver' THEN 1 ELSE 0 END) AS ongemeten
            FROM download_log l
           WHERE " . $waarSql
     );
@@ -253,6 +292,11 @@ if ($isDownloads) {
 
     // Alleen de PHP-uitlevering telt de bytes echt; bij xaccel/xsendfile doet de
     // webserver het werk en weten wij niet waar een download bleef steken.
+    // Ook de regels die PHP als "verbinding verbroken" noteerde tellen mee. PHP
+    // ziet namelijk alleen dát de verbinding wegviel, niet wie hem verbrak: een
+    // proxy die ertussen zit en stopt met lezen, ziet er precies zo uit als een
+    // bezoeker die zijn laptop dichtklapt. Juist het patroon verraadt het
+    // verschil — vandaar dat we hier alles wat niet afliep bij elkaar leggen.
     $brokStmt = db()->prepare(
         "SELECT l.bytes_verzonden AS verzonden, b.bytes AS totaal
            FROM download_log l
@@ -437,18 +481,39 @@ admin_start('Logboek', 'Inlogpogingen, verstuurde e-mail en downloads');
     <?php else: ?>
         <!-- ─── Downloads ────────────────────────────────────────────────── -->
         <?php
-        $dlAantal   = (int)($downloadCijfers['aantal'] ?? 0);
-        $dlAf       = (int)($downloadCijfers['afgerond'] ?? 0);
-        $dlGemeten  = (int)($downloadCijfers['gemeten'] ?? 0);
-        $dlNiet     = max(0, $dlAantal - $dlAf);
+        $dlAantal    = (int)($downloadCijfers['aantal'] ?? 0);
+        $dlAf        = (int)($downloadCijfers['afgerond'] ?? 0);
+        $dlGemeten   = (int)($downloadCijfers['gemeten'] ?? 0);
+        $dlVerbroken = (int)($downloadCijfers['verbroken'] ?? 0);
+        $dlServer    = (int)($downloadCijfers['serverfout'] ?? 0);
+        $dlBezig     = (int)($downloadCijfers['bezig'] ?? 0);
+        $dlOngemeten = (int)($downloadCijfers['ongemeten'] ?? 0);
+        $dlNiet      = max(0, $dlAantal - $dlAf);
         ?>
         <?php if ($dlAantal > 0): ?>
             <div class="alert <?= $downloadKnelpunt !== null ? 'alert-danger' : ($dlNiet > 0 ? 'alert-warning' : 'alert-success') ?> py-2 small">
                 <div class="fw-semibold mb-1">
                     <i class="bi bi-activity me-1"></i>
                     <?= (int)$dlAf ?> van <?= (int)$dlAantal ?> downloads afgerond<?php
-                    ?><?= $dlNiet > 0 ? ', ' . (int)$dlNiet . ' afgebroken' : '' ?>.
+                    ?><?= $dlNiet > 0 ? ', ' . (int)$dlNiet . ' niet' : '' ?>.
                 </div>
+                <?php if ($dlVerbroken + $dlServer + $dlBezig + $dlOngemeten > 0): ?>
+                    <p class="mb-1">
+                        Waarvan
+                        <?php if ($dlServer > 0): ?>
+                            <span class="badge text-bg-danger"><?= (int)$dlServer ?> server brak af</span>
+                        <?php endif; ?>
+                        <?php if ($dlVerbroken > 0): ?>
+                            <span class="badge text-bg-warning"><?= (int)$dlVerbroken ?> verbinding verbroken</span>
+                        <?php endif; ?>
+                        <?php if ($dlBezig > 0): ?>
+                            <span class="badge text-bg-info"><?= (int)$dlBezig ?> bezig</span>
+                        <?php endif; ?>
+                        <?php if ($dlOngemeten > 0): ?>
+                            <span class="badge text-bg-secondary"><?= (int)$dlOngemeten ?> niet gemeten</span>
+                        <?php endif; ?>
+                    </p>
+                <?php endif; ?>
                 <?php if ($downloadKnelpunt !== null):
                     $knelVan = formatteer_bytes((int)$downloadKnelpunt['van']);
                     $knelTot = formatteer_bytes((int)$downloadKnelpunt['tot']);
@@ -463,7 +528,10 @@ admin_start('Logboek', 'Inlogpogingen, verstuurde e-mail en downloads');
                         <?= (int)$downloadKnelpunt['afgebroken'] ?> afgebroken downloads</strong> stopte
                         <?= h($knelBereik) ?>. Downloads die op de verbinding
                         van de bezoeker stuklopen, stoppen elke keer ergens anders; stoppen ze allemaal rond
-                        hetzelfde punt, dan zit er een <strong>grens op de server</strong>.
+                        hetzelfde punt, dan zit er een <strong>grens op de server</strong>. Dat geldt ook als
+                        er hieronder <em>verbinding verbroken</em> staat: het portaal ziet alleen dát de
+                        verbinding wegviel, en een proxy die stopt met lezen ziet er hetzelfde uit als een
+                        bezoeker die afhaakt. Bij zoveel stops op dezelfde plek is het de proxy.
                     </p>
                     <p class="mb-0">
                         Meestal is dat een nginx die vóór Apache staat en het antwoord eerst naar een tijdelijk
@@ -488,9 +556,11 @@ admin_start('Logboek', 'Inlogpogingen, verstuurde e-mail en downloads');
                 <?php if ($dlGemeten < $dlAantal): ?>
                     <p class="mb-0 mt-1 text-muted">
                         Let op: bij <?= (int)($dlAantal - $dlGemeten) ?> regel(s) deed de webserver de
-                        uitlevering (X-Accel of X-Sendfile). Het portaal ziet dan niet hoeveel er echt over de
-                        lijn ging: die regels krijgen bij de start meteen de volle grootte en het vinkje
-                        <em>afgerond</em>, ook als de bezoeker halverwege afhaakte.
+                        uitlevering (X-Accel of X-Sendfile). Er komt dan geen byte langs het portaal, dus hoe
+                        ver die bezoekers kwamen is niet vast te stellen — die regels staan op
+                        <em>niet gemeten</em> en tellen hierboven niet mee. Wilt u het wél weten, zet dan
+                        <code>DELIVERY_MODE</code> in <code>.env</code> op <code>php</code>: dan levert het
+                        portaal zelf uit en meet het elke byte.
                     </p>
                 <?php endif; ?>
             </div>
@@ -505,7 +575,7 @@ admin_start('Logboek', 'Inlogpogingen, verstuurde e-mail en downloads');
                         <th>Methode</th>
                         <th class="text-end">Verzonden</th>
                         <th style="min-width:9rem">Hoe ver gekomen</th>
-                        <th class="text-center">Afgerond</th>
+                        <th>Uitkomst</th>
                         <th>IP</th>
                     </tr>
                 </thead>
@@ -516,7 +586,13 @@ admin_start('Logboek', 'Inlogpogingen, verstuurde e-mail en downloads');
                         // Het bestand kan intussen vervangen of losgekoppeld zijn;
                         // dan is er geen noemer en tonen we geen percentage.
                         $deel = $bestandBytes > 0 ? min(100, (int)round($verzonden / $bestandBytes * 100)) : null;
-                        $klaar = (int)$rij['afgerond'] === 1;
+                        $reden = $rij['reden'] ?? null;
+                        // Oude regels hebben nog geen reden; die viel af te leiden
+                        // uit afgerond, en meer weten we er niet van.
+                        if ($reden === null && (int)$rij['afgerond'] === 1) {
+                            $reden = 'voltooid';
+                        }
+                        [$label, $kleur, $uitleg] = download_reden_label($reden);
                         ?>
                         <tr>
                             <td class="small text-nowrap"><?= h(formatteer_datum((string)$rij['gestart_op'])) ?></td>
@@ -525,24 +601,24 @@ admin_start('Logboek', 'Inlogpogingen, verstuurde e-mail en downloads');
                             <td class="small"><code class="pad"><?= h((string)($rij['methode'] ?? '—')) ?></code></td>
                             <td class="small text-end text-nowrap"><?= h(formatteer_bytes($verzonden)) ?></td>
                             <td class="small">
-                                <?php if ($deel === null): ?>
+                                <?php if ($reden === 'webserver'): ?>
+                                    <span class="text-muted">niet gemeten</span>
+                                <?php elseif ($deel === null): ?>
                                     <span class="text-muted">grootte onbekend</span>
                                 <?php else: ?>
                                     <div class="progress" style="height:.45rem" role="progressbar"
                                         aria-valuenow="<?= (int)$deel ?>" aria-valuemin="0" aria-valuemax="100">
-                                        <div class="progress-bar <?= $klaar ? 'bg-success' : 'bg-warning' ?>"
+                                        <div class="progress-bar bg-<?= h($kleur) ?>"
                                             style="width:<?= (int)$deel ?>%"></div>
                                     </div>
                                     <span class="text-muted"><?= (int)$deel ?>% van
                                         <?= h(formatteer_bytes($bestandBytes)) ?></span>
                                 <?php endif; ?>
                             </td>
-                            <td class="text-center">
-                                <?php if ($klaar): ?>
-                                    <span class="badge text-bg-success">ja</span>
-                                <?php else: ?>
-                                    <span class="badge text-bg-warning">nee</span>
-                                <?php endif; ?>
+                            <td>
+                                <span class="badge text-bg-<?= h($kleur) ?>" title="<?= h($uitleg) ?>">
+                                    <?= h($label) ?>
+                                </span>
                             </td>
                             <td class="small text-nowrap"><?= h(ip_leesbaar($rij['ip'] ?? null)) ?></td>
                         </tr>

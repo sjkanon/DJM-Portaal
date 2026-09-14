@@ -3,6 +3,7 @@
 # met en zonder sessie, en controleren dat er geen PHP-fouten doorheen komen.
 set -u
 cd "$(dirname "$0")"
+. ./hostpad.sh
 BASIS=http://localhost:8123
 KOEKJES=$(mktemp)
 GOED=0; FOUT=0

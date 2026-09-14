@@ -403,17 +403,42 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet �
                     foutmelding als versturen mislukte) en <strong>downloads</strong> (hoeveel er verzonden is en of de
                     download is afgerond). Filter op adres en datum. Oude regels ruimt de nachtelijke taak zelf op, na de
                     bewaartermijn uit de instellingen.</p>
-                <p class="djm-hl-tekst">Bij <strong>Downloads</strong> staat per regel hoe ver iemand gekomen is — een
-                    balkje met het percentage van de bestandsgrootte — en bovenaan een blok dat de vraag beantwoordt
-                    <em>waar gaat het mis?</em> Stoppen de afgebroken downloads elke keer ergens anders, dan ligt het aan
-                    de verbinding van de bezoeker en is hervatten het antwoord. Stoppen ze allemaal <strong>rond
-                    hetzelfde punt</strong>, dan zit er een grens op de server; het blok kleurt dan rood en noemt de
-                    meest voorkomende oorzaak: een nginx die vóór Apache staat en na één gigabyte stopt met lezen
-                    (<code>proxy_buffering off;</code>). Dat is werk voor de technisch beheerder.</p>
-                <p class="djm-hl-tekst small text-muted">Let op: alleen bij de PHP-uitlevering telt het portaal de bytes
-                    zelf. Draait de uitlevering via X-Accel of X-Sendfile, dan doet de webserver het werk en ziet het
-                    portaal niet waar een download strandde; die regels tellen altijd als afgerond. Het blok zegt dat er
-                    dan bij.</p>
+                <p class="djm-hl-tekst">Bij <strong>Downloads</strong> staat per regel <strong>hoe ver</strong> iemand
+                    gekomen is — een balkje met het percentage van de bestandsgrootte — en <strong>waarom</strong> het
+                    stopte:</p>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-2">
+                        <tbody>
+                            <tr><td><span class="badge text-bg-success">voltooid</span></td>
+                                <td class="small">Alle bytes verstuurd.</td></tr>
+                            <tr><td><span class="badge text-bg-warning">verbinding verbroken</span></td>
+                                <td class="small">De verbinding viel weg. Dat kan de bezoeker zijn, maar ook iets
+                                    tussen ons en de bezoeker in — het portaal ziet alleen dát hij wegviel.</td></tr>
+                            <tr><td><span class="badge text-bg-danger">server brak af</span></td>
+                                <td class="small">Onze kant stopte: een leesfout op de schijf, een tijdslimiet of een
+                                    afgeschoten proces. Altijd werk voor de technisch beheerder.</td></tr>
+                            <tr><td><span class="badge text-bg-info">bezig</span></td>
+                                <td class="small">Loopt nog — de voortgang wordt tijdens het downloaden bijgewerkt — of
+                                    het proces is afgeschoten zonder zich af te melden. Kijk naar het tijdstip.</td></tr>
+                            <tr><td><span class="badge text-bg-secondary">niet gemeten</span></td>
+                                <td class="small">De webserver leverde uit (X-Accel of X-Sendfile). Er kwam dan geen
+                                    byte langs het portaal.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="djm-hl-tekst">Bovenaan staat een blok dat de vraag beantwoordt <em>waar gaat het mis?</em>
+                    Stoppen de afgebroken downloads elke keer ergens anders, dan ligt het aan de verbindingen van de
+                    bezoekers en is hervatten het antwoord. Stoppen ze allemaal <strong>rond hetzelfde punt</strong>,
+                    dan zit er een grens op de server; het blok kleurt rood en noemt de meest voorkomende oorzaak: een
+                    nginx die vóór Apache staat en na één gigabyte stopt met lezen
+                    (<code>proxy_buffering off;</code>). Dat blok overrulet de losse regels: staat er tien keer
+                    <em>verbinding verbroken</em> op precies dezelfde plek, dan waren dat niet tien bezoekers die
+                    toevallig tegelijk afhaakten.</p>
+                <p class="djm-hl-tekst small text-muted">Meten kan alleen als het portaal zelf uitlevert. Staat
+                    <code>DELIVERY_MODE</code> in <code>.env</code> op <code>xaccel</code> of <code>xsendfile</code>,
+                    dan doet de webserver het werk — sneller en robuuster, maar het portaal ziet niet hoe ver iemand
+                    kwam en alles staat op <em>niet gemeten</em>. Wilt u het onderzoeken, zet hem dan tijdelijk op
+                    <code>php</code>.</p>
                 <?php handleiding_figuur('beheer-logboek-mails', 'Het maillogboek', [
                     'adres' => '/admin/logboek.php?tab=mails',
                     'bijschrift' => 'Het eerste wat u opent als een ouder zegt geen mail te krijgen. Een mail die niet verstuurd kon worden, staat hier als "mislukt", met de foutmelding erbij.',

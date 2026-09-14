@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Draait de volledige testset. Start zo nodig de testomgeving.
 cd "$(dirname "$0")"
+. ./hostpad.sh
+PROJECT=$(cd .. && pwd)
 MISLUKT=0
 KOP() { printf '\n\033[1m══ %s ══\033[0m\n' "$1"; }
 
@@ -12,10 +14,16 @@ done
 
 KOP "Syntaxcontrole"
 FOUTEN=0
-for f in $(cd .. && find . -name "*.php" -not -path "./.git/*" | sort); do
-    UIT=$(docker run --rm -v "$(cd .. && pwd)":/app php:8.3-cli php -l "/app/${f#./}" 2>&1)
-    case "$UIT" in *"No syntax errors"*) ;; *) echo "  ✗ $f"; echo "$UIT" | sed 's/^/      /'; FOUTEN=$((FOUTEN+1));; esac
-done
+# Eén container voor alle bestanden in plaats van één per bestand: dat scheelt
+# bij vijftig bestanden net zoveel keer een container opstarten.
+UIT=$(docker run --rm -v "$(hostpad "$PROJECT")":/app php:8.3-cli \
+    sh -c 'for f in $(find /app -name "*.php" -not -path "*/.git/*" | sort); do
+               php -l "$f" | grep -v "^No syntax errors"
+           done' 2>&1)
+if [ -n "$UIT" ]; then
+    printf '%s\n' "$UIT" | sed 's/^/  ✗ /'
+    FOUTEN=1
+fi
 [ "$FOUTEN" -eq 0 ] && echo "  ✓ alle PHP-bestanden zijn syntactisch correct" || MISLUKT=$((MISLUKT+1))
 
 KOP "Statische controle";      bash audit.sh      || MISLUKT=$((MISLUKT+1))
@@ -36,7 +44,7 @@ KOP "Jaarlijkse workflow";     bash jaarflow.sh   || MISLUKT=$((MISLUKT+1))
 # Policy die formulieren blokkeert of JavaScript dat stukloopt.
 KOP "In een echte browser";    bash schermafdrukken.sh || MISLUKT=$((MISLUKT+1))
 KOP "Op telefoonformaat";      docker run --rm --network test_default \
-                                   -v "$(pwd)/mobiel.js":/usr/src/app/mobiel.js:ro \
+                                   -v "$(hostpad "$PWD/mobiel.js")":/usr/src/app/mobiel.js:ro \
                                    -w /usr/src/app --entrypoint node \
                                    zenika/alpine-chrome:with-puppeteer mobiel.js || MISLUKT=$((MISLUKT+1))
 # De routes die in productie gebruikt worden: nginx en Apache, niet alleen de

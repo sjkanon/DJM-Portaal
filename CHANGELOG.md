@@ -6,6 +6,16 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
 
 ### Beheer
 
+- **Het downloadlogboek zegt nu ook waaróm een download stopte.** Per regel een uitkomst:
+  *voltooid*, *verbinding verbroken*, *server brak af*, *bezig* of *niet gemeten*. Die laatste twee
+  zijn er niet voor de sier: *bezig* betekent dat de voortgang tijdens het downloaden wordt
+  bijgewerkt, zodat een afgeschoten proces nog steeds laat zien hoe ver iemand kwam, en *niet
+  gemeten* staat er eerlijk bij als X-Accel of X-Sendfile uitlevert — dan komt er geen byte langs
+  het portaal. Voorheen kregen die regels bij de start de volle grootte en een vinkje *afgerond*,
+  ook als de bezoeker halverwege afhaakte; het logboek gokte dus, en gokte goed nieuws.
+  Bij *verbinding verbroken* zegt het portaal bewust niet wie hem verbrak: dat kan de bezoeker zijn
+  of iets ertussen, en dat verschil is alleen aan het patroon te zien — waar het blok bovenaan voor
+  is. Nieuwe kolom `download_log.reden`; bestaande installaties krijgen hem vanzelf.
 - **Het downloadlogboek zegt nu wáár het misgaat.** Per regel een balkje met hoe ver die download
   kwam ("31% van 7,02 GB") in plaats van alleen het aantal verzonden bytes, en bovenaan een blok dat
   de afgebroken downloads naast elkaar legt. Stoppen ze elke keer ergens anders, dan is het de

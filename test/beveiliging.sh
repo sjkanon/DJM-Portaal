@@ -6,6 +6,7 @@
 # de ingebouwde PHP-server, nginx en Apache.
 set -u
 cd "$(dirname "$0")"
+. ./hostpad.sh
 GOED=0; FOUT=0
 
 toets() { # toets "omschrijving" "verwacht" "werkelijk"
