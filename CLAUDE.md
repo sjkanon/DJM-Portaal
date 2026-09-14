@@ -4,7 +4,10 @@ Beveiligd downloadportaal voor de videoregistraties van de Deventer Jeugd Musica
 MySQL/MariaDB, geen Composer. Nederlands in code, interface en commentaar; vier spaties.
 
 - De vaste afspraken in de code staan in `docs/ARCHITECTUUR.md`. Lees die eerst.
+- Openstaand werk en de serveromgeving staan in `docs/TODO.md`.
 - Testen: `bash test/alles.sh` (Docker). Snelle statische controle: `bash test/audit.sh`.
+  Raakt een wijziging `db.sql`, test dan óók tegen een database van vóór die wijziging: een
+  verse installatie bewijst niets over de installaties die er al zijn.
 
 ## Handleiding bijhouden
 

@@ -294,8 +294,7 @@ if ($isDownloads) {
 
     $cijferStmt = db()->prepare(
         "SELECT COUNT(*) AS aantal,
-                SUM(CASE WHEN l.afgerond = 1 THEN 1 ELSE 0 END) AS afgerond,
-                SUM(CASE WHEN l.methode = 'php' THEN 1 ELSE 0 END) AS gemeten"
+                SUM(CASE WHEN l.afgerond = 1 THEN 1 ELSE 0 END) AS afgerond"
         . $redenTellers . "
            FROM download_log l
           WHERE " . $waarSql
@@ -496,21 +495,41 @@ admin_start('Logboek', 'Inlogpogingen, verstuurde e-mail en downloads');
         <?php
         $dlAantal    = (int)($downloadCijfers['aantal'] ?? 0);
         $dlAf        = (int)($downloadCijfers['afgerond'] ?? 0);
-        $dlGemeten   = (int)($downloadCijfers['gemeten'] ?? 0);
         $dlVerbroken = (int)($downloadCijfers['verbroken'] ?? 0);
         $dlServer    = (int)($downloadCijfers['serverfout'] ?? 0);
         $dlBezig     = (int)($downloadCijfers['bezig'] ?? 0);
         $dlOngemeten = (int)($downloadCijfers['ongemeten'] ?? 0);
-        $dlNiet      = max(0, $dlAantal - $dlAf);
+        // Regels die de webserver uitleverde horen niet in de verhouding
+        // afgerond/niet-afgerond thuis. Ze staan op afgerond = 0 omdat we het
+        // niet wéten, en dat is iets anders dan een mislukte download — tel je
+        // ze mee, dan lijkt een volmaakt goede download een probleem.
+        $dlMeetbaar  = max(0, $dlAantal - $dlOngemeten);
+        $dlNiet      = max(0, $dlMeetbaar - $dlAf);
         ?>
         <?php if ($dlAantal > 0): ?>
-            <div class="alert <?= $downloadKnelpunt !== null ? 'alert-danger' : ($dlNiet > 0 ? 'alert-warning' : 'alert-success') ?> py-2 small">
+            <?php
+            // Rood bij een knelpunt, oranje bij losse mislukkingen, grijs als er
+            // niets te meten viel — en alleen groen als er echt niets mis is.
+            $dlKleur = 'alert-success';
+            if ($downloadKnelpunt !== null) {
+                $dlKleur = 'alert-danger';
+            } elseif ($dlNiet > 0) {
+                $dlKleur = 'alert-warning';
+            } elseif ($dlMeetbaar === 0) {
+                $dlKleur = 'alert-secondary';
+            }
+            ?>
+            <div class="alert <?= h($dlKleur) ?> py-2 small">
                 <div class="fw-semibold mb-1">
                     <i class="bi bi-activity me-1"></i>
-                    <?= (int)$dlAf ?> van <?= (int)$dlAantal ?> downloads afgerond<?php
-                    ?><?= $dlNiet > 0 ? ', ' . (int)$dlNiet . ' niet' : '' ?>.
+                    <?php if ($dlMeetbaar > 0): ?>
+                        <?= (int)$dlAf ?> van <?= (int)$dlMeetbaar ?> gemeten downloads afgerond<?php
+                        ?><?= $dlNiet > 0 ? ', ' . (int)$dlNiet . ' niet' : '' ?>.
+                    <?php else: ?>
+                        Geen van deze downloads is gemeten.
+                    <?php endif; ?>
                 </div>
-                <?php if ($dlVerbroken + $dlServer + $dlBezig + $dlOngemeten > 0): ?>
+                <?php if ($dlVerbroken + $dlServer + $dlBezig > 0): ?>
                     <p class="mb-1">
                         Waarvan
                         <?php if ($dlServer > 0): ?>
@@ -522,9 +541,16 @@ admin_start('Logboek', 'Inlogpogingen, verstuurde e-mail en downloads');
                         <?php if ($dlBezig > 0): ?>
                             <span class="badge text-bg-info"><?= (int)$dlBezig ?> bezig</span>
                         <?php endif; ?>
-                        <?php if ($dlOngemeten > 0): ?>
-                            <span class="badge text-bg-secondary"><?= (int)$dlOngemeten ?> niet gemeten</span>
-                        <?php endif; ?>
+                    </p>
+                <?php endif; ?>
+                <?php if ($dlOngemeten > 0): ?>
+                    <p class="mb-1">
+                        Daarnaast <strong><?= (int)$dlOngemeten ?></strong> download(s) waarbij de webserver
+                        uitleverde (X-Accel of X-Sendfile). Die zijn <em>niet mislukt</em> — het portaal kan
+                        alleen niet zien hoe ver ze kwamen, want er kwam geen byte langs. Ze tellen hierboven
+                        dan ook niet mee. Wilt u het wél weten, zet dan <code>DELIVERY_MODE</code> in
+                        <code>.env</code> op <code>php</code>: dan levert het portaal zelf uit en meet het
+                        elke byte.
                     </p>
                 <?php endif; ?>
                 <?php if ($downloadKnelpunt !== null):
@@ -565,16 +591,6 @@ admin_start('Logboek', 'Inlogpogingen, verstuurde e-mail en downloads');
                     </p>
                 <?php else: ?>
                     <p class="mb-0">Geen afgebroken downloads in deze selectie.</p>
-                <?php endif; ?>
-                <?php if ($dlGemeten < $dlAantal): ?>
-                    <p class="mb-0 mt-1 text-muted">
-                        Let op: bij <?= (int)($dlAantal - $dlGemeten) ?> regel(s) deed de webserver de
-                        uitlevering (X-Accel of X-Sendfile). Er komt dan geen byte langs het portaal, dus hoe
-                        ver die bezoekers kwamen is niet vast te stellen — die regels staan op
-                        <em>niet gemeten</em> en tellen hierboven niet mee. Wilt u het wél weten, zet dan
-                        <code>DELIVERY_MODE</code> in <code>.env</code> op <code>php</code>: dan levert het
-                        portaal zelf uit en meet het elke byte.
-                    </p>
                 <?php endif; ?>
             </div>
         <?php endif; ?>
