@@ -99,6 +99,18 @@ nooit zelf uit `$_SERVER`: alleen deze functie weet of `X-Forwarded-For` te vert
 `deelnemer_bestand()`, `jaargang_aantal_deelnemers()`, `toegang_toekennen()`,
 `toegang_intrekken()`, `jaargang_status()`.
 
+**download_helper.php:** `download_link()`, `download_link_net_vernieuwd()`,
+`download_handtekening_geldig()`, `download_methode()`, `bestand_mime()`, `download_loggen()`,
+`download_log_bijwerken()`, `download_content_headers()`, `download_kenmerk()`,
+`download_if_range_geldig()`, `download_pad_coderen()`, `download_compressie_uit()`,
+`download_uitleveren()`, `download_uitleveren_php()`, `download_range_afwijzen()`.
+Een link is `DOWNLOAD_LINK_GELDIG` (twaalf uur) geldig; verloopt hij, dan geeft `download.php`
+er een verse voor in de plaats in plaats van een fout te tonen, want de echte autorisatie is de
+sessie plus `deelnemer_bestand()`. De PHP-uitlevering stuurt `ETag` en `Last-Modified` mee en
+honoreert `If-Range`, zodat een downloadmanager niet twee verschillende versies van een video aan
+elkaar plakt, en zet compressie uit: gecomprimeerde uitvoer bij een ongecomprimeerde
+`Content-Length` levert een halve, onafspeelbare video op.
+
 **email_helper.php:** `mail_config()`, `mailer_maken()`, `mail_geconfigureerd()`,
 `verstuur_mail()`, `verstuur_inlogcode_mail()`, `verstuur_uitnodiging_mail()`,
 `verstuur_beheerder_link_mail()`, `verstuur_testmail()`, `mail_html_omhulsel()`, `mail_sjabloon_vullen()`.
@@ -157,6 +169,12 @@ uitsluitend via `opslag_absoluut_pad()` naar een absoluut pad omgezet.
    bruikbaar, gebonden aan de browsersessie via `challenge_id`.
 4. Rate limiting per e-mailadres én per IP via de tabel `aanvraag_limiet`.
 5. Bestandspaden komen nooit uit gebruikersinvoer: id → database → `opslag_absoluut_pad()`.
+   `download.php` stuurt nooit door naar een gewone pagina en antwoordt nooit met status 200 op
+   iets anders dan bestandsbytes: een browser of downloadmanager bewaart zo'n pagina als bestand,
+   en dan staat er een `index.php` van vier kilobyte in de downloadmap in plaats van de video.
+   Fouten zijn daarom een status (403/404/410/416) met een kleine foutpagina. De enige omleiding
+   die het eindpunt maakt, is naar een verse `download_link()` — die komt weer op hetzelfde
+   eindpunt uit en levert dus alsnog de video.
 6. `session_regenerate_id(true)` bij elke inlog.
 7. Codepogingen worden ook per IP-adres geremd (twintig per kwartier), naast de
    pogingenteller per code.

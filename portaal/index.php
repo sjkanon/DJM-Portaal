@@ -85,6 +85,12 @@ portaal_start('Uw video\'s', [
                                         <?= h(formatteer_bytes((int)$bestand['bytes'])) ?>
                                     </div>
                                 </div>
+                                <!-- Bewust een gewone link, geen download="…":
+                                     bij een download-attribuut vangt de
+                                     downloadbalk ook de foutpagina's van
+                                     download.php af en ziet de deelnemer alleen
+                                     "mislukt", zonder te lezen dat hij opnieuw
+                                     moet inloggen. -->
                                 <a class="btn btn-djm text-nowrap"
                                    href="<?= h(download_link((int)$bestand['id'], $deelnemerId)) ?>">
                                     <i class="bi bi-download me-1"></i>Downloaden

@@ -69,6 +69,66 @@ function logboek_link(array $extra = []): string
     return url('admin/logboek.php') . '?' . http_build_query($params);
 }
 
+/**
+ * Zoekt in de afgebroken downloads naar één plek waar ze allemaal stranden.
+ *
+ * Een download die afbreekt doordat iemand zijn laptop dichtklapt of door een
+ * haperende wifi, stopt elke keer ergens anders. Stoppen ze daarentegen allemaal
+ * rond hetzelfde aantal bytes, dan is er een grens op de server — de klassieke
+ * is een nginx die vóór Apache staat en na `proxy_max_temp_file_size` (standaard
+ * 1 GB) stopt met lezen. Dát verschil is precies wat een beheerder moet zien:
+ * moet hij de ouder een betere verbinding adviseren, of de technisch beheerder
+ * bellen?
+ *
+ * @param  array $regels rijen met 'verzonden' en 'totaal'
+ * @return array|null    null als er geen patroon in zit
+ */
+function downloads_knelpunt(array $regels): ?array
+{
+    $bytes = [];
+    foreach ($regels as $regel) {
+        $bytes[] = (int)$regel['verzonden'];
+    }
+    if (count($bytes) < 3) {
+        return null;
+    }
+    sort($bytes);
+
+    // Grootste groep waarvan de hoogste waarde hooguit een tiende boven de
+    // laagste ligt. Een venster dat met de waarden meeschaalt in plaats van een
+    // vast aantal megabytes: bij een video van zeven gigabyte is honderd
+    // megabyte verschil ruis, bij een pdf van tien megabyte is het alles.
+    $begin = 0;
+    $eind  = 0;
+    $onder = 0;
+    foreach ($bytes as $boven => $waarde) {
+        while ($waarde > $bytes[$onder] * 1.1) {
+            $onder++;
+        }
+        if ($boven - $onder > $eind - $begin) {
+            $begin = $onder;
+            $eind  = $boven;
+        }
+    }
+
+    // Minstens drie stops, en samen een derde van alle afgebroken downloads.
+    // Geen meerderheid eisen: er zijn altijd mensen die een download meteen na
+    // het starten wegklikken, en die stops zouden een echt knelpunt anders
+    // wegdrukken. Drie downloads die binnen een tiende van elkaar stoppen, is
+    // op een bestand van gigabytes al geen toeval meer.
+    $aantal = $eind - $begin + 1;
+    if ($aantal < 3 || $aantal / count($bytes) < 1 / 3) {
+        return null;
+    }
+
+    return [
+        'aantal'     => $aantal,
+        'van'        => $bytes[$begin],
+        'tot'        => $bytes[$eind],
+        'afgebroken' => count($bytes),
+    ];
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  Opruimen (POST)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -133,24 +193,27 @@ $tabel      = $configuratie[$tab]['tabel'];
 $datumKolom = $configuratie[$tab]['datum'];
 $mailKolom  = $configuratie[$tab]['email'];
 
+// Alles krijgt de alias l, zodat de downloadquery er zonder gedoe
+// jaargang_bestanden bij kan joinen voor de bestandsgrootte.
+$alias  = 'l.';
 $waar   = ['1 = 1'];
 $params = [];
 
 if ($zoek !== '') {
-    $waar[] = $mailKolom . ' LIKE :zoek';
+    $waar[] = $alias . $mailKolom . ' LIKE :zoek';
     $params[':zoek'] = '%' . $zoek . '%';
 }
 if ($van !== '') {
-    $waar[] = $datumKolom . ' >= :van';
+    $waar[] = $alias . $datumKolom . ' >= :van';
     $params[':van'] = $van . ' 00:00:00';
 }
 if ($tot !== '') {
-    $waar[] = $datumKolom . ' <= :tot';
+    $waar[] = $alias . $datumKolom . ' <= :tot';
     $params[':tot'] = $tot . ' 23:59:59';
 }
 $waarSql = implode(' AND ', $waar);
 
-$telStmt = db()->prepare('SELECT COUNT(*) FROM ' . $tabel . ' WHERE ' . $waarSql);
+$telStmt = db()->prepare('SELECT COUNT(*) FROM ' . $tabel . ' l WHERE ' . $waarSql);
 $telStmt->execute($params);
 $totaal = (int)$telStmt->fetchColumn();
 
@@ -158,14 +221,50 @@ $paginaTotaal = max(1, (int)ceil($totaal / LOGBOEK_PER_PAGINA));
 $pagina       = min($pagina, $paginaTotaal);
 $offset       = ($pagina - 1) * LOGBOEK_PER_PAGINA;
 
+// Bij downloads hoort de grootte van het bestand erbij: zonder die noemer zegt
+// "1,01 GB verzonden" niets over hoe ver iemand gekomen is.
+$isDownloads = $tab === 'downloads';
+$selectie    = $isDownloads ? 'l.*, b.bytes AS bestand_bytes' : 'l.*';
+$joinSql     = $isDownloads ? ' LEFT JOIN jaargang_bestanden b ON b.id = l.bestand_id' : '';
+
 $stmt = db()->prepare(
-    'SELECT * FROM ' . $tabel . '
+    'SELECT ' . $selectie . ' FROM ' . $tabel . ' l' . $joinSql . '
      WHERE ' . $waarSql . '
-     ORDER BY ' . $datumKolom . ' DESC, id DESC
+     ORDER BY ' . $alias . $datumKolom . ' DESC, l.id DESC
      LIMIT ' . (int)LOGBOEK_PER_PAGINA . ' OFFSET ' . (int)$offset
 );
 $stmt->execute($params);
 $rijen = $stmt->fetchAll();
+
+// ─── Downloads: waar gaat het mis? ───────────────────────────────────────────
+$downloadCijfers = null;
+$downloadKnelpunt = null;
+
+if ($isDownloads) {
+    $cijferStmt = db()->prepare(
+        "SELECT COUNT(*) AS aantal,
+                SUM(CASE WHEN l.afgerond = 1 THEN 1 ELSE 0 END) AS afgerond,
+                SUM(CASE WHEN l.methode = 'php' THEN 1 ELSE 0 END) AS gemeten
+           FROM download_log l
+          WHERE " . $waarSql
+    );
+    $cijferStmt->execute($params);
+    $downloadCijfers = $cijferStmt->fetch() ?: null;
+
+    // Alleen de PHP-uitlevering telt de bytes echt; bij xaccel/xsendfile doet de
+    // webserver het werk en weten wij niet waar een download bleef steken.
+    $brokStmt = db()->prepare(
+        "SELECT l.bytes_verzonden AS verzonden, b.bytes AS totaal
+           FROM download_log l
+           LEFT JOIN jaargang_bestanden b ON b.id = l.bestand_id
+          WHERE " . $waarSql . "
+            AND l.methode = 'php' AND l.afgerond = 0 AND l.bytes_verzonden > 0
+          ORDER BY l.id DESC
+          LIMIT 500"
+    );
+    $brokStmt->execute($params);
+    $downloadKnelpunt = downloads_knelpunt($brokStmt->fetchAll());
+}
 
 // Hoeveel regels vallen er nu buiten de bewaartermijn?
 $grensDatum = date('Y-m-d H:i:s', strtotime('-' . $bewaartermijn . ' days'));
@@ -337,6 +436,65 @@ admin_start('Logboek', 'Inlogpogingen, verstuurde e-mail en downloads');
 
     <?php else: ?>
         <!-- ─── Downloads ────────────────────────────────────────────────── -->
+        <?php
+        $dlAantal   = (int)($downloadCijfers['aantal'] ?? 0);
+        $dlAf       = (int)($downloadCijfers['afgerond'] ?? 0);
+        $dlGemeten  = (int)($downloadCijfers['gemeten'] ?? 0);
+        $dlNiet     = max(0, $dlAantal - $dlAf);
+        ?>
+        <?php if ($dlAantal > 0): ?>
+            <div class="alert <?= $downloadKnelpunt !== null ? 'alert-danger' : ($dlNiet > 0 ? 'alert-warning' : 'alert-success') ?> py-2 small">
+                <div class="fw-semibold mb-1">
+                    <i class="bi bi-activity me-1"></i>
+                    <?= (int)$dlAf ?> van <?= (int)$dlAantal ?> downloads afgerond<?php
+                    ?><?= $dlNiet > 0 ? ', ' . (int)$dlNiet . ' afgebroken' : '' ?>.
+                </div>
+                <?php if ($downloadKnelpunt !== null):
+                    $knelVan = formatteer_bytes((int)$downloadKnelpunt['van']);
+                    $knelTot = formatteer_bytes((int)$downloadKnelpunt['tot']);
+                    // Liggen ze zo dicht bij elkaar dat er afgerond hetzelfde
+                    // staat, dan leest "tussen 1,01 GB en 1,01 GB" als een fout.
+                    $knelBereik = $knelVan === $knelTot
+                        ? 'rond ' . $knelVan
+                        : 'tussen ' . $knelVan . ' en ' . $knelTot;
+                    ?>
+                    <p class="mb-1">
+                        <strong><?= (int)$downloadKnelpunt['aantal'] ?> van de
+                        <?= (int)$downloadKnelpunt['afgebroken'] ?> afgebroken downloads</strong> stopte
+                        <?= h($knelBereik) ?>. Downloads die op de verbinding
+                        van de bezoeker stuklopen, stoppen elke keer ergens anders; stoppen ze allemaal rond
+                        hetzelfde punt, dan zit er een <strong>grens op de server</strong>.
+                    </p>
+                    <p class="mb-0">
+                        Meestal is dat een nginx die vóór Apache staat en het antwoord eerst naar een tijdelijk
+                        bestand schrijft (standaard tot 1 GB). In het foutlogboek van de webserver staat dan
+                        <code>upstream prematurely closed connection</code>. Oplossing: zet bij de
+                        nginx-instellingen <code>proxy_buffering off;</code> en
+                        <code>proxy_max_temp_file_size 0;</code>, of zet de uitlevering op X-Sendfile of
+                        X-Accel — zie
+                        <a href="<?= h(url('admin/instellingen.php')) ?>">Instellingen → Uitlevering</a>,
+                        de knop <em>Uitproberen</em> daar, en hoofdstuk 7b van
+                        <code>docs/INSTALLATIE.md</code>.
+                    </p>
+                <?php elseif ($dlNiet > 0): ?>
+                    <p class="mb-0">
+                        De afgebroken downloads stoppen op steeds verschillende plekken. Dat wijst op de
+                        verbinding van de bezoeker en niet op de server: een onderbroken download is te
+                        hervatten, ook een dag later.
+                    </p>
+                <?php else: ?>
+                    <p class="mb-0">Geen afgebroken downloads in deze selectie.</p>
+                <?php endif; ?>
+                <?php if ($dlGemeten < $dlAantal): ?>
+                    <p class="mb-0 mt-1 text-muted">
+                        Let op: bij <?= (int)($dlAantal - $dlGemeten) ?> regel(s) deed de webserver de
+                        uitlevering (X-Accel of X-Sendfile). Het portaal ziet dan niet hoeveel er echt over de
+                        lijn ging: die regels krijgen bij de start meteen de volle grootte en het vinkje
+                        <em>afgerond</em>, ook als de bezoeker halverwege afhaakte.
+                    </p>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
         <div class="table-responsive">
             <table class="table table-sm table-hover tabel-compact align-middle">
                 <thead class="table-light">
@@ -346,20 +504,41 @@ admin_start('Logboek', 'Inlogpogingen, verstuurde e-mail en downloads');
                         <th>Bestandsnaam</th>
                         <th>Methode</th>
                         <th class="text-end">Verzonden</th>
+                        <th style="min-width:9rem">Hoe ver gekomen</th>
                         <th class="text-center">Afgerond</th>
                         <th>IP</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($rijen as $rij): ?>
+                    <?php foreach ($rijen as $rij):
+                        $verzonden = (int)$rij['bytes_verzonden'];
+                        $bestandBytes = (int)($rij['bestand_bytes'] ?? 0);
+                        // Het bestand kan intussen vervangen of losgekoppeld zijn;
+                        // dan is er geen noemer en tonen we geen percentage.
+                        $deel = $bestandBytes > 0 ? min(100, (int)round($verzonden / $bestandBytes * 100)) : null;
+                        $klaar = (int)$rij['afgerond'] === 1;
+                        ?>
                         <tr>
                             <td class="small text-nowrap"><?= h(formatteer_datum((string)$rij['gestart_op'])) ?></td>
                             <td class="small"><?= h((string)($rij['email'] ?? '')) ?: '<span class="text-muted">—</span>' ?></td>
                             <td class="small"><?= h((string)($rij['bestandsnaam'] ?? '—')) ?></td>
                             <td class="small"><code class="pad"><?= h((string)($rij['methode'] ?? '—')) ?></code></td>
-                            <td class="small text-end text-nowrap"><?= h(formatteer_bytes((int)$rij['bytes_verzonden'])) ?></td>
+                            <td class="small text-end text-nowrap"><?= h(formatteer_bytes($verzonden)) ?></td>
+                            <td class="small">
+                                <?php if ($deel === null): ?>
+                                    <span class="text-muted">grootte onbekend</span>
+                                <?php else: ?>
+                                    <div class="progress" style="height:.45rem" role="progressbar"
+                                        aria-valuenow="<?= (int)$deel ?>" aria-valuemin="0" aria-valuemax="100">
+                                        <div class="progress-bar <?= $klaar ? 'bg-success' : 'bg-warning' ?>"
+                                            style="width:<?= (int)$deel ?>%"></div>
+                                    </div>
+                                    <span class="text-muted"><?= (int)$deel ?>% van
+                                        <?= h(formatteer_bytes($bestandBytes)) ?></span>
+                                <?php endif; ?>
+                            </td>
                             <td class="text-center">
-                                <?php if ((int)$rij['afgerond'] === 1): ?>
+                                <?php if ($klaar): ?>
                                     <span class="badge text-bg-success">ja</span>
                                 <?php else: ?>
                                     <span class="badge text-bg-warning">nee</span>

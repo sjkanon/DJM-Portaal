@@ -159,6 +159,22 @@ Drie tabbladen: **inlogpogingen**, **verstuurde e-mail** (met foutmelding als ve
 mislukte) en **downloads** (met hoeveel er is verzonden en of de download is afgerond). Filter
 op e-mailadres en datum. Logregels ouder dan de bewaartermijn ruimt de dagelijkse taak zelf op.
 
+Het tabblad **Downloads** toont per regel hoe ver iemand kwam (een balkje met het percentage van
+de bestandsgrootte) en bovenaan een blok dat de vraag beantwoordt *waar gaat het mis?*
+
+- Stoppen de afgebroken downloads elke keer **ergens anders**, dan ligt het aan de verbinding van
+  de bezoeker. Antwoord: hervatten, niet opnieuw beginnen.
+- Stoppen ze allemaal **rond hetzelfde punt**, dan zit er een grens op de server. Het blok kleurt
+  rood en noemt de meest voorkomende oorzaak: een nginx die vóór Apache staat en na één gigabyte
+  stopt met lezen (in het webserverlog: `upstream prematurely closed connection`). Oplossing:
+  `proxy_buffering off;` en `proxy_max_temp_file_size 0;` bij de nginx-instellingen, of de
+  uitlevering op X-Sendfile of X-Accel zetten. Zie [INSTALLATIE.md](INSTALLATIE.md) hoofdstuk 11
+  en 7b — werk voor de technisch beheerder.
+
+Alleen bij de PHP-uitlevering telt het portaal de bytes zelf. Bij X-Accel of X-Sendfile doet de
+webserver het werk en ziet het portaal niet waar een download strandde; die regels tellen altijd
+als afgerond. Het blok vermeldt dat.
+
 ### Instellingen
 
 | Onderdeel | Wat staat er |
@@ -300,15 +316,29 @@ Een e-mailadres is niet te wijzigen. Voeg het nieuwe adres toe via **Toegang**, 
 jaargangen. Is het oude adres nergens meer voor nodig, verwijder die deelnemer dan bij
 **Deelnemers**.
 
+### "Ik heb een `index.php` gedownload in plaats van de video"
+
+Dat kon gebeuren in oudere versies. Een downloadlink was toen vijf minuten geldig; klikte iemand
+later, of hervatte de browser een download van gisteren, dan stuurde het portaal door naar het
+overzicht — en de browser bewaarde díe pagina als bestand. Nu is een link twaalf uur geldig en geeft
+het portaal bij een verlopen link vanzelf een nieuwe af, zodat de download gewoon begint of hervat
+wordt. Laat de deelnemer het bestandje van een paar kilobyte weggooien en opnieuw op **Downloaden**
+klikken. Gebeurt het toch nog, schakel dan de technisch beheerder in; in `logs/app.log` staat dan een
+regel over een downloadlink die meteen weer werd afgekeurd, en dat betekent dat de serverklok niet
+gelijkloopt of dat er twee servers met een verschillende `APP_KEY` draaien.
+
 ### "De download stopt halverwege" of "de video is kapot"
 
 1. **Controle**: staat het bestand er, en klopt de grootte?
-2. **Logboek → Downloads**: hoeveel is er verzonden? Stopt het bij iedereen rond hetzelfde
+2. **Logboek → Downloads**: het blok bovenaan zegt het al. Stopt het bij iedereen rond hetzelfde
    punt, dan is het een serverinstelling (technisch beheerder,
    [INSTALLATIE.md](INSTALLATIE.md) hoofdstuk 11). Verschilt het per keer, dan ligt het meestal
    aan de verbinding van de deelnemer.
 3. Adviseer een stabiele verbinding (wifi, niet mobiel). Downloads zijn te hervatten, ook met
-   een downloadmanager.
+   een downloadmanager: laat de deelnemer de onderbroken download hervatten in plaats van hem
+   opnieuw te starten.
+4. Staat er in `logs/app.log` een regel `bestandsgrootte wijkt af van de database`, dan is het
+   bestand op schijf een ander dan bij het koppelen: opnieuw uploaden en opnieuw koppelen.
 
 ### "Ik wil dat mijn gegevens worden verwijderd"
 
