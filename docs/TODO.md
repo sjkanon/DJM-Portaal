@@ -182,6 +182,38 @@ het een goedkoop vangnet voor het geval iemand `OPSLAG_PAD` weer leeghaalt.
 
 ---
 
+## 6. Beveiliging: wat bewust is blijven liggen
+
+Na de ronde van 16 september 2026 (securityheaders op het downloadeindpunt, beheersessies die
+vervallen bij een nieuw wachtwoord, gehashte sleutels in `aanvraag_limiet`, het logo via
+`logo.php`) staan deze punten nog open. Geen van drieën is dringend; ze staan hier zodat ze niet
+opnieuw uitgezocht hoeven te worden.
+
+### `style-src 'unsafe-inline'` uit de Content-Security-Policy
+
+`script-src` staat al op `'self'` zonder uitzonderingen — dat is de helft die telt. Bij `style-src`
+lukt dat nog niet: het `<style>`-blok met de merkkleur in `djm_head()` en de `style="…"`-attributen
+in het beheer zijn inline. Een nonce helpt voor het blok maar niet voor de attributen, dus dit is
+pas rond als die attributen klassen zijn geworden. Winst: een gevonden XSS kan dan ook niet meer
+met opmaak knoeien (een onzichtbaar overlay-formulier). Beperkt, want zonder inline scripts is de
+hefboom klein.
+
+### Tweede stap bij het inloggen van beheerders
+
+Een beheerder komt binnen met alleen een wachtwoord, terwijl hij bij álle deelnemersgegevens kan.
+Het portaal heeft de bouwstenen al: `includes/otp.php` stuurt en controleert codes per e-mail. Een
+tweede stap na `beheerder_inloggen()` is dus vooral schermwerk. Houd er rekening mee dat het
+uitvalscenario groeit: werkt de mail niet, dan komt niemand er meer in, dus dit vraagt een nette
+uitweg via `setup.php` (die er al is) en een regel in de handleiding.
+
+### Het onthoud-cookie roteert niet
+
+`remember_tokens` blijft dertig dagen dezelfde waarde. Roteren bij elk gebruik zou diefstal van het
+cookie zichtbaar maken (het oude token duikt dan nog eens op). Niet gedaan omdat `download.php` het
+cookie óók gebruikt: een downloadmanager met acht parallelle verbindingen zou dan zeven keer een
+verouderd token aanbieden en zichzelf uitloggen. Wie dit oppakt, moet eerst dat geval oplossen —
+bijvoorbeeld met een kort overlappingsvenster waarin het vorige token nog geldig is.
+
 ## Serveromgeving (Plesk) — nodig om bovenstaande te kunnen doen
 
 - **Uitrollen gaat vanzelf.** Een push naar `devel` wordt door de Plesk Git-deployment binnen enkele
