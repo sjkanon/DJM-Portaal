@@ -138,6 +138,14 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
 
 ### Beveiliging
 
+- **Een nieuw wachtwoord logt alle beheersessies uit.** Koos een beheerder via *Wachtwoord
+  vergeten* of via een resetlink een nieuw wachtwoord, dan bleven openstaande sessies met het
+  óúde wachtwoord gewoon doorlopen — een PHP-sessie hangt immers aan een cookie en niet aan een
+  wachtwoord. Precies op het moment dat het telt (er kijkt iemand mee, een laptop is kwijt) deed
+  een nieuw wachtwoord dus niets tegen wie al binnen was. De sessie draagt nu een vingerafdruk van
+  de wachtwoordhash mee, die bij elk verzoek opnieuw naast de database wordt gelegd. Geen
+  databasewijziging; wél moet iedereen die nú in het beheer zit na het bijwerken één keer opnieuw
+  inloggen.
 - **Het downloadeindpunt stuurt nu zelf securityheaders mee.** `download.php` en `zelftest.php`
   leunden daarvoor op de webserver: `.htaccess` doet niets onder nginx, en een los nginx-blok
   wordt over het hoofd gezien. Ze sturen nu dezelfde `Content-Security-Policy`, `X-Frame-Options`,

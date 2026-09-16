@@ -142,8 +142,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $databaseOk && $aantalBeheerders > 
         } else {
             if (password_needs_rehash($hash, PASSWORD_DEFAULT)) {
                 try {
+                    $nieuweHash = password_hash($wachtwoord, PASSWORD_DEFAULT);
                     db()->prepare('UPDATE beheerders SET wachtwoord_hash = :h WHERE id = :id')
-                        ->execute([':h' => password_hash($wachtwoord, PASSWORD_DEFAULT), ':id' => (int)$rij['id']]);
+                        ->execute([':h' => $nieuweHash, ':id' => (int)$rij['id']]);
+                    // De sessie krijgt een vingerafdruk van de hash mee (zie
+                    // beheerder_stempel()). Geven we hier de oude mee, dan wijkt die
+                    // bij het volgende verzoek af van wat er in de database staat en
+                    // vliegt deze beheerder er meteen weer uit.
+                    $rij['wachtwoord_hash'] = $nieuweHash;
                 } catch (Throwable $e) {
                     app_log('wachtwoordhash verversen mislukt', ['fout' => $e->getMessage()]);
                 }

@@ -94,7 +94,8 @@ nooit zelf uit `$_SERVER`: alleen deze functie weet of `X-Forwarded-For` te vert
 `deelnemer_inloggen()`, `deelnemer_ingelogd()`, `huidige_deelnemer()`, `vereis_deelnemer()`,
 `deelnemer_uitloggen()`, `onthoud_dit_apparaat()`, `herstel_uit_remember_cookie()`,
 `vergeet_dit_apparaat()`, `beheerder_inloggen()`, `huidige_beheerder()`, `vereis_beheerder()`,
-`beheerder_uitloggen()`, `flash()`, `flash_ophalen()`.
+`beheerder_uitloggen()`, `beheerder_stempel()`, `beheerder_sessie_vergeten()`, `flash()`,
+`flash_ophalen()`.
 
 **toegang_helper.php:** `sql_jaargang_zichtbaar()`, `deelnemer_op_email()`,
 `deelnemer_aanmaken_of_ophalen()`, `email_heeft_toegang()`, `deelnemer_jaargangen()`,
@@ -199,7 +200,11 @@ uitsluitend via `opslag_absoluut_pad()` naar een absoluut pad omgezet.
    Fouten zijn daarom een status (403/404/410/416) met een kleine foutpagina. De enige omleiding
    die het eindpunt maakt, is naar een verse `download_link()` — die komt weer op hetzelfde
    eindpunt uit en levert dus alsnog de video.
-6. `session_regenerate_id(true)` bij elke inlog.
+6. `session_regenerate_id(true)` bij elke inlog. De beheersessie draagt daarnaast
+   `beheerder_stempel()` mee — een HMAC van de wachtwoordhash — die `huidige_beheerder()` bij elk
+   verzoek naast de database legt. Verandert het wachtwoord, dan vervallen alle sessies van dat
+   account. Wie `beheerder_inloggen()` aanroept moet dus een rij meegeven met de *actuele*
+   `wachtwoord_hash`; `admin/login.php` werkt die bij na een `password_needs_rehash()`.
 7. Codepogingen worden ook per IP-adres geremd (twintig per kwartier), naast de
    pogingenteller per code.
 8. Elk eindpunt stuurt zijn eigen securityheaders. Voor de gewone pagina's doet

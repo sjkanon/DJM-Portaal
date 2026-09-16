@@ -108,6 +108,25 @@ unset($_SERVER['HTTP_X_FORWARDED_FOR']);
 // De volledige matrix mét een proxylijst staat in test/proxy_test.php; die moet
 // in een eigen proces draaien omdat vertrouwde_proxies() de lijst cachet.
 
+// ─── Beheerderssessies ───────────────────────────────────────────────────────
+echo "  Beheerderssessies\n";
+require_once dirname(__DIR__) . '/includes/auth.php';
+$hashEen  = password_hash('wachtwoord-een', PASSWORD_DEFAULT);
+$hashTwee = password_hash('wachtwoord-twee', PASSWORD_DEFAULT);
+toets('dezelfde hash geeft dezelfde stempel', beheerder_stempel($hashEen), beheerder_stempel($hashEen));
+toets(
+    'een nieuw wachtwoord geeft een andere stempel',
+    false,
+    hash_equals(beheerder_stempel($hashEen), beheerder_stempel($hashTwee))
+);
+// De stempel gaat de sessie in; op gedeelde hosting is dat bestand niet altijd
+// alleen van ons, dus er mag geen stuk van de wachtwoordhash in te lezen zijn.
+toets(
+    'de stempel bevat geen stuk van de hash',
+    false,
+    str_contains(beheerder_stempel($hashEen), substr($hashEen, 7, 16))
+);
+
 // ─── CSV-export ──────────────────────────────────────────────────────────────
 echo "  CSV-export\n";
 require_once dirname(__DIR__) . '/includes/toegang_helper.php';

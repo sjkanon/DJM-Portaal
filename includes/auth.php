@@ -223,12 +223,38 @@ function vergeet_dit_apparaat(): void
 }
 
 // ─── Beheerder ───────────────────────────────────────────────────────────────
+
+/**
+ * Korte vingerafdruk van het wachtwoord waarmee is ingelogd.
+ *
+ * Deze waarde gaat mee in de sessie en wordt bij elk verzoek opnieuw
+ * vergeleken met wat er in de database staat. Verandert het wachtwoord — na
+ * "wachtwoord vergeten", of omdat een andere beheerder een resetlink stuurde —
+ * dan verandert ook de hash, klopt de vingerafdruk niet meer en zijn alle
+ * sessies die nog met het oude wachtwoord openstonden meteen weg.
+ *
+ * Dat is precies wat je van een wachtwoordwijziging verwacht: is er iemand
+ * ingebroken, dan is een nieuw wachtwoord kiezen genoeg om hem eruit te
+ * zetten. Zonder deze controle bleef zijn sessie gewoon doorlopen, want een
+ * PHP-sessie hangt aan een cookie en niet aan het wachtwoord.
+ *
+ * Het is bewust de hash en niet het wachtwoord zelf: de sessie hoeft niets te
+ * weten wat de database niet al weet. De HMAC met APP_KEY zorgt dat er ook
+ * geen stuk van de wachtwoordhash in het sessiebestand terechtkomt, dat op
+ * gedeelde hosting niet altijd alleen van ons is.
+ */
+function beheerder_stempel(string $wachtwoordHash): string
+{
+    return substr(hash_hmac('sha256', $wachtwoordHash, app_key()), 0, 32);
+}
+
 function beheerder_inloggen(array $beheerder): void
 {
     session_regenerate_id(true);
     $_SESSION['beheerder_id']   = (int)$beheerder['id'];
     $_SESSION['beheerder_naam'] = (string)$beheerder['naam'];
     $_SESSION['beheerder_rol']  = (string)($beheerder['rol'] ?? 'beheerder');
+    $_SESSION['beheerder_stempel'] = beheerder_stempel((string)($beheerder['wachtwoord_hash'] ?? ''));
     $_SESSION['laatste_activiteit'] = time();
 
     db()->prepare('UPDATE beheerders SET laatst_ingelogd_op = NOW() WHERE id = :id')
@@ -249,10 +275,29 @@ function huidige_beheerder(): ?array
     $stmt->execute([':id' => (int)$_SESSION['beheerder_id']]);
     $rij = $stmt->fetch();
     if (!$rij) {
-        unset($_SESSION['beheerder_id'], $_SESSION['beheerder_naam'], $_SESSION['beheerder_rol']);
+        beheerder_sessie_vergeten();
         return null;
     }
+
+    // Is het wachtwoord gewijzigd sinds het inloggen, dan geldt deze sessie niet meer.
+    $stempel = (string)($_SESSION['beheerder_stempel'] ?? '');
+    if ($stempel === '' || !hash_equals(beheerder_stempel((string)$rij['wachtwoord_hash']), $stempel)) {
+        beheerder_sessie_vergeten();
+        return null;
+    }
+
     return $rij;
+}
+
+/** Haalt de beheerder uit de sessie; de deelnemer in dezelfde sessie blijft ongemoeid. */
+function beheerder_sessie_vergeten(): void
+{
+    unset(
+        $_SESSION['beheerder_id'],
+        $_SESSION['beheerder_naam'],
+        $_SESSION['beheerder_rol'],
+        $_SESSION['beheerder_stempel']
+    );
 }
 
 function vereis_beheerder(): array
@@ -278,7 +323,7 @@ function beheerder_uitloggen(): void
     if (beheerder_ingelogd()) {
         log_login('uitgelogd', null, true, 'beheerder ' . (string)($_SESSION['beheerder_naam'] ?? ''));
     }
-    unset($_SESSION['beheerder_id'], $_SESSION['beheerder_naam'], $_SESSION['beheerder_rol']);
+    beheerder_sessie_vergeten();
     session_regenerate_id(true);
 }
 

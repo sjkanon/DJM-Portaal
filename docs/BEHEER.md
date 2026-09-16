@@ -265,6 +265,10 @@ Dit gaat via **Beheer → Beheerders**. Alle beheerders hebben dezelfde rechten.
   sturen**; hij gaat altijd naar het adres van de beheerder zelf. De pagina zegt nooit of een
   adres bekend is, en per uur kunnen er maar een paar links worden aangevraagd. Dit werkt
   alleen als `APP_URL` in `.env` staat; de installatiewizard zet hem er altijd in.
+- **Een nieuw wachtwoord logt overal uit:** zodra iemand via zo'n link een nieuw wachtwoord
+  kiest, vervallen alle beheersessies die op dat account openstonden — ook op een andere
+  computer of telefoon. Vermoedt u dat iemand meekijkt, dan is een nieuw wachtwoord kiezen dus
+  genoeg om hem eruit te zetten.
 - **Uitschakelen:** werkt direct, ook als die persoon op dat moment is ingelogd, en maakt een
   openstaande link ongeldig. Uw eigen account kunt u niet uitschakelen, zodat er altijd iemand
   overblijft. Verwijderen kan niet: zo blijft het logboek te herleiden.

@@ -585,6 +585,10 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet â€
                     <li><strong>Wachtwoord vergeten:</strong> klik op de inlogpagina van het beheer op <em>Wachtwoord
                         vergeten?</em>. De link is 60 minuten geldig. Een andere beheerder kan hem ook sturen met
                         <strong>Resetlink sturen</strong>; hij gaat altijd naar het adres van de beheerder zelf.</li>
+                    <li><strong>Een nieuw wachtwoord logt overal uit:</strong> zodra iemand via zo'n link een nieuw
+                        wachtwoord kiest, vervallen alle beheersessies die op dat account openstonden â€” ook op een andere
+                        computer of telefoon. Vermoedt u dat iemand meekijkt, dan is een nieuw wachtwoord kiezen dus genoeg
+                        om hem eruit te zetten.</li>
                     <li><strong>Uitschakelen:</strong> werkt direct, ook als die persoon op dat moment is ingelogd, en maakt
                         een openstaande link ongeldig. Uw eigen account kunt u niet uitschakelen, zodat er altijd iemand
                         overblijft. Verwijderen kan niet: zo blijft het logboek te herleiden.</li>
