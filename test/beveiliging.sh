@@ -50,6 +50,18 @@ bevat     "pagina's worden niet gecachet"         "cache-control: no-store" "$KO
 bevat     "zoekmachines worden geweerd"           "noindex" "$(curl -s http://localhost:8123/index.php)"
 
 echo ""
+echo "── Securityheaders op het downloadeindpunt ─────────────────"
+# Dit eindpunt gebruikt de gedeelde layout niet en leunde daarom ooit op de
+# webserver voor zijn headers. Zonder sessie antwoordt het met 403 en een kleine
+# foutpagina; die moet dezelfde bescherming dragen als elke andere pagina.
+DLKOPPEN=$(curl -s -D - -o /dev/null "http://localhost:8123/download.php?b=1")
+toets      "download.php zonder sessie geeft 403"  "403" "$(status 'http://localhost:8123/download.php?b=1')"
+bevat      "Content-Security-Policy aanwezig"      "content-security-policy:" "$DLKOPPEN"
+bevat      "X-Content-Type-Options: nosniff"       "x-content-type-options: nosniff" "$DLKOPPEN"
+bevat      "X-Frame-Options: DENY"                 "x-frame-options: deny" "$DLKOPPEN"
+bevat      "foutpagina wordt niet gecachet"        "cache-control: no-store" "$DLKOPPEN"
+
+echo ""
 echo "── Sessiecookie ────────────────────────────────────────────"
 bevat "sessiecookie is httponly" "httponly" "$KOPPEN"
 bevat "sessiecookie is samesite" "samesite=lax" "$KOPPEN"

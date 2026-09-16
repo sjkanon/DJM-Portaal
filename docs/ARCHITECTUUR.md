@@ -202,6 +202,11 @@ uitsluitend via `opslag_absoluut_pad()` naar een absoluut pad omgezet.
 6. `session_regenerate_id(true)` bij elke inlog.
 7. Codepogingen worden ook per IP-adres geremd (twintig per kwartier), naast de
    pogingenteller per code.
+8. Elk eindpunt stuurt zijn eigen securityheaders. Voor de gewone pagina's doet
+   `portaal_start()` / `admin_start()` dat; `download.php` en `zelftest.php` gebruiken die layouts
+   niet en roepen `stuur_security_headers()` daarom zelf aan, meteen na `vereis_installatie()`.
+   Wat in `.htaccess` en de voorbeeldconfiguraties staat is een vangnet, geen basis: `.htaccess`
+   geldt niet onder nginx, en een los serverblok wordt bij een verhuizing vergeten.
 
 ## Let op bij installatie
 
