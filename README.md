@@ -56,6 +56,7 @@ verifieer.php                code invoeren
 logout.php
 download.php                 toegangscontrole en uitlevering
 zelftest.php                 levert het testbestand van de uitleveringszelftest uit
+logo.php                     levert het geüploade logo uit, met een sandbox-policy
 cron_opschonen.php           dagelijkse opschoontaak (CLI)
 .htaccess                    Apache: afscherming en securityheaders
 VERSION
@@ -79,7 +80,7 @@ admin/assets/upload.js       de upload in delen van Beheer › Bestanden
 assets/djm.css               eigen opmaak voor portaal, beheer en installatie
 assets/handleiding/          schermafdrukken voor de handleiding (test/handleiding.sh)
 assets/vendor/               Bootstrap en Bootstrap Icons, meegeleverd (zie HERKOMST.md)
-opslag/                      videobestanden — .htaccess weigert alles
+opslag/                      videobestanden en het logo (branding/) — .htaccess weigert alles
 logs/                        applicatie- en foutlogboek
 docs/                        documentatie en voorbeeldconfiguraties
 ```

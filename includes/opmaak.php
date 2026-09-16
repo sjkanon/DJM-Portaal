@@ -72,6 +72,86 @@ function branding_luminantie(string $kleur): float
     return $totaal;
 }
 
+// ─── Het geüploade logo ──────────────────────────────────────────────────────
+//
+// Een logo komt niet meer in assets/ te staan, maar in `branding/` binnen de
+// opslagmap, en gaat naar buiten via logo.php. Reden: een SVG is geen plaatje
+// maar XML en mag scripts bevatten. In een <img>-tag voert geen browser die
+// uit, maar wie de URL rechtstreeks opent wél — en dan binnen onze eigen
+// origin, met de rechten van een ingelogde beheerder. De opschoning bij de
+// upload haalt scripts eruit, maar dat is een filter op tekst en filters
+// hebben gaten. De harde grens is de Content-Security-Policy die logo.php zelf
+// meestuurt; daarvoor moeten de bytes wél langs PHP komen. De regels in
+// .htaccess en de voorbeeldconfiguraties doen hetzelfde, maar die gelden alleen
+// als de webserver ze uitvoert: .htaccess doet niets onder nginx, en op Plesk
+// levert nginx statische bestanden vaak zelf uit.
+
+/** Maximale grootte van een geüpload logo: 2 MB. */
+const LOGO_MAX_BYTES = 2097152;
+
+/** Extensies waaronder een geüpload logo kan staan. */
+const LOGO_EXTENSIES = ['png', 'jpg', 'webp', 'svg'];
+
+/** De map waarin een geüpload logo terechtkomt; niet publiek benaderbaar. */
+function logo_map(): string
+{
+    return opslag_pad() . '/branding';
+}
+
+/**
+ * Waar logo's vóór deze versie stonden. Een bestaande installatie houdt zijn
+ * logo gewoon; het verhuist zodra er een nieuw bestand wordt geüpload.
+ */
+function logo_oude_map(): string
+{
+    return APP_ROOT . '/assets';
+}
+
+/** Absoluut pad van het geüploade logo, of null als er geen is. */
+function logo_pad(): ?string
+{
+    foreach ([logo_map(), logo_oude_map()] as $map) {
+        foreach (LOGO_EXTENSIES as $ext) {
+            $pad = $map . '/logo.' . $ext;
+            if (is_file($pad)) {
+                return $pad;
+            }
+        }
+    }
+    return null;
+}
+
+/** Bestandsnaam van het geüploade logo (`logo.png`, …), of null. */
+function logo_bestandsnaam(): ?string
+{
+    $pad = logo_pad();
+    return $pad === null ? null : basename($pad);
+}
+
+/** Gooit elk eerder geüpload logo weg, in beide mappen: er blijft er hooguit één. */
+function logo_bestanden_verwijderen(): void
+{
+    foreach ([logo_map(), logo_oude_map()] as $map) {
+        foreach (LOGO_EXTENSIES as $ext) {
+            $pad = $map . '/logo.' . $ext;
+            if (is_file($pad)) {
+                @unlink($pad);
+            }
+        }
+    }
+}
+
+/** Mimetype van het logo, op basis van de extensie die we zelf hebben gezet. */
+function logo_mime(string $pad): string
+{
+    return [
+        'png'  => 'image/png',
+        'jpg'  => 'image/jpeg',
+        'webp' => 'image/webp',
+        'svg'  => 'image/svg+xml',
+    ][strtolower((string)pathinfo($pad, PATHINFO_EXTENSION))] ?? 'application/octet-stream';
+}
+
 /** Het adres van het logo, of een lege string als er geen logo is. */
 function branding_logo(): string
 {
@@ -79,7 +159,7 @@ function branding_logo(): string
     if ($logo !== '') {
         return $logo;
     }
-    return is_file(APP_ROOT . '/assets/logo.png') ? url('assets/logo.png') : '';
+    return logo_pad() !== null ? url('logo.php') : '';
 }
 
 /**

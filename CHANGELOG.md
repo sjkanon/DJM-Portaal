@@ -138,6 +138,17 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
 
 ### Beveiliging
 
+- **Een SVG-logo kan niets meer uitrichten.** Een geüpload logo stond in `assets/`, midden in
+  de webmap. Een SVG is geen plaatje maar XML en mag scripts bevatten: wie zo'n bestand
+  rechtstreeks in de adresbalk opende, draaide wat erin stond binnen de eigen origin van het
+  portaal — met de rechten van wie op dat moment was ingelogd. De opschoning bij de upload haalt
+  scripts eruit, maar dat is een filter op tekst en filters hebben gaten; de harde grens stond
+  in `.htaccess` en in de voorbeeldconfiguraties, en die gelden alleen als de webserver ze
+  uitvoert. Onder nginx doet `.htaccess` niets, en op Plesk levert nginx statische bestanden
+  vaak zelf uit. Een nieuw logo komt daarom buiten de webmap te staan (`branding/` in de
+  opslagmap) en gaat via het nieuwe `logo.php` naar buiten, dat er zelf een `sandbox`-policy op
+  zet. Een bestaand logo in `assets/` blijft gewoon werken en verhuist bij de eerstvolgende
+  upload. Voor beheerders verandert er niets: uploaden werkt hetzelfde.
 - **Geen e-mailadressen en IP-adressen meer in de tellertabel.** De rem op het aanvragen van
   inlogcodes en op inlogpogingen telde per `code:jan@example.nl` en `ip:1.2.3.4`, en zette die
   sleutel zo in de database. Die tabel hoeft alleen te tellen: de sleutel is nu een HMAC met

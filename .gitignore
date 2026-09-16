@@ -16,8 +16,10 @@ config.local.php
 .DS_Store
 
 # Het via Beheer > Instellingen geüploade logo hoort bij één installatie, niet
-# bij de code. De rest van assets/ (djm.css en assets/vendor/) hoort er wél in:
-# zonder die bestanden heeft een verse checkout geen opmaak.
+# bij de code. Sinds versie 1.2 komt het in opslag/branding/ te staan (die map
+# valt al onder opslag/* hierboven); deze regels zijn er voor installaties waar
+# het nog in assets/ staat. De rest van assets/ (djm.css en assets/vendor/)
+# hoort er wél in: zonder die bestanden heeft een verse checkout geen opmaak.
 assets/logo.png
 assets/logo.jpg
 assets/logo.webp

@@ -234,7 +234,7 @@ portaal zelf uit en meet het elke byte.
 
 | Onderdeel | Wat staat er |
 |---|---|
-| Portaal | Naam, merkkleur, logo, welkomsttekst, contactadres. **Portaal ingeschakeld** uitzetten sluit de inlogpagina: niemand kan dan een inlogcode aanvragen, bijvoorbeeld tijdens onderhoud. Wie al is ingelogd, wordt niet uitgelogd. |
+| Portaal | Naam, merkkleur, logo, welkomsttekst, contactadres. Een geüpload logo (PNG, JPEG, WEBP of SVG) komt buiten de webmap te staan en gaat via `logo.php` naar buiten; zo kan er niets uit een SVG in de browser van een bezoeker draaien. **Portaal ingeschakeld** uitzetten sluit de inlogpagina: niemand kan dan een inlogcode aanvragen, bijvoorbeeld tijdens onderhoud. Wie al is ingelogd, wordt niet uitgelogd. |
 | E-mail | Afzenderadres en -naam, Microsoft Graph-gegevens, SMTP als terugvaloptie |
 | Inloggen | Geldigheid van codes, aantal pogingen, limieten, sessieduur, "onthoud dit apparaat", bewaartermijn logboek |
 | Mailsjablonen | Onderwerp en tekst van de inlogcode- en uitnodigingsmail |

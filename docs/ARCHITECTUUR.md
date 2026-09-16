@@ -20,6 +20,7 @@ verifieer.php               code invoeren
 logout.php
 download.php                toegangscontrole + uitlevering
 zelftest.php                testbestand van de uitleveringszelftest (ondertekend, geen sessie)
+logo.php                    het geüploade logo, met een sandbox-policy (geen sessie)
 portaal/index.php           overzicht jaargangen van de ingelogde deelnemer
 includes/auth.php           sessies, CSRF, deelnemer- en beheerderidentiteit
 includes/otp.php            codes genereren, versturen, verifiëren, throttling
@@ -42,7 +43,7 @@ admin/wachtwoord_vergeten.php  resetlink aanvragen (zonder sessie)
 admin/wachtwoord_instellen.php wachtwoord kiezen via de link (zonder sessie)
 assets/handleiding/         schermafdrukken voor de handleiding (gemaakt door test/handleiding.sh)
 admin/*.php                 beheerinterface
-opslag/                     videobestanden (niet publiek benaderbaar)
+opslag/                     videobestanden en branding/logo.<ext> (niet publiek benaderbaar)
 ```
 
 ## Vaste afspraken
@@ -147,6 +148,15 @@ leesrechten die de app bewust niet heeft. Levert die een 403 met
 `Authorization_RequestDenied`, dan staat `mailbox_conclusief` op `false`: de uitslag
 zegt dan niets over het verzenden en wordt in Beheer als *niet te controleren*
 getoond in plaats van als fout.
+
+**opmaak.php:** `branding_kleur()`, `branding_tekstkleur()`, `branding_logo()`, `djm_head()`,
+`djm_asset()`, `djm_favicon()`, plus het geüploade logo: `logo_map()`, `logo_oude_map()`,
+`logo_pad()`, `logo_bestandsnaam()`, `logo_bestanden_verwijderen()`, `logo_mime()`.
+Een geüpload logo staat in `branding/` binnen de opslagmap en gaat uitsluitend via `logo.php`
+naar buiten, dat er een `sandbox`-policy op zet. Een SVG is namelijk XML en mag scripts
+bevatten; komt zo'n bestand rechtstreeks uit de webroot, dan draait dat binnen onze eigen
+origin. `logo_oude_map()` (assets/) is er voor installaties van vóór deze wijziging: hun logo
+blijft werken en verhuist bij de eerstvolgende upload.
 
 **layout.php:** `portaal_start($titel, ['email' => …, 'intro' => …, 'smal' => true])`,
 `portaal_eind()`, `toon_flash()`, `toon_fout()`,

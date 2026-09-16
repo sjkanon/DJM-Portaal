@@ -143,6 +143,9 @@ bevat "een nieuwe link maakt de vorige ongeldig" "werkt niet (meer)" "$(haal "$L
 UIT=$(kies_wachtwoord "$LOS" "$NIEUWE_LINK" "TweedeWachtwoord2026" "TweedeWachtwoord2026")
 bevat "nieuw wachtwoord opgeslagen" "Uw wachtwoord is opgeslagen" "$UIT"
 toets "oude wachtwoord werkt niet meer" "302" "$(inloggen "$LOS" nieuw@example.nl EersteWachtwoord2026)"
+# In $NIEUW zit nog de sessie van vóór de wachtwoordwijziging. Precies daarvoor
+# wissel je een wachtwoord: wie al binnen was, hoort eruit te vliegen.
+toets "de sessie van vóór de wijziging is weg" "302" "$(status "$NIEUW" "$BASIS/admin/index.php")"
 toets "nieuwe wachtwoord werkt" "200" "$(inloggen "$NIEUW" nieuw@example.nl TweedeWachtwoord2026)"
 
 echo ""
@@ -175,6 +178,9 @@ toets "weer ingeschakeld, eigen wachtwoord werkt" "200" "$(inloggen "$NIEUW" nie
 echo ""
 echo "── Wachtwoord vergeten ─────────────────────────────────────"
 sql "DELETE FROM aanvraag_limiet" >/dev/null
+# Ook het logboek, anders telt de regel van een vorige run mee: twee runs achter
+# elkaar duren samen minder dan de minuut waarover hieronder geteld wordt.
+sql "DELETE FROM login_log WHERE soort='admin_reset'" >/dev/null
 postbus_leeg
 : > "$LOS"
 vergeten() { # vergeten email → "tijd<TAB>html"

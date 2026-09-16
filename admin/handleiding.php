@@ -516,7 +516,7 @@ admin_start('Handleiding', 'Hoe het portaal werkt en wat u in elk scherm doet â€
                 <div class="row g-3">
                     <div class="col-md-6">
                         <?php handleiding_figuur('beheer-instellingen-portaal', 'Instellingen: portaal', [
-                            'bijschrift' => 'Portaal: naam, merkkleur, logo, welkomsttekst en contactadres. Zet "Portaal ingeschakeld" uit tijdens onderhoud: dan kan niemand een code aanvragen.',
+                            'bijschrift' => 'Portaal: naam, merkkleur, logo, welkomsttekst en contactadres. Een geÃ¼pload logo (PNG, JPEG, WEBP of SVG) komt buiten de webmap te staan en wordt door het portaal zelf uitgeleverd. Zet "Portaal ingeschakeld" uit tijdens onderhoud: dan kan niemand een code aanvragen.',
                         ]); ?>
                     </div>
                     <div class="col-md-6">

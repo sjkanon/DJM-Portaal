@@ -41,40 +41,10 @@ function inst_vinkje(string $veld): string
 }
 
 // ─── Logo-upload ─────────────────────────────────────────────────────────────
-
-/** Maximale grootte van een geüpload logo: 2 MB. */
-const LOGO_MAX_BYTES = 2097152;
-
-/** Extensies waaronder een geüpload logo kan staan. */
-const LOGO_EXTENSIES = ['png', 'jpg', 'webp', 'svg'];
-
-/** Absoluut pad van de map waarin het logo terechtkomt. */
-function logo_map(): string
-{
-    return APP_ROOT . '/assets';
-}
-
-/** Het geüploade logo dat er nu staat, of null als er geen is. */
-function logo_bestandsnaam(): ?string
-{
-    foreach (LOGO_EXTENSIES as $ext) {
-        if (is_file(logo_map() . '/logo.' . $ext)) {
-            return 'logo.' . $ext;
-        }
-    }
-    return null;
-}
-
-/** Gooit elk eerder geüpload logo weg, zodat er altijd maar één overblijft. */
-function logo_bestanden_verwijderen(): void
-{
-    foreach (LOGO_EXTENSIES as $ext) {
-        $pad = logo_map() . '/logo.' . $ext;
-        if (is_file($pad)) {
-            @unlink($pad);
-        }
-    }
-}
+//
+// De map, de toegestane extensies en het opzoeken van het huidige logo staan in
+// includes/opmaak.php: logo.php heeft ze ook nodig en dat bestand kent het
+// beheer niet. Hier staat alleen wat bij het uploaden hoort.
 
 /**
  * Maakt de inhoud van een SVG onschadelijk.
@@ -175,10 +145,11 @@ function logo_verwerken(): ?string
 
     $map = logo_map();
     if (!is_dir($map) && !@mkdir($map, 0775, true) && !is_dir($map)) {
-        return 'De map assets/ kon niet worden aangemaakt; het logo is niet opgeslagen.';
+        return 'De map ' . $map . ' kon niet worden aangemaakt; het logo is niet opgeslagen. '
+            . 'Vraag de technisch beheerder de webserver schrijfrechten te geven op de opslagmap.';
     }
     if (!is_writable($map)) {
-        return 'De map assets/ is niet schrijfbaar; het logo is niet opgeslagen.';
+        return 'De map ' . $map . ' is niet schrijfbaar; het logo is niet opgeslagen.';
     }
 
     // Eerst opruimen, zodat er nooit twee logo's met verschillende extensie zijn.
@@ -190,12 +161,14 @@ function logo_verwerken(): ?string
         ? @file_put_contents($doel, $svgInhoud) !== false
         : @move_uploaded_file($tijdelijk, $doel);
     if (!$gelukt) {
-        return 'Het logo kon niet worden opgeslagen in de map assets/.';
+        return 'Het logo kon niet worden opgeslagen in de map ' . $map . '.';
     }
     @chmod($doel, 0644);
 
-    // Cachebuster, zodat een vervangen logo meteen zichtbaar is.
-    instelling_opslaan('branding_logo_url', url('assets/' . $naam) . '?v=' . time());
+    // Cachebuster, zodat een vervangen logo meteen zichtbaar is. Het adres wijst
+    // naar logo.php: alleen daar krijgt het bestand de Content-Security-Policy
+    // mee die een SVG onschadelijk maakt, ook als hij rechtstreeks geopend wordt.
+    instelling_opslaan('branding_logo_url', url('logo.php') . '?v=' . time());
     return null;
 }
 
@@ -405,7 +378,7 @@ $kleur   = preg_match('/^#[0-9A-Fa-f]{6}$/', inst_waarde('branding_kleur', '#0d6
 $logoBestand = logo_bestandsnaam();
 $huidigLogo  = inst_waarde('branding_logo_url');
 if ($huidigLogo === '' && $logoBestand !== null) {
-    $huidigLogo = url('assets/' . $logoBestand);
+    $huidigLogo = url('logo.php');
 }
 
 admin_start('Instellingen', 'Portaal, e-mail, inloggen en mailsjablonen');
@@ -478,7 +451,8 @@ admin_start('Instellingen', 'Portaal, e-mail, inloggen en mailsjablonen');
                     accept="image/png,image/jpeg,image/webp,image/svg+xml">
                 <div class="form-text">
                     PNG, JPEG, WEBP of SVG, maximaal <?= h(formatteer_bytes(LOGO_MAX_BYTES)) ?>.
-                    Het bestand komt in <code>assets/</code> te staan en overschrijft de logo-URL hiernaast.
+                    Het bestand komt buiten de webmap te staan en gaat via <code>logo.php</code> naar buiten;
+                    de logo-URL hiernaast wordt daarop gezet.
                 </div>
             </div>
             <div class="col-md-6">
@@ -1042,6 +1016,8 @@ if ($deliveryMode !== 'auto') {
 $heeftAppKey = env('APP_KEY') !== '';
 $heeftPepper = env('OTP_PEPPER') !== '';
 
+// Voor het uploaden van een logo moet de brandingmap er zijn of aangemaakt
+// kunnen worden; hij hangt onder de opslagmap en niet meer onder assets/.
 $assetsMap     = logo_map();
 $assetsBestaat = is_dir($assetsMap);
 $assetsSchrijf = $assetsBestaat ? is_writable($assetsMap) : is_writable(dirname($assetsMap));
@@ -1094,7 +1070,7 @@ $aantalDeelnemers = inst_aantal('deelnemers');
                     </td>
                 </tr>
                 <tr>
-                    <th>Map assets/ (logo-upload)</th>
+                    <th>Map voor het logo</th>
                     <td>
                         <code class="pad"><?= h($assetsMap) ?></code><br>
                         <?php if ($assetsBestaat && $assetsSchrijf): ?>

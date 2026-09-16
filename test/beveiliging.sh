@@ -157,6 +157,35 @@ for SERVER in "PHP-server|http://localhost:8123" "nginx|http://localhost:8126" "
 done
 
 echo ""
+echo "── Het logo gaat via logo.php ──────────────────────────────"
+# Een SVG is geen plaatje maar XML en mag scripts bevatten. Komt zo'n bestand
+# rechtstreeks uit de webroot, dan draait wat erin staat binnen onze eigen
+# origin. Het hoort dus buiten de webmap te staan en alleen via logo.php naar
+# buiten te gaan, met een sandbox-policy erop.
+mkdir -p ../opslag/branding
+printf '<svg xmlns="http://www.w3.org/2000/svg"><circle r="4"/></svg>' > ../opslag/branding/logo.svg
+LOGOKOPPEN=$(curl -s -D - -o /dev/null http://localhost:8123/logo.php)
+toets "logo.php levert het logo uit"      "200" "$(status http://localhost:8123/logo.php)"
+bevat "met een sandbox-policy"            "sandbox" "$LOGOKOPPEN"
+bevat "met nosniff"                       "x-content-type-options: nosniff" "$LOGOKOPPEN"
+bevat "als image/svg+xml"                 "content-type: image/svg+xml" "$LOGOKOPPEN"
+for SERVER in "nginx|http://localhost:8126" "Apache|http://localhost:8127"; do
+    NAAM=${SERVER%%|*}; BASIS=${SERVER#*|}
+    CODE=$(status "$BASIS/opslag/branding/logo.svg")
+    if [ "$CODE" = "200" ]; then
+        printf '  ✗ %s levert het logobestand rechtstreeks uit (200)\n' "$NAAM"; FOUT=$((FOUT+1))
+    else
+        printf '  ✓ %s houdt het logobestand dicht (%s)\n' "$NAAM" "$CODE"; GOED=$((GOED+1))
+    fi
+done
+# En zonder logo een nette 404 die diezelfde headers draagt: een 404 van vandaag
+# is het logo van morgen.
+rm -f ../opslag/branding/logo.svg
+LEEGKOPPEN=$(curl -s -D - -o /dev/null http://localhost:8123/logo.php)
+toets "zonder logo een 404"               "404" "$(status http://localhost:8123/logo.php)"
+bevat "ook die 404 is gesandboxed"        "sandbox" "$LEEGKOPPEN"
+
+echo ""
 echo "── Beheer eist een sessie ──────────────────────────────────"
 for PAD in index.php jaargangen.php bestanden.php bestandscontrole.php toegang.php \
            deelnemers.php logboek.php beheerders.php instellingen.php handleiding.php; do
