@@ -24,12 +24,19 @@ require_once __DIR__ . '/includes/download_helper.php';
 
 vereis_installatie();
 
+// Ook een downloadeindpunt verdient de securityheaders. Het levert HTML uit bij
+// een fout, en de bytes zelf gaan bij DELIVERY_MODE=php gewoon langs PHP. Zonder
+// deze aanroep hangt dat eindpunt aan de webserverconfiguratie: .htaccess geldt
+// niet onder nginx, en een los nginx-blok wordt makkelijk vergeten.
+// download_content_headers() zet Content-Type en Cache-Control daarna nog eens
+// preciezer; een tweede header() met dezelfde naam vervangt de eerste.
+stuur_security_headers();
+
 /** Minimale foutpagina: geen CDN, geen layout, want dit is een downloadendpoint. */
 function download_foutpagina(int $code, string $kop, string $tekst, string $knop = 'Terug naar het overzicht', string $doel = 'portaal/index.php'): void
 {
     http_response_code($code);
     header('Content-Type: text/html; charset=UTF-8');
-    header('Cache-Control: no-store, private');
     echo '<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8">'
         . '<meta name="viewport" content="width=device-width, initial-scale=1">'
         . '<title>' . h($kop) . '</title></head>'

@@ -136,6 +136,15 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
   bestand. Voorheen bleef een browser na een wijziging zonder nieuwe versie de oude opmaak
   gebruiken — waardoor onder meer het logo op volle grootte in de balk verscheen.
 
+### Beveiliging
+
+- **Het downloadeindpunt stuurt nu zelf securityheaders mee.** `download.php` en `zelftest.php`
+  leunden daarvoor op de webserver: `.htaccess` doet niets onder nginx, en een los nginx-blok
+  wordt over het hoofd gezien. Ze sturen nu dezelfde `Content-Security-Policy`, `X-Frame-Options`,
+  `Referrer-Policy` en `nosniff` als elke andere pagina — ook op de foutpagina's die het eindpunt
+  bij een verlopen sessie of een onbekend bestand toont. De uitlevering zelf verandert niet:
+  `download_content_headers()` zet `Content-Type` en `Cache-Control` daarna nog steeds preciezer.
+
 ## 1.1.0 — 12 september 2026
 
 ### Plesk en andere hostingpanelen

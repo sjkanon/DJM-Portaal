@@ -19,6 +19,7 @@ require_once __DIR__ . '/includes/download_helper.php';
 require_once __DIR__ . '/includes/uitlevering_helper.php';
 
 vereis_installatie();
+stuur_security_headers();
 
 // ─── Handtekening ───────────────────────────────────────────────────────────
 $vervalt      = (int)($_GET['t'] ?? 0);
