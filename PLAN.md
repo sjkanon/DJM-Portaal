@@ -62,7 +62,7 @@ download_log         id, deelnemer_id, bestand_id, ip, user_agent, gestart_op,
 
 mail_log             id, ontvanger, onderwerp, soort, status, foutmelding, verzonden_op
 
-aanvraag_limiet      sleutel (email/ip), teller, venster_start   -- rate limiting
+aanvraag_limiet      sleutel (hmac van email/ip), teller, venster_start   -- rate limiting
 
 beheerders           id, naam, email, wachtwoord_hash, rol, actief, laatst_ingelogd
 

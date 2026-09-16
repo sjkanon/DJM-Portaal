@@ -74,8 +74,10 @@ function otp_aanvragen(string $email, array &$fouten = []): array
         $maxIp    = instelling_int('otp_max_per_ip', 10);
         $ip       = client_ip();
 
-        $emailSleutel = 'code:' . $email;
-        $ipSleutel    = $ip !== '' ? 'ip:' . $ip : '';
+        // De sleutels zijn HMAC's: de tabel telt alleen, en hoeft geen
+        // e-mailadres of IP-adres te bewaren. Zie limiet_sleutel().
+        $emailSleutel = limiet_sleutel('code', $email);
+        $ipSleutel    = $ip !== '' ? limiet_sleutel('ip', $ip) : '';
 
         $binnenLimiet = otp_rate_limit_check($emailSleutel, $maxEmail, OTP_VENSTER_EMAIL)
             && ($ipSleutel === '' || otp_rate_limit_check($ipSleutel, $maxIp, OTP_VENSTER_IP));
@@ -352,7 +354,7 @@ function otp_verificatie_toegestaan(): bool
     if ($ip === '') {
         return true;
     }
-    return otp_rate_limit_check('verif:' . $ip, OTP_MAX_VERIFICATIES, OTP_VENSTER_VERIFICATIE);
+    return otp_rate_limit_check(limiet_sleutel('verif', $ip), OTP_MAX_VERIFICATIES, OTP_VENSTER_VERIFICATIE);
 }
 
 /** Telt een codepoging mee voor de rem hierboven. */
@@ -360,7 +362,7 @@ function otp_verificatie_tellen(): void
 {
     $ip = client_ip();
     if ($ip !== '') {
-        otp_rate_limit_tellen('verif:' . $ip, OTP_VENSTER_VERIFICATIE);
+        otp_rate_limit_tellen(limiet_sleutel('verif', $ip), OTP_VENSTER_VERIFICATIE);
     }
 }
 

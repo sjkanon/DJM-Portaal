@@ -138,6 +138,12 @@ Alle noemenswaardige wijzigingen aan het DJM Portaal.
 
 ### Beveiliging
 
+- **Geen e-mailadressen en IP-adressen meer in de tellertabel.** De rem op het aanvragen van
+  inlogcodes en op inlogpogingen telde per `code:jan@example.nl` en `ip:1.2.3.4`, en zette die
+  sleutel zo in de database. Die tabel hoeft alleen te tellen: de sleutel is nu een HMAC met
+  `APP_KEY`, zoals het beheer al deed. Het logboek legt onveranderd vast wie wat deed — daar is
+  het voor — maar een back-up van deze werktabel is nu geen persoonsgegeven meer. De remmen zelf
+  werken precies hetzelfde; lopende vensters beginnen na het bijwerken één keer opnieuw.
 - **Een nieuw wachtwoord logt alle beheersessies uit.** Koos een beheerder via *Wachtwoord
   vergeten* of via een resetlink een nieuw wachtwoord, dan bleven openstaande sessies met het
   óúde wachtwoord gewoon doorlopen — een PHP-sessie hangt immers aan een cookie en niet aan een

@@ -775,6 +775,27 @@ function otp_pepper(): string
     return $pepper;
 }
 
+/**
+ * Sleutel voor een teller in de tabel `aanvraag_limiet`.
+ *
+ * De rem moet aanvragen van hetzelfde e-mailadres of hetzelfde IP-adres bij
+ * elkaar kunnen optellen; wát daar staat hoeft hij nooit te weten. Daarom gaat
+ * de waarde er als HMAC met APP_KEY in en niet als zichzelf. Zo staan er geen
+ * e-mailadressen en IP-adressen in een tabel die daar niet voor is — het
+ * logboek legt bewust wél vast wie wat deed, deze werktabel hoeft dat niet te
+ * herhalen, en een back-up ervan is dan geen persoonsgegeven meer.
+ *
+ * Veertig tekens is ruim: de kans op een botsing is verwaarloosbaar, en een
+ * botsing zou hooguit twee tellers laten samenvallen.
+ *
+ * Let op: de sleutel verandert mee met APP_KEY. Wisselt die, dan beginnen de
+ * lopende vensters opnieuw; de nachtelijke taak ruimt de oude regels op.
+ */
+function limiet_sleutel(string $soort, string $waarde): string
+{
+    return $soort . ':' . substr(hash_hmac('sha256', $waarde, app_key()), 0, 40);
+}
+
 // ─── Logboekhelpers ──────────────────────────────────────────────────────────
 function log_login(string $soort, ?string $email, bool $gelukt, string $detail = ''): void
 {

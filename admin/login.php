@@ -85,7 +85,7 @@ try {
     app_log('beheerders tellen mislukt', ['fout' => $e->getMessage()]);
 }
 
-$limietSleutel = 'admin:' . client_ip();
+$limietSleutel = limiet_sleutel('admin', client_ip());
 $teVaak        = admin_limiet_teller($limietSleutel, ADMIN_LOGIN_VENSTER_MINUTEN) >= ADMIN_LOGIN_MAX_POGINGEN;
 
 $terugParameter = (string)($_POST['terug'] ?? $_GET['terug'] ?? '');

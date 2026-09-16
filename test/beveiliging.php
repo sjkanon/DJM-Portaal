@@ -108,6 +108,26 @@ unset($_SERVER['HTTP_X_FORWARDED_FOR']);
 // De volledige matrix mét een proxylijst staat in test/proxy_test.php; die moet
 // in een eigen proces draaien omdat vertrouwde_proxies() de lijst cachet.
 
+// ─── Sleutels van de rem ─────────────────────────────────────────────────────
+echo "  Rate-limitsleutels\n";
+// De tabel aanvraag_limiet telt alleen; er hoort geen e-mailadres of IP-adres
+// in te staan dat later uit een back-up te lezen is.
+$sleutel = limiet_sleutel('code', 'ouder@example.nl');
+toets('het adres staat niet in de sleutel', false, str_contains($sleutel, 'ouder@example.nl'));
+toets('het soort blijft leesbaar', true, str_starts_with($sleutel, 'code:'));
+toets('zelfde adres geeft dezelfde sleutel', $sleutel, limiet_sleutel('code', 'ouder@example.nl'));
+toets(
+    'een ander adres geeft een andere sleutel',
+    false,
+    $sleutel === limiet_sleutel('code', 'andere@example.nl')
+);
+toets(
+    'hetzelfde adres in een ander soort telt apart',
+    false,
+    $sleutel === limiet_sleutel('ip', 'ouder@example.nl')
+);
+toets('de sleutel past in de kolom', true, strlen(limiet_sleutel('adminreset-ip', '2001:db8::5')) <= 190);
+
 // ─── Beheerderssessies ───────────────────────────────────────────────────────
 echo "  Beheerderssessies\n";
 require_once dirname(__DIR__) . '/includes/auth.php';

@@ -80,7 +80,7 @@ Een wijziging die een beheerder of deelnemer kan merken, is pas af als de handle
 `formatteer_bytes()`, `formatteer_datum()`, `app_base_url()`, `url()`, `opslag_pad()`,
 `opslag_absoluut_pad()`, `normaliseer_email()`, `geldig_email()`, `client_ip()`,
 `client_ip_bin()`, `ip_leesbaar()`, `client_user_agent()`, `app_key()`, `otp_pepper()`,
-`log_login()`, `app_log()`, `stuur_security_headers()`, `vereis_installatie()`,
+`log_login()`, `app_log()`, `limiet_sleutel()`, `stuur_security_headers()`, `vereis_installatie()`,
 `ensure_session_started()`, `destroy_current_session()`, `app_url_afwijking()`,
 `https_actief()`, `veilige_host()`, `vertrouwde_proxies()`, `is_vertrouwde_proxy()`,
 `ip_in_bereik()`, `geldig_ip_of_bereik()`.
@@ -192,7 +192,9 @@ uitsluitend via `opslag_absoluut_pad()` naar een absoluut pad omgezet.
    `hash_hmac('sha256', $code, otp_pepper())`.
 3. Codes: 6 cijfers, standaard 10 minuten geldig, maximaal 5 verificatiepogingen, eenmalig
    bruikbaar, gebonden aan de browsersessie via `challenge_id`.
-4. Rate limiting per e-mailadres én per IP via de tabel `aanvraag_limiet`.
+4. Rate limiting per e-mailadres én per IP via de tabel `aanvraag_limiet`. De sleutel is
+   altijd een HMAC met `APP_KEY` (`limiet_sleutel()`, of `admin_email_sleutel()` voor het
+   beheer): de tabel telt alleen en hoeft geen e-mailadres of IP-adres te bewaren.
 5. Bestandspaden komen nooit uit gebruikersinvoer: id → database → `opslag_absoluut_pad()`.
    `download.php` stuurt nooit door naar een gewone pagina en antwoordt nooit met status 200 op
    iets anders dan bestandsbytes: een browser of downloadmanager bewaart zo'n pagina als bestand,

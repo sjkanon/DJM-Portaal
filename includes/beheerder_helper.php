@@ -89,11 +89,12 @@ function admin_limiet_wissen(string $sleutel): void
 
 /**
  * Sleutel voor een rem per e-mailadres. In de tabel komt alleen een hash: daar
- * hoeft geen e-mailadres in te staan.
+ * hoeft geen e-mailadres in te staan. Zie limiet_sleutel() in config.php, dat
+ * hetzelfde doet voor de rem van het portaal.
  */
 function admin_email_sleutel(string $voorvoegsel, string $email): string
 {
-    return $voorvoegsel . ':' . substr(hash_hmac('sha256', $email, app_key()), 0, 40);
+    return limiet_sleutel($voorvoegsel, $email);
 }
 
 /**

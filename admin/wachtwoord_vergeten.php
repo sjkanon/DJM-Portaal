@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     vereis_csrf();
     $start     = microtime(true);
     $email     = normaliseer_email((string)($_POST['email'] ?? ''));
-    $ipSleutel = 'adminreset-ip:' . client_ip();
+    $ipSleutel = limiet_sleutel('adminreset-ip', client_ip());
 
     if (!geldig_email($email)) {
         $fout = 'Vul een geldig e-mailadres in.';

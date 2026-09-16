@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS remember_tokens (
 
 -- ─── Rate limiting (codeaanvraag én verificatie) ───────────────────────────
 CREATE TABLE IF NOT EXISTS aanvraag_limiet (
-    sleutel      VARCHAR(190) NOT NULL,            -- bv. 'code:jan@example.nl' of 'ip:1.2.3.4'
+    sleutel      VARCHAR(190) NOT NULL,            -- 'code:<hmac>', 'ip:<hmac>' — zie limiet_sleutel()
     teller       INT UNSIGNED NOT NULL DEFAULT 0,
     venster_start DATETIME NOT NULL,
     PRIMARY KEY (sleutel),
